@@ -90,7 +90,13 @@ function out = adjustVCEjoint(accFcn, opt)
 %                            that enumerates the arcs first; finite and > 0
 %                            (WP-134: a 0 reached the clamp, a NaN stayed)
 %     'MaxIter'   1x1 int    outer iterations (default 10)
-%     'Tol'       1x1        convergence on max|alpha2 - 1| (default 1e-2)
+%     'Tol'       1x1        the stop rule's tolerance (default 1e-2): every
+%                            spectral bin j moved by at most Tol max(1,
+%                            sqrt(200 / r_j)) -- Tol for a bin of redundancy
+%                            r_j >= 200, growing with the bin's own standard
+%                            error sqrt(2 / r_j) below that (at 1e-2 a tenth
+%                            of it; WP-147) -- and every arc factor and
+%                            PriorDev by at most Tol
 %     'Probes'    1x1 int    Z Hutchinson probes (default 100, Ellmer's value)
 %     'Seed'      1x1 | []   RNG seed for reproducible probes (default []: one
 %                            seed is pinned for the run and returned, out.seed)
@@ -226,11 +232,18 @@ function out = adjustVCEjoint(accFcn, opt)
 %                             its previous factor
 %       .acc       1x1        the final accumulator
 %       .sol       1x1        the final solution struct
-%       .converged 1x1 logical whether max|alpha2-1|, every factor's change
-%                             and PriorDev's change fell below Tol
+%       .converged 1x1 logical whether every bin settled (binRatio <= 1),
+%                             and every factor's change and PriorDev's
+%                             change fell below Tol
 %       .nIter     1x1        outer iterations actually run
-%       .history   struct     .maxDev (nIter x 1), .S (nIter x L), .levelDev,
-%                             .priorDev (nIter x 1, 0 without PriorDev)
+%       .history   struct     .maxDev (nIter x 1, max abs(alpha2 - 1): a
+%                             reading), .binRatio (nIter x 1, the stop
+%                             quantity: max over bins of the bin's change
+%                             over Tol max(1, sqrt(200 / r_j)); <= 1 settled),
+%                             .xStep (nIter x 1, max abs change of x over its
+%                             standard error since the pass before; NaN on
+%                             pass 1), .S (nIter x L), .levelDev, .priorDev
+%                             (nIter x 1, 0 without PriorDev)
 %
 %   EXAMPLE
 %     accFcn = @(model) buildAccumulatorWithModel(cfg, model);
@@ -304,6 +317,12 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-147: a spectral bin has settled
+%   when it moved by at most Tol max(1, sqrt(200 / r_j)) -- at the default
+%   Tol a tenth of its own standard error where that exceeds Tol;
+%   .history carries binRatio (the stop quantity) and xStep, and the
+%   not-converged warning names the bins that still move and the solution's
+%   last step. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): the
 %   prior pseudo-streams are recognised by lsqvce.util.priorStream on their
 %   obsType (the stream key was parsed for '|prior_'); ACCURACY. With
@@ -512,7 +531,8 @@ end
 
     hist = struct('maxDev', [], 'S', [], 'skips', {cell(0,3)}, ...
                   'streams', {{}}, 'sigma', [], 'white', [], 'whitePval', [], 'levelDev', [], ...
-                  'priorDev', []);
+                  'priorDev', [], 'binRatio', [], 'xStep', []);
+    xPrev = [];                          % WP-147: x of the pass before, for .xStep
     converged = false;  userStop = false;
     accF = []; solF = [];
     Smap = containers.Map('KeyType', 'char', 'ValueType', 'any');   % R5 M3 3d: the law per pool group
@@ -677,7 +697,8 @@ end
         % group (all lags, the arc's own variance); the update is Helmert's
         % ratio per bin and the new law is rescaled to r(0) = 1 -- the level
         % change it carried moves into the factors through alpha2 below.
-        pvMax = 0;
+        % WP-147: binMax and blocking -- the bins' stop test (binsAgainstBound)
+        pvMax = 0;  binMax = 0;  blocking = cell(0, 6);
         for g = 1:numel(groups)
             cols = lawCols & strcmp(grpOf, groups{g});
             Sg = S;  if isKey(Smap, groups{g}), Sg = Smap(groups{g}); end
@@ -686,12 +707,13 @@ end
             Smap(groups{g}) = pvg.Shat / (Kc(1, :) * pvg.Shat);
             Cmap(groups{g}) = Kc * Smap(groups{g});
             pvMax = max(pvMax, pvg.maxDev);
+            [binMax, blocking] = binsAgainstBound(pvg, o.Tol, groups{g}, binMax, blocking);
         end
         if ~isempty(groups)
             if isKey(Smap, 'all'), S = Smap('all'); else, S = Smap(groups{1}); end
             C = Kc * S;
         end
-        pv = struct('maxDev', pvMax);
+        pv = struct('maxDev', pvMax, 'binRatio', binMax);
         s2Cols = cellfun(@(k) s2Map(k), keys(:));    % survived, keyed lookup
         % R6 WP-98 (finding F-01): eq. 6.5.28 multiplies alpha2_m by the factor
         % the WEIGHTING used. What the weighting used is the per-STREAM level --
@@ -825,7 +847,7 @@ end
             end
         end
 
-        hist.maxDev(it,1)  = pv.maxDev;              %#ok<AGROW>
+        [hist, xPrev] = recordStep(hist, it, pv, sol, xPrev);   % maxDev, WP-147 binRatio / xStep
         % R7-11: the LEVELS and ARC FACTORS are free components too. A run
         % whose only free components are levels (no "law" stream: pvMax = 0)
         % stopped "converged" on pass 1 under the DECLARED weights, and prior
@@ -849,9 +871,9 @@ end
         hist.whitePval(it, :) = pRow;                %#ok<AGROW>
 
         if v
-            lsqvce.util.log.msg(['  [joint %2d] max|alpha2-1| = %.4e   ' ...
-                'arcs = %d   gammaBar (per stream) = %s\n'], it, pv.maxDev, nArc, ...
-                mat2str(av.gammaBar, 4));
+            lsqvce.util.log.msg(['  [joint %2d] max|alpha2-1| = %.4e   bins %.2f of ' ...
+                'their bound   arcs = %d   gammaBar (per stream) = %s\n'], it, pv.maxDev, ...
+                pv.binRatio, nArc, mat2str(av.gammaBar, 4));
         end
 
         % ---- step 9b: the user's per-pass inspection hook (R5 M5 5c') -----
@@ -861,26 +883,22 @@ end
                      'sigma2', sigma2, 'arcKeys', {pinnedKeys}, 'streams', {hist.streams}, ...
                      'sigma', hist.sigma(it, :), 'white', hist.white(it, :), ...
                      'whitePval', hist.whitePval(it, :), 'maxDev', pv.maxDev, ...
+                     'binRatio', pv.binRatio, 'xStep', hist.xStep(it), ...   % WP-147
                      'skips', {skips}, 'acc', acc, ...
                      'factor', fac, 'keys', {rkeys}, 'scale', rscale);   % R6 WP-105 ([] when Influence "none")
         userStop = ~lsqvce.util.onPass(opt.OnPass, opt.OnPassContext, ctx);
 
         % ---- step 10: converged? -----------------------------------------
-        if pv.maxDev <= o.Tol && levelDev <= o.Tol && priorDev <= o.Tol && ~priorPending
+        if pv.binRatio <= 1 && levelDev <= o.Tol && priorDev <= o.Tol && ~priorPending
             converged = true;
             break
         end
         if userStop, break, end
     end
 
-    if ~converged && ~userStop
-        lsqvce.util.log.warn('lsqvce:adjustVCEjoint:notConverged', ...
-           ['The joint stochastic model did not settle in %d outer iterations ' ...
-            '(last max|alpha2-1| = %.3e, last max level change %.3e, last prior change ' ...
-            '%.3e, tol %.1e). Inspect out.history.S, .levelDev and .priorDev: a spectrum ' ...
-            'that keeps moving usually means too few arcs per frequency, a prior that ' ...
-            'keeps moving a declared sigma far from the data.'], ...
-            o.MaxIter, hist.maxDev(end), hist.levelDev(end), hist.priorDev(end), o.Tol);
+    if ~converged && ~userStop           % WP-147: the text says what still moves
+        lsqvce.util.log.warn('lsqvce:adjustVCEjoint:notConverged', '%s', ...
+            notSettledMessage(o.MaxIter, o.Tol, hist, blocking));
     end
 
     arcSpreadGuard(spreadHist);          % R6 WP-97 (F-01): report, never silence
@@ -1741,4 +1759,83 @@ function [streams, sig, white, pval] = whitenessRow(wstats, pinnedStream, sigma2
         pval(j)  = gammainc(Q/2, Ke/2, 'upper');     % 1 - chi2cdf(Q, K'), base MATLAB
         white(j) = pval(j) > 0.05;
     end
+end
+
+%==========================================================================
+function [binMax, blocking] = binsAgainstBound(pvg, tol, group, binMax, blocking)
+%BINSAGAINSTBOUND  The bins' stop test of one pool group (WP-147).
+%   A bin has SETTLED when it moved by at most tol max(1, sqrt(200 / r_j)):
+%   tol for a bin of redundancy >= 200, below that a bound that grows with
+%   the bin's own standard error sqrt(2 / r_j) -- at the default tol 1e-2 a
+%   tenth of it. Scaled BY tol, not floored at a tenth, so a tighter tol
+%   still tightens every bin (a floor would have made tol 1e-3 mean nothing
+%   for them). The plain max|alpha2 - 1| <= tol asked bins the data barely
+%   determine -- the zero-frequency bin the per-arc locals absorb, 60 bins on
+%   60-sample arcs -- for a precision a hundred times finer than their
+%   estimate has: 14-168 passes on the fixtures of HANDOVER 12.79, while x
+%   was within 0.1-0.2 of its standard error of the fixed point after 10. A
+%   run never stops later than under the plain rule (the bound is >= tol).
+%
+%   INPUT   pvg  1x1 struct  LSQVCE.ENGINE.PSDVCE's output (.dev, .redundancy)
+%           tol  1x1 double  the loop's Tol;  group  1xK char  the pool group
+%           binMax 1x1, blocking B x 6 cell  the running values of this pass
+%   OUTPUT  binMax  1x1  the largest dev_j / bound_j so far (<= 1: settled)
+%           blocking (B+b) x 6 cell  {group, bin, L, r_j, median r, dev_j} for
+%                   every bin of this group above its bound, worst first
+    bound = tol * max(1, sqrt(200 ./ max(pvg.redundancy, realmin)));
+    ratio = pvg.dev ./ bound;
+    binMax = max([binMax; ratio]);
+    [rs, ord] = sort(ratio, 'descend');
+    rMed = median(pvg.redundancy(pvg.redundancy > 0));
+    for j = reshape(ord(rs > 1), 1, [])
+        blocking(end+1, :) = {group, j, numel(ratio), pvg.redundancy(j), rMed, pvg.dev(j)}; %#ok<AGROW>
+    end
+end
+
+function [hist, xPrev] = recordStep(hist, it, pv, sol, xPrev)
+%RECORDSTEP  The pass's stop quantities into the history (WP-147).
+%   .maxDev (max abs(alpha2 - 1), a reading), .binRatio (the bins' stop
+%   quantity) and .xStep: the solution's largest change since the pass
+%   before in units of its own standard error sqrt(diag(Cxx)) sigma0 -- the
+%   number a user needs to judge a stop on the pass budget; NaN on pass 1
+%   or when the sizes do not match.
+%   INPUT   hist struct, it 1x1, pv 1x1 struct (.maxDev .binRatio), sol the
+%           pass's solution (.x .Cxx .sigma0), xPrev the previous x (or [])
+%   OUTPUT  hist with row it filled; xPrev = this pass's x
+    hist.maxDev(it, 1) = pv.maxDev;
+    hist.binRatio(it, 1) = pv.binRatio;
+    sx = sqrt(max(diag(sol.Cxx), 0)) * sol.sigma0;
+    step = NaN;
+    if numel(xPrev) == numel(sol.x) && numel(sx) == numel(sol.x) && any(sx > 0)
+        ok = sx > 0;
+        step = max(abs(sol.x(ok) - xPrev(ok)) ./ sx(ok));
+    end
+    hist.xStep(it, 1) = step;
+    xPrev = sol.x(:);
+end
+
+function msg = notSettledMessage(maxIter, tol, hist, blocking)
+%NOTSETTLEDMESSAGE  The not-converged warning's text (WP-147): what still
+%   moves -- the bins above their bound with their redundancy against their
+%   group's median, at most three named -- and the solution's last step.
+%   INPUT   maxIter, tol 1x1;  hist the history;  blocking B x 6 cell (above)
+%   OUTPUT  msg 1xK char
+    if isempty(blocking)
+        moving = 'no spectral bin';
+    else
+        nb = size(blocking, 1);
+        shown = arrayfun(@(q) sprintf('%s bin %d of %d (redundancy %.3g, median %.3g, moved %.2e)', ...
+                    blocking{q, :}), 1:min(3, nb), 'UniformOutput', false);
+        moving = strjoin(shown, '; ');
+        if nb > 3, moving = sprintf('%s; and %d more', moving, nb - 3); end
+    end
+    msg = sprintf(['The joint stochastic model did not settle in %d outer iterations ' ...
+        '(last max|alpha2-1| = %.3e, last max level change %.3e, last prior change ' ...
+        '%.3e, tol %.1e). Still moving by more than tol max(1, sqrt(200 / redundancy)) ' ...
+        '(at tol 1e-2 a tenth of their standard error): %s. The solution moved by %.3g ' ...
+        'of its standard error in the last pass. Inspect out.history.S, .binRatio, ' ...
+        '.levelDev and .priorDev: a spectrum that keeps moving usually means too few ' ...
+        'arcs per frequency, a prior that keeps moving a declared sigma far from the data.'], ...
+        maxIter, hist.maxDev(end), hist.levelDev(end), hist.priorDev(end), tol, ...
+        moving, hist.xStep(end));
 end

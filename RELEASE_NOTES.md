@@ -1,5 +1,28 @@
 # lsqvce release notes
 
+## 6.26.0 — 2026-10-16 (WP-147: a stop rule that low-information spectral bins can meet)
+
+The noise loop's stop rule. The estimator is unchanged; a run may now stop on an earlier pass,
+and its estimate then differs from the later stop's by the step that remained (measured: within
+0.1 of a standard error).
+
+- A spectral bin has settled when it moved by at most `Tolerance·max(1, sqrt(200/r))`, where
+  `r` is the bin's redundancy. A bin of redundancy 200 or more is held to `Tolerance` as
+  before; a bin the data barely determine (the zero-frequency bin that per-arc parameters
+  absorb, or many bins on short arcs) is held, at the default `Tolerance` 1e-2, to a tenth of
+  its own standard error `sqrt(2/r)`. Before, every bin was held to `Tolerance`; on four test
+  fixtures that took 14–168 passes, while the solution was within 0.1–0.2 of its standard
+  error of the end point after the default 10 and the not-converged warning fired on every
+  one. Now 8–25 passes, each stop within 0.1 of a standard error of the end point. A run never
+  stops later than before, and a smaller `Tolerance` still tightens every bin.
+- The not-converged warning names the bins that still move, with their redundancy against the
+  median of their pool group, and how far the solution moved in the last pass in units of its
+  standard error.
+- `R.history` and `R.convergence()` carry `binRatio` (the bins' stop quantity, ≤ 1 = settled)
+  and `xStep` (the solution's last step in standard errors); `maxDev` stays as a reading. The
+  `OnPass` context carries both.
+- `lsqvce.engine.psdVCE` returns each bin's deviation `.dev` and redundancy `.redundancy`.
+
 ## 6.25.2 — 2026-10-16 (WP-145: the examples converge, and the gate hears them)
 
 Corrections to four examples and to the test tooling. Nothing in `+lsqvce` changes, so no

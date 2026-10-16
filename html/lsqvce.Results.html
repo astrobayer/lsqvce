@@ -67,8 +67,9 @@ PROPERTIES (read-only)
                                redundancy, leverage, w-tests, MDB, ...
   history    1xI      struct   Per-iteration record (empty for a single
                                solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT:
-                               .maxDev .S .streams .sigma .white
-                               .whitePval per pass, .skips, .nIter, and
+                               .maxDev .binRatio .xStep .S .streams
+                               .sigma .white .whitePval per pass,
+                               .skips, .nIter, and
                                under Robust the per-pass .robustScale (one
                                column per stream) .nDown .nZero;
                                by LSQVCE.ENGINE.ADJUSTROBUST: .scale .dx
@@ -188,6 +189,9 @@ Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-130: stopReason lists &quot;userStop&quot;
 and &quot;diverged&quot;. With assistance from Claude (Anthropic), model Claude Opus
 5.5.
+Updated 2026-10-16 (CEST, UTC+02:00), WP-147: convergence() adds the
+columns binRatio (the bins&#x27; stop quantity) and xStep; maxDev is a
+reading. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-12 (CEST, UTC+02:00), WP-127: reliability() marks a prior&#x27;s
 datum rows &quot;datum&quot;. With assistance from Claude (Anthropic), model Claude
 Opus 5.5.

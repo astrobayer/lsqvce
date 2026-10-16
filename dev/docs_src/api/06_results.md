@@ -26,7 +26,7 @@ the map.
 |---|---|
 | `R.report()` | the verdict and its evidence, levels 0 to 4 (`lsqvce.report`) |
 | `R.summary()` | one row per stream: final σ, law, whiteness (iterative runs) |
-| `R.convergence()` | one row per pass: the stream levels, whiteness and the stop-rule quantities `maxDev`, `levelDev` (iterative runs) |
+| `R.convergence()` | one row per pass: the stream levels, whiteness, `maxDev`, and the stop-rule quantities `binRatio` and `levelDev`, with the solution's step `xStep` (iterative runs) |
 | `R.coefficients(Alpha=a)` | estimates with formal errors and (1 − a) confidence bounds |
 | `R.toTable(data)` | your parameter tables with estimate and standard deviation written in |
 | `R.residuals(...)` | whitened (and raw) residuals per stream, re-read from the arcs |

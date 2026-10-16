@@ -100,7 +100,16 @@ OPTIONS (Name/Value)
                   zero-frequency rule left to exclude one: R7-20);
                   with Smooth &gt; 0 the change of the SHAPE, max |Shat./
                   Sprior - 1| at r(0) = 1 -- a smoothed update&#x27;s fixed
-                  point has alpha2 ~= 1 (WP-131)</pre>
+                  point has alpha2 ~= 1 (WP-131)
+  .dev     L x 1  the per-bin deviation .maxDev is the maximum of:
+                  abs(alpha2 - 1), or with Smooth &gt; 0 the bin&#x27;s
+                  change of shape abs(rho - 1); 0 for a frozen bin
+                  (WP-147: the stop rule reads it bin by bin)
+  .redundancy L x 1  the bin&#x27;s redundancy Sprior_j * sum_m T(j, m), its
+                  share tr(R V_j) -- the number FreezeRedundancy is
+                  compared with; 0 where the denominator is not usable.
+                  A variance component of redundancy r has a relative
+                  standard error of about sqrt(2 / r) (WP-147)</pre>
 <h3>Example</h3>
 <pre class="example">K = lsqvce.kernel.hatACV(L, m);         % per arc length
 Q(:, a) = lam(a) * (K&#x27; * r.omega);  T(:, a) = lam(a) * (K&#x27; * r.s);
@@ -120,6 +129,9 @@ the candidate before the port, dense exact traces). WP-139.</pre>
 See also LSQVCE.KERNEL.HATACV, LSQVCE.KERNEL.REDUNDANCYLAGS,
          LSQVCE.ENGINE.ARCVARIANCEFACTORS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 
+Updated 2026-10-16 (CEST, UTC+02:00), WP-147: .dev and .redundancy per
+bin, for the joint loop&#x27;s stop rule. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 accuracy, every number traced to the test that pins it. With assistance
 from Claude (Anthropic), model Claude Opus 5.5.

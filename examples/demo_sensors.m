@@ -33,8 +33,9 @@ function demo_sensors()
 %     back at 15.9 x its stream's median factor; every other sensor-day lies
 %     between 0.5 and 1.8. Without it, the levels are C|GPS 2.536, C|KBR
 %     0.987, C|LRI 0.400, D|KBR 0.988, D|LRI 0.416 against the planted 2.5 /
-%     1.0 / 0.4 / 1.0 / 0.4 -- within 4.1 %, sigma0 1.000, converged in 7
-%     passes (the factor run in about 14 of its 20). WP-145 measured what the
+%     1.0 / 0.4 / 1.0 / 0.4 -- within 4.0 %, sigma0 1.000, converged in 6
+%     passes (7 under the stop rule before 6.26.0; the factor run in about
+%     14 of its 20). WP-145 measured what the
 %     earlier order cost: the levels estimated WITH the event in the data
 %     came back C|KBR +46 % and D|KBR +43 % (the shared KBR shape carries
 %     it), and the table, normalised on C|KBR, showed LRI and GPS 32 % low
@@ -46,6 +47,9 @@ function demo_sensors()
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-147: the level run settles in
+%   6 passes under the new stop rule (ACCURACY). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: the bad day is found
 %   (per-arc factors) BEFORE the variance components, which are estimated
 %   without it and shown against the truth stream by stream; Noise.Grid 8;

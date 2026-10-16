@@ -39,8 +39,15 @@ classdef Options
 %     MaxPasses  double  10         the pass budget of the variance-component
 %                                   loop and of Gauss-Newton. IRLS has its OWN
 %                                   budget, RobustOpts.MaxIter
-%     Tolerance  double  1e-2       stop when max|alpha2 - 1| over frequencies
-%                                   and arcs is below it
+%     Tolerance  double  1e-2       the variance-component loop stops when
+%                                   every arc factor changed by less than it,
+%                                   and every spectral bin by less than it
+%                                   times max(1, sqrt(200/r)), r the bin's
+%                                   redundancy: at the default a tenth of the
+%                                   bin's own standard error sqrt(2/r) where
+%                                   that is larger (WP-147: bins the data
+%                                   barely determine need no finer step than
+%                                   their estimate has; R.history.binRatio)
 %     Backend    "qr" | "normal"    square-root vs normal equations
 %     Probes     double  100        Hutchinson probes for the per-lag
 %                                   redundancies; an integer >= 1 (Ellmer's
@@ -60,7 +67,8 @@ classdef Options
 %                                   with ONE ctx struct: .driver .pass .x .Cxx
 %                                   .sigma0, the loop state (noise: .C .Cgroups
 %                                   .sigma2 .arcKeys .streams .sigma .white
-%                                   .whitePval .maxDev .skips; IRLS: .factor
+%                                   .whitePval .maxDev .binRatio .xStep
+%                                   .skips; IRLS: .factor
 %                                   .keys .scale .dx; Gauss-Newton: .vPv .dxRel
 %                                   .lambda), .acc (the LIVE accumulator: call
 %                                   lsqvce.engine.residuals(ctx.acc, ...) or any
@@ -134,6 +142,9 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the API reference, RELEASE_NOTES.md
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-147: Tolerance states the
+%   bins' stop rule; the noise ctx carries binRatio and xStep. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-142: CacheDays says that a
 %   system's prepareDay result is the current day's only. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

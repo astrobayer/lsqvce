@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.25.2 — API Reference"
+title: "lsqvce 6.26.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -429,7 +429,7 @@ R = lsqvce.fit(data, Estimate="noise", MaxPasses=6);     % name-value pairs stra
 | knob | values | default | meaning |
 |---|---|---|---|
 | `MaxPasses` | integer ≥ 1 | 10 | pass budget of the variance-component loop and of Gauss–Newton (IRLS uses `RobustOpts.MaxIter`). Exhausting it returns the last pass with `R.stopReason = "maxPasses"` and one warning. |
-| `Tolerance` | > 0 | 1e-2 | stop rule of the variance-component loop: max \|α² − 1\| over spectral bins and arcs; for Gauss–Newton the relative step in units of the formal error |
+| `Tolerance` | > 0 | 1e-2 | stop rule of the variance-component loop: every arc factor's change ≤ `Tolerance`, every spectral bin's change ≤ `Tolerance`·max(1, sqrt(200/r)), r its redundancy (at the default a tenth of the bin's standard error sqrt(2/r) where that is larger); for Gauss–Newton the relative step in units of the formal error |
 | `Probes` | integer ≥ 1 | 100 | Hutchinson probes for the per-lag redundancies of the joint estimator |
 | `Seed` | `[]` or double | `[]` | seed for the probes, recorded in `R.meta.seeds` |
 
@@ -446,7 +446,7 @@ R = lsqvce.fit(data, Estimate="noise", MaxPasses=6);     % name-value pairs stra
 
 The hook receives one struct: `driver`, `pass`, `x`, `Cxx`, `sigma0`, `s0sq`; the loop
 state (noise loop: `C`, `Cgroups`, `sigma2`, `arcKeys`, `streams`, `sigma`, `white`,
-`whitePval`, `maxDev`, `skips`; IRLS: `factor`, `keys`, `scale`, `dx`; Gauss–Newton:
+`whitePval`, `maxDev`, `binRatio`, `xStep`, `skips`; IRLS: `factor`, `keys`, `scale`, `dx`; Gauss–Newton:
 `vPv`, `dxRel`, `lambda`); `acc`, the live accumulator; `data`, the declaration as
 passed to `fit`; `processingOptions{k}`, system k's as declared. Return nothing to
 continue, `false` to stop after the pass (`R.stopReason = "userStop"`). An error in the
@@ -598,7 +598,7 @@ the map.
 |---|---|
 | `R.report()` | the verdict and its evidence, levels 0 to 4 (`lsqvce.report`) |
 | `R.summary()` | one row per stream: final σ, law, whiteness (iterative runs) |
-| `R.convergence()` | one row per pass: the stream levels, whiteness and the stop-rule quantities `maxDev`, `levelDev` (iterative runs) |
+| `R.convergence()` | one row per pass: the stream levels, whiteness, `maxDev`, and the stop-rule quantities `binRatio` and `levelDev`, with the solution's step `xStep` (iterative runs) |
 | `R.coefficients(Alpha=a)` | estimates with formal errors and (1 − a) confidence bounds |
 | `R.toTable(data)` | your parameter tables with estimate and standard deviation written in |
 | `R.residuals(...)` | whitened (and raw) residuals per stream, re-read from the arcs |
@@ -838,8 +838,15 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT: 12 knobs and 5 groups.
     MaxPasses  double  10         the pass budget of the variance-component
                                   loop and of Gauss-Newton. IRLS has its OWN
                                   budget, RobustOpts.MaxIter
-    Tolerance  double  1e-2       stop when max|alpha2 - 1| over frequencies
-                                  and arcs is below it
+    Tolerance  double  1e-2       the variance-component loop stops when
+                                  every arc factor changed by less than it,
+                                  and every spectral bin by less than it
+                                  times max(1, sqrt(200/r)), r the bin's
+                                  redundancy: at the default a tenth of the
+                                  bin's own standard error sqrt(2/r) where
+                                  that is larger (WP-147: bins the data
+                                  barely determine need no finer step than
+                                  their estimate has; R.history.binRatio)
     Backend    "qr" | "normal"    square-root vs normal equations
     Probes     double  100        Hutchinson probes for the per-lag
                                   redundancies; an integer >= 1 (Ellmer's
@@ -859,7 +866,8 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT: 12 knobs and 5 groups.
                                   with ONE ctx struct: .driver .pass .x .Cxx
                                   .sigma0, the loop state (noise: .C .Cgroups
                                   .sigma2 .arcKeys .streams .sigma .white
-                                  .whitePval .maxDev .skips; IRLS: .factor
+                                  .whitePval .maxDev .binRatio .xStep
+                                  .skips; IRLS: .factor
                                   .keys .scale .dx; Gauss-Newton: .vPv .dxRel
                                   .lambda), .acc (the LIVE accumulator: call
                                   lsqvce.engine.residuals(ctx.acc, ...) or any
@@ -964,8 +972,9 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
                                  redundancy, leverage, w-tests, MDB, ...
     history    1xI      struct   Per-iteration record (empty for a single
                                  solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT:
-                                 .maxDev .S .streams .sigma .white
-                                 .whitePval per pass, .skips, .nIter, and
+                                 .maxDev .binRatio .xStep .S .streams
+                                 .sigma .white .whitePval per pass,
+                                 .skips, .nIter, and
                                  under Robust the per-pass .robustScale (one
                                  column per stream) .nDown .nZero;
                                  by LSQVCE.ENGINE.ADJUSTROBUST: .scale .dx

@@ -130,7 +130,13 @@ OPTIONS (Name/Value)
                          that enumerates the arcs first; finite and &gt; 0
                          (WP-134: a 0 reached the clamp, a NaN stayed)
   &#x27;MaxIter&#x27;   1x1 int    outer iterations (default 10)
-  &#x27;Tol&#x27;       1x1        convergence on max|alpha2 - 1| (default 1e-2)
+  &#x27;Tol&#x27;       1x1        the stop rule&#x27;s tolerance (default 1e-2): every
+                         spectral bin j moved by at most Tol max(1,
+                         sqrt(200 / r_j)) -- Tol for a bin of redundancy
+                         r_j &gt;= 200, growing with the bin&#x27;s own standard
+                         error sqrt(2 / r_j) below that (at 1e-2 a tenth
+                         of it; WP-147) -- and every arc factor and
+                         PriorDev by at most Tol
   &#x27;Probes&#x27;    1x1 int    Z Hutchinson probes (default 100, Ellmer&#x27;s value)
   &#x27;Seed&#x27;      1x1 | []   RNG seed for reproducible probes (default []: one
                          seed is pinned for the run and returned, out.seed)
@@ -265,11 +271,18 @@ OPTIONS (Name/Value)
                         its previous factor
   .acc       1x1        the final accumulator
   .sol       1x1        the final solution struct
-  .converged 1x1 logical whether max|alpha2-1|, every factor&#x27;s change
-                        and PriorDev&#x27;s change fell below Tol
+  .converged 1x1 logical whether every bin settled (binRatio &lt;= 1),
+                        and every factor&#x27;s change and PriorDev&#x27;s
+                        change fell below Tol
   .nIter     1x1        outer iterations actually run
-  .history   struct     .maxDev (nIter x 1), .S (nIter x L), .levelDev,
-                        .priorDev (nIter x 1, 0 without PriorDev)</pre>
+  .history   struct     .maxDev (nIter x 1, max abs(alpha2 - 1): a
+                        reading), .binRatio (nIter x 1, the stop
+                        quantity: max over bins of the bin&#x27;s change
+                        over Tol max(1, sqrt(200 / r_j)); &lt;= 1 settled),
+                        .xStep (nIter x 1, max abs change of x over its
+                        standard error since the pass before; NaN on
+                        pass 1), .S (nIter x L), .levelDev, .priorDev
+                        (nIter x 1, 0 without PriorDev)</pre>
 <h3>Example</h3>
 <pre class="example">accFcn = @(model) buildAccumulatorWithModel(cfg, model);
 r = lsqvce.engine.adjustVCEjoint(accFcn, &#x27;NumLags&#x27;, 60, &#x27;MaxIter&#x27;, 8);
@@ -339,6 +352,12 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-16 (CEST, UTC+02:00), WP-147: a spectral bin has settled
+when it moved by at most Tol max(1, sqrt(200 / r_j)) -- at the default
+Tol a tenth of its own standard error where that exceeds Tol;
+.history carries binRatio (the stop quantity) and xStep, and the
+not-converged warning names the bins that still move and the solution&#x27;s
+last step. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): the
 prior pseudo-streams are recognised by lsqvce.util.priorStream on their
 obsType (the stream key was parsed for &#x27;|prior_&#x27;); ACCURACY. With

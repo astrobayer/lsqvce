@@ -443,7 +443,7 @@ sigma 1. GRACE-D's LRI is missing on days 4–5, and GRACE-C's KBR carries a
 default 60-bin law, the bins that the data barely determine decay toward
 zero, and the loop needed 168 passes. The help block records the measured
 values: the event is 15.9 times its stream's median, every other sensor-day
-lies between 0.5 and 1.8, and the levels come back within 4.1 % of the
+lies between 0.5 and 1.8, and the levels come back within 4.0 % of the
 truth. Estimated with the event still in the data, C|KBR came back 46 %
 high.
 

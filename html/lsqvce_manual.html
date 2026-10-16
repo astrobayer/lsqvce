@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.25.2 — User Manual</title>
+  <title>lsqvce 6.26.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.25.2 — User Manual</h1>
+<h1 class="title">lsqvce 6.26.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1001,7 +1001,10 @@ factor of every arc and the σ of every prior with
 <code>estimate = "scale"</code>. It stops when no component changes by
 more than <code>Tolerance</code> — the σ of a prior group included,
 which is first updated on the pass after it enters the solve, so the
-loop does not stop before — or after <code>MaxPasses</code>.</p>
+loop does not stop before — or after <code>MaxPasses</code>. A spectral
+bin the data barely determine may change by more, in proportion to its
+own standard error (the next chapter, “When the loop did not
+settle”).</p>
 <p>The choices that matter:</p>
 <table>
 <colgroup>
@@ -2310,27 +2313,49 @@ stream’s whitened residuals against time.</p>
 <h3 data-number="7.9.2" id="when-the-loop-did-not-settle"><span
 class="header-section-number">7.9.2</span> When the loop did not
 settle</h3>
-<p>The loop stops when two conditions hold: <code>max|α² − 1|</code>
-over frequencies and arcs, and the largest relative change of an arc
-factor, are both ≤ <code>Tolerance</code>. Each pass records these two
-numbers in <code>R.history.maxDev</code> and
-<code>R.history.levelDev</code>. <code>R.convergence()</code> gives one
-row per pass with <code>pass</code>, <code>maxSigmaOffset</code> (the
-largest <code>|sigma − 1|</code> of the per-stream level factors: a
-reading, not the stop rule), <code>nWhite</code>,
-<code>minWhitePval</code>, <code>converged</code>, and the two stop-rule
-quantities <code>maxDev</code> and <code>levelDev</code>.
+<p>The loop stops when two conditions hold. Every arc factor changed by
+at most <code>Tolerance</code>. Every spectral bin j changed by at most
+<code>Tolerance·max(1, sqrt(200/r_j))</code>, where <code>r_j</code> is
+the bin’s redundancy and <code>sqrt(2/r_j)</code> the relative standard
+error of its estimate. A bin with a redundancy of 200 or more is held to
+<code>Tolerance</code>. A bin with less, such as the zero-frequency bin
+that per-arc parameters absorb, may move further, in proportion to its
+own standard error: at the default <code>Tolerance</code> 1e-2, by a
+tenth of it. A finer step would ask for more precision than its estimate
+has. A smaller <code>Tolerance</code> tightens every bin. (Before 6.26.0
+every bin was held to <code>Tolerance</code>. On the fixtures of the
+development record that took 14–168 passes, while the solution was
+already within 0.1–0.2 of its standard error of the end point after
+10.)</p>
+<p>Each pass records <code>R.history.binRatio</code> (the largest change
+of a bin divided by its bound, so ≤ 1 means every bin settled),
+<code>R.history.levelDev</code>, <code>R.history.maxDev</code> (the
+largest <code>|α² − 1|</code>, a reading) and
+<code>R.history.xStep</code> (the largest change of the solution since
+the pass before, in units of its own standard error).
+<code>R.convergence()</code> gives one row per pass with
+<code>pass</code>, <code>maxSigmaOffset</code> (the largest
+<code>|sigma − 1|</code> of the per-stream level factors: a reading, not
+the stop rule), <code>nWhite</code>, <code>minWhitePval</code>,
+<code>converged</code>, <code>maxDev</code>, <code>levelDev</code>,
+<code>binRatio</code> and <code>xStep</code>.
 <code>R.convergence(Plot=true)</code> and
 <code>R.plot("convergence")</code> draw the same record.</p>
-<p>With <code>stopReason = "maxPasses"</code>:</p>
+<p>With <code>stopReason = "maxPasses"</code>, the warning names the
+bins that still move, with their redundancy against the median of their
+group, and the solution’s last step:</p>
 <ul>
-<li>If <code>maxDev</code> is still falling, the loop needs more passes:
-raise <code>MaxPasses</code>.</li>
-<li>If <code>maxDev</code> oscillates, there is too little redundancy
-per component: coarsen <code>Pool</code> (<code>"obsType"</code> or
-<code>"all"</code>) or use a smaller <code>Noise.Grid</code>. A spectrum
-that keeps moving also points to too few arcs per frequency, or a start
-far from the data.</li>
+<li>If <code>xStep</code> is a few hundredths or less, the solution has
+settled to well within its errors, and the bins that still move are ones
+the data barely determine.</li>
+<li>If <code>binRatio</code> is still falling, the loop needs more
+passes: raise <code>MaxPasses</code>.</li>
+<li>If it oscillates, there is too little redundancy per component:
+coarsen <code>Pool</code> (<code>"obsType"</code> or
+<code>"all"</code>), use a smaller <code>Noise.Grid</code>, or smooth
+the spectrum (<code>Noise.Smooth</code>). A spectrum that keeps moving
+also points to too few arcs per frequency, or a start far from the
+data.</li>
 <li>If one stream stays non-white on every pass, see “Whiteness per
 stream” above.</li>
 </ul>
@@ -3310,7 +3335,7 @@ samples. With the default 60-bin law, the bins that the data barely
 determine decay toward zero, and the loop needed 168 passes. The help
 block records the measured values: the event is 15.9 times its stream’s
 median, every other sensor-day lies between 0.5 and 1.8, and the levels
-come back within 4.1 % of the truth. Estimated with the event still in
+come back within 4.0 % of the truth. Estimated with the event still in
 the data, C|KBR came back 46 % high.</p>
 <h2 data-number="9.12"
 id="demo_grace-and-demo_grace_dataloader-the-noise-loop-on-multi-axis-streams"><span

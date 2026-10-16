@@ -439,20 +439,36 @@ Possible causes and remedies, roughly in order:
 
 ### When the loop did not settle
 
-The loop stops when two conditions hold: `max|α² − 1|` over frequencies and arcs, and
-the largest relative change of an arc factor, are both ≤ `Tolerance`. Each pass records
-these two numbers in `R.history.maxDev` and `R.history.levelDev`. `R.convergence()` gives
-one row per pass with `pass`, `maxSigmaOffset` (the largest `|sigma − 1|` of the
-per-stream level factors: a reading, not the stop rule), `nWhite`, `minWhitePval`,
-`converged`, and the two stop-rule quantities `maxDev` and `levelDev`.
-`R.convergence(Plot=true)` and `R.plot("convergence")` draw the same record.
+The loop stops when two conditions hold. Every arc factor changed by at most
+`Tolerance`. Every spectral bin j changed by at most `Tolerance·max(1, sqrt(200/r_j))`,
+where `r_j` is the bin's redundancy and `sqrt(2/r_j)` the relative standard error of its
+estimate. A bin with a redundancy of 200 or more is held to `Tolerance`. A bin with less,
+such as the zero-frequency bin that per-arc parameters absorb, may move further, in
+proportion to its own standard error: at the default `Tolerance` 1e-2, by a tenth of it.
+A finer step would ask for more precision than its estimate has. A smaller `Tolerance`
+tightens every bin. (Before 6.26.0 every bin was held to `Tolerance`. On the fixtures of the
+development record that took 14–168 passes, while the solution was already within
+0.1–0.2 of its standard error of the end point after 10.)
 
-With `stopReason = "maxPasses"`:
+Each pass records `R.history.binRatio` (the largest change of a bin divided by its bound,
+so ≤ 1 means every bin settled), `R.history.levelDev`, `R.history.maxDev` (the largest
+`|α² − 1|`, a reading) and `R.history.xStep` (the largest change of the solution since the
+pass before, in units of its own standard error). `R.convergence()` gives one row per pass
+with `pass`, `maxSigmaOffset` (the largest `|sigma − 1|` of the per-stream level factors:
+a reading, not the stop rule), `nWhite`, `minWhitePval`, `converged`, `maxDev`,
+`levelDev`, `binRatio` and `xStep`. `R.convergence(Plot=true)` and
+`R.plot("convergence")` draw the same record.
 
-* If `maxDev` is still falling, the loop needs more passes: raise `MaxPasses`.
-* If `maxDev` oscillates, there is too little redundancy per component: coarsen `Pool`
-  (`"obsType"` or `"all"`) or use a smaller `Noise.Grid`. A spectrum that keeps moving
-  also points to too few arcs per frequency, or a start far from the data.
+With `stopReason = "maxPasses"`, the warning names the bins that still move, with their
+redundancy against the median of their group, and the solution's last step:
+
+* If `xStep` is a few hundredths or less, the solution has settled to well within its
+  errors, and the bins that still move are ones the data barely determine.
+* If `binRatio` is still falling, the loop needs more passes: raise `MaxPasses`.
+* If it oscillates, there is too little redundancy per component: coarsen `Pool`
+  (`"obsType"` or `"all"`), use a smaller `Noise.Grid`, or smooth the spectrum
+  (`Noise.Smooth`). A spectrum that keeps moving also points to too few arcs per frequency,
+  or a start far from the data.
 * If one stream stays non-white on every pass, see "Whiteness per stream" above.
 
 ### Skipped arcs and the warnings inventory
