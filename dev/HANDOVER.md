@@ -11211,3 +11211,73 @@ run). Observation 2 above is opened as WP-147 (§12.79, user: "Erledige diese Au
 
 **The user's request (2026-10-16):** "Erledige diese Aufgabe hier: „Noise stop rule for low-information
 spectral bins“" -- the proposal card of §12.78 (observation 2), done in this session.
+
+**Part 1 -- the measurement (tier A, main e7c1d16 + the closure; scratch only, nothing committed but
+this note).** The four fixtures of §12.78 in their ORIGINAL configuration (`Noise.Grid` 60, Smooth 0,
+FreezeRedundancy 1: scratch copies of demo_gravity, demo_sensors without its planted offset,
+demo_noisePolicy and demo_grace that take `Noise` and `Tolerance`), each run to 400 passes at
+Tolerance 1e-6 with `adjustVCEjoint` instrumented in a scratch edit (reverted): per pass x, sigma_x
+(`sqrt(diag(Cxx)) * sigma0`), the levels, and every bin's alpha2_j and redundancy r_j = S_j * sum T_j
+per pool group. The reference is the last pass: noisePolicy and grace met 1e-6 (68 / 64 passes),
+gravity and sensors are stationary over passes 350-400 (x moved 0.000 sigma_x). Distances below
+are max_i abs(x_i - x_ref,i) / sigma_x,i and the largest relative level change.
+
+*The candidate stop rules, evaluated offline on the traces* (each with the existing level
+condition levelDev <= 1e-2; "stop" = first pass the rule holds):
+
+| rule | gravity | sensors | noisePolicy | grace |
+|---|---|---|---|---|
+| R0 today: max abs(alpha2_j - 1) <= 1e-2 | 55, 0.001 sigma, 0.01 % | 168, 0.003, 0.02 % | 14, 0.000 | 15, 0.011 |
+| R1: max abs(alpha2_j - 1) sqrt(r_j/2) <= 0.05 | 18, 0.061, 0.27 % | 43, 0.052, 0.21 % | 12, 0.000 | 13, 0.016 |
+| R1: ... <= 0.10 | 12, 0.093, 0.37 % | 25, 0.100, 0.36 % | 8, 0.000 | 10, 0.029 |
+| R2: redundancy-weighted rms of alpha2_j - 1 <= 1e-2 | 8, 0.156, 0.40 % | 28, 0.089, 0.33 % | 7, 0.000 | 6, 0.066 |
+| R3: the step of x <= 0.01 sigma_x | 14, 0.080 | 14, 0.168, 0.55 % | 3, 0.008 | 8, 0.044 |
+| R3t: the step's geometric tail <= 0.1 sigma_x | 10, 0.115 | **3, 0.347, 1.12 %** | 3, 0.008 | 3, 0.125 |
+| the default budget: pass 10, whatever the rule | 0.115, 0.40 % | 0.213, 0.67 % | 0.000 | 0.029 |
+
+R1 is each bin's step in units of its own standard error, sqrt(2 / r_j) for a variance component of
+redundancy r_j: tau = 0.05 is today's rule for a typical bin (r ~ 50), looser where the data say
+little, STRICTER where they say much. With tau = 0.1 it stopped within 0.1 sigma_x of the fixed point
+on all four -- the rule certifies what it promises. R2 and R3 stop earlier but are not bounded the
+same way (0.16 / 0.17 sigma_x); R3t's ratio estimate of the contraction is unreliable (it stopped
+sensors at 0.35 sigma_x after 3 passes) and is rejected.
+
+*The candidate DEFAULTS, run live as a user gets them* (MaxPasses 10, Tolerance 1e-2; x against the
+60-bin fixed point; the levels against the planted truth):
+
+| default | gravity | sensors | noisePolicy | grace |
+|---|---|---|---|---|
+| Grid 60 (today) | not conv., 0.104 sigma_x | not conv., 0.200 | not conv., 0.000 | not conv., 0.024 |
+| FreezeRedundancy 5 / 10 | not conv., 0.083 / 0.089 | not conv., 0.200 / 0.182 | not conv. | not conv. |
+| Smooth 1 | conv. in 4, 0.673 | conv. in 5, 0.388 | conv. in 3, 0.021 | conv. in 3, 0.210 |
+| Grid ~ m/8 (22 / 8 / 32 / 38) | not conv., 0.612 | conv. in 6, 0.337 | not conv. | not conv., 0.221 |
+
+The level errors against the truth are the same in every row to <= 0.7 percentage points
+(gravity potC +17 %, grace posC +12 %, sensors D|LRI +4 % -- what the records allow). So: (1) the
+estimate is settled long before today's rule says so -- after the default 10 passes x is within
+0.1-0.2 sigma_x of the fixed point on all four, and the not-converged warning fires on every one of
+them; (2) raising FreezeRedundancy does not help (why was not measured; a guess: the bins it holds
+are not the only ones still moving); (3) Smooth 1 converges everywhere but is a DIFFERENT model --
+its fixed point is up to 0.67 sigma_x from the 60-bin one, equally close to the truth -- so as a
+default it would change every user's estimates; (4) a grid tied to the arc length helps only the
+shortest arcs.
+
+**Options for part 2 (the user decides):**
+- **A. R1 as the stop rule** (recommended, with B): converged when every bin's step is at most
+  tau of its own standard error, tau = 0.1, and the levels have settled as today. The estimate does
+  not change -- only when the loop may stop; it stops within ~0.1 sigma_x of its fixed point,
+  measured. `psdVCE` already forms r_j for FreezeRedundancy; it returns it. Open point: one knob or
+  two -- `Tolerance` keeps the level and arc-factor test and the bin test reads tau = 10 x Tolerance,
+  or a new `Noise` field for tau (a new name, a minor version). On these fixtures 8-25 passes, so
+  sensors still exceeds the default budget of 10 -- correctly: its bins of redundancy 1-4 move
+  more than a tenth of their error.
+- **B. A warning that says what is still moving** (with any option): not converged names the bins
+  that block the rule, their redundancy against the median, and x's last step in sigma_x -- the
+  number a user needs to judge whether the budget stop matters.
+- **C. Smooth 1 as the default:** converges in 3-5 passes everywhere, but changes the model and
+  every default result (up to 0.67 sigma_x here); better left a per-case choice, as WP-145 used it.
+- **D. B alone:** no behaviour change; the warning stays on these four but explains itself.
+
+Part 2's cost, not yet measured: every suite fixture with an Estimate "noise" run under the
+default stop rule can change its pass count (A), so the suite's assertions on nIter / converged /
+stopReason are the part-2 inventory.
