@@ -16,8 +16,14 @@ dev/docs_src/theory/build.sh.
 Run from the toolbox root:  python3 dev/docs_src/build_manual.py
 Needs pandoc (html + pdf via xelatex). audit_tree.py check 23 verifies that both
 built HTML files equal a fresh build.
+
+Every document is built, also after another one failed, and a document's HTML
+and PDF are written TOGETHER, only when both built (WP-143): a failed build
+leaves its committed pair as it was and names itself; the exit code is 1 when
+any document failed. (Before, all() over a generator stopped at the first
+failure, after that document's HTML had already been written.)
 """
-import os, re, subprocess, sys, csv, io
+import os, re, shutil, subprocess, sys, csv, io, tempfile
 
 ROOT = os.getcwd()
 sys.path.insert(0, os.path.join(ROOT, 'dev', 'docs_src'))
@@ -119,6 +125,9 @@ DOCS = {
 
 
 def build_one(name, ver, check):
+    """Build one document. With CHECK, return whether its committed HTML differs
+    from a fresh build. Without, build the HTML and the PDF first and write BOTH
+    targets only when both built (WP-143); return whether they were written."""
     d = DOCS[name]
     src = os.path.join(ROOT, 'dev', 'docs_src', name)
     md = ('---\ntitle: "lsqvce %s — %s"\nsubtitle: "least-squares adjustment with variance component estimation"\n'
@@ -136,15 +145,19 @@ def build_one(name, ver, check):
     if check:
         cur = open(target, encoding='utf-8').read() if os.path.exists(target) else ''
         return cur != new
-    open(target, 'w', encoding='utf-8').write(new)
     pdf = os.path.join(ROOT, stem + '.pdf')
-    r = subprocess.run(['pandoc', mdpath, '--toc', '--toc-depth=2', '--number-sections',
-                        '-V', 'geometry:margin=2.2cm', '-V', 'fontsize=10pt', '-V', 'colorlinks=true',
-                        '--pdf-engine=xelatex', '-V', 'fontfamily=mathptmx', '-V', 'mainfont=DejaVu Serif',
-                        '-V', 'monofont=DejaVu Sans Mono', '-o', pdf], capture_output=True, text=True)
-    if r.returncode != 0:
-        print('PDF build failed (%s):\n%s' % (name, r.stderr[-2000:]))
-        return False
+    with tempfile.TemporaryDirectory() as tmp:          # outside the tree: _build is tracked
+        built = os.path.join(tmp, stem + '.pdf')
+        r = subprocess.run(['pandoc', mdpath, '--toc', '--toc-depth=2', '--number-sections',
+                            '-V', 'geometry:margin=2.2cm', '-V', 'fontsize=10pt', '-V', 'colorlinks=true',
+                            '--pdf-engine=xelatex', '-V', 'fontfamily=mathptmx', '-V', 'mainfont=DejaVu Serif',
+                            '-V', 'monofont=DejaVu Sans Mono', '-o', built], capture_output=True, text=True)
+        if r.returncode != 0:
+            print('PDF build failed (%s); html/%s.html and %s.pdf left as they were:\n%s'
+                  % (name, stem, stem, r.stderr[-2000:]))
+            return False
+        shutil.copyfile(built, pdf)
+    open(target, 'w', encoding='utf-8').write(new)
     print('built html/%s.html and %s.pdf (%s)' % (stem, stem, ver))
     return True
 
@@ -158,7 +171,8 @@ def main(check=False):
         open(css, 'w', encoding='utf-8').write(CSS)
     if check:
         return [n for n in DOCS if build_one(n, ver, True)]
-    return all(build_one(n, ver, False) for n in DOCS)
+    written = [build_one(n, ver, False) for n in DOCS]   # every one, also after a failure
+    return all(written)
 
 
 CSS = """body{font-family:Georgia,serif;max-width:60em;margin:2em auto;padding:0 1em;line-height:1.45;color:#222}

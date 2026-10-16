@@ -10853,3 +10853,28 @@ returns the stale names as before (it builds no PDF). The built documents do not
 call made to fail, a marker line appended to a Manual and an API source so a rebuild is visible),
 each in a scratch copy of the tree (`git archive HEAD`); a healthy build compared with the
 committed documents; `build_manual.py check`; audit and selftest.
+
+**Round note (2026-10-16, WP-143 implemented, tier A for the tool).**
+- **build_manual.py.** `main()` collects `[build_one(n, ver, False) for n in DOCS]` and returns
+  `all()` of the list, so every document is attempted. `build_one` builds the PDF into a
+  `tempfile.TemporaryDirectory()` (outside the tree: `dev/docs_src/manual/_build` is tracked, a
+  stray PDF there would be committed by `git add -A`), copies it over the committed PDF only on
+  success, and writes `html/lsqvce_<doc>.html` after that. A failure prints "PDF build failed
+  (<doc>); html/lsqvce_<doc>.html and lsqvce_<doc>.pdf left as they were". Check mode unchanged.
+  The module docstring says it.
+- **Fault injection** (the Manual's xelatex call made to fail through a wrapped `subprocess.run`;
+  a marker line appended to the first Manual chapter and to api/01_data.md; each builder in its
+  own scratch copy from `git archive HEAD`; the script is not committed):
+
+  | builder | main() | Manual html | Manual pdf | API html | API pdf |
+  |---|---|---|---|---|---|
+  | before (main d1e6e5d) | False | REWRITTEN | unchanged | unchanged | unchanged |
+  | after (WP-143) | False | unchanged | unchanged | REWRITTEN | REWRITTEN |
+
+  The first row is the defect: the Manual's pair disagrees and the API, whose source changed,
+  was never built. The second is the contract.
+- **Healthy build** (scratch copy, no injection): exit 0; both HTML byte-identical to the
+  committed ones, both PDFs' pdftotext identical to the committed ones. `build_manual.py check`
+  in the tree: "both documents are fresh". The committed documents are not rebuilt by this WP.
+- **Gates:** audit CLEAN (check 23 drives check mode through the changed module); selftest every
+  fault caught. Tests unchanged (740 local / 728 CI); CI runs the audit job and the gate.
