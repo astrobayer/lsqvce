@@ -27,7 +27,8 @@ function R = fit(data, opts, nv)
 %                     closure; data that share no common parameters are
 %                     separate fit calls. What every stream of a day needs
 %                     (orbits and partials of a satellite pair) goes in the
-%                     system's optional prepareDay: called once per day, its
+%                     system's optional prepareDay: called once per build
+%                     of a day (the current day's result only is kept), its
 %                     result reaches each buildDay as procOpt.prepared (WP-141)
 %     (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
 %                     weights); optional data.priors. A FULL m x m SPD weight
@@ -162,6 +163,9 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-142: prepareDay runs once per
+%   build of a day, not once per day of the run. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-141: the help names the system's
 %   optional prepareDay (once per day, its result procOpt.prepared) and its
 %   identifiers. With assistance from Claude (Anthropic), model Claude Opus

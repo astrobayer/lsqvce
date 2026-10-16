@@ -98,17 +98,23 @@ all six. common / local have ONE ROW per template and C columns of YOUR
 convention; nc and nl are DERIVED (see &#x27;CommonParams&#x27; / &#x27;LocalParams&#x27;).</pre>
 <h3>WHAT ALL STREAMS OF A DAY SHARE -- &#x27;PrepareDay&#x27; (WP-141)</h3>
 <pre class="example">P = prepareDay(day, common, local, procOpt, info)
-  is called ONCE per day, before the first stream of that day is built,
-  with as many of its five arguments as it declares (info: the same
-  expansion slice buildDay gets). Every buildDay of that day receives
+  is called ONCE per build of a day, before the first stream of that
+  day is built, with as many of its five arguments as it declares,
+  none to all (info: the same expansion slice buildDay gets; procOpt:
+  the plain ProcessingOptions). Every buildDay of that day receives
   procOpt.prepared = P -- the place for what several streams need (the
   variational partials of a satellite pair, a file every stream reads).
-  P stays resident as long as its day: max(1, Cache * CacheDays) days,
-  so one call per visit of the day, one per run with CacheDays = Inf.
-  It must be deterministic like buildDay (it runs again when its day
-  was evicted). Refused: a buildDay that declares fewer than 5 arguments
-  (it never sees procOpt, P would be dropped) and a ProcessingOptions
-  that already has a field &#x27;prepared&#x27; (the toolbox never overwrites it).</pre>
+  P is kept for the CURRENT day only (WP-142): the engines read every
+  stream of a day before the next day (one exception: snoop&#x27;s clean
+  re-solve reads a system&#x27;s local-free arcs after all its others), and
+  &#x27;CacheDays&#x27; keeps the BUILT streams, not P. So the hook runs as often
+  as the day is built: once per run with CacheDays = Inf, at every
+  rebuild otherwise (2n+2 times in an n-pass noise run at CacheDays =
+  1), and on every parallel worker that builds the day (each holds its
+  own copy of the loader). It must be deterministic like buildDay.
+  Refused: a buildDay that declares fewer than 5 arguments (it never
+  sees procOpt, P would be dropped) and a ProcessingOptions that
+  already has a field &#x27;prepared&#x27; (the toolbox never overwrites it).</pre>
 <h3>Input</h3>
 <pre class="example">  buildDay   1x1 function_handle   the day builder above. Required.
   Name, Value options ([] or omitted -&gt; defaults; canonical UpperCamelCase,
@@ -182,7 +188,9 @@ convention; nc and nl are DERIVED (see &#x27;CommonParams&#x27; / &#x27;LocalPar
     &#x27;CacheDays&#x27;    1x1          resident built DAYS (R5 M4 4d): 1 = the current day
                                 with every one of its streams (R6 WP-102: the slot
                                 count is CacheDays x streams, the key is day|stream),
-                                Inf = the calendar (one build per run) (default 1)
+                                Inf = the calendar (one build per run); the
+                                PrepareDay result is the current day&#x27;s only, whatever
+                                CacheDays (WP-142)                   (default 1)
 
 RUNTIME ROBUST FACTORS -- TWO CHANNELS, ONE FACT EACH (R5 M2, R6 WP-105)
   opt.rowWeights   containers.Map &#x27;sysID|day|obsType|arcId&#x27; -&gt; m_arc x 1
@@ -263,6 +271,9 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
                                    already names -- WP-135)
     lsqvce:makeLoader:priorType    a stream name collides with a prior group&#x27;s,
                                    or starts with &#x27;prior_&#x27; (reserved, WP-131)
+    lsqvce:makeLoader:buildDay     buildDay is not a function handle, or -- with
+                                   &#x27;PrepareDay&#x27;, whose check reads its argument
+                                   count -- it does not resolve (WP-142)
     lsqvce:makeLoader:prepareDay   &#x27;PrepareDay&#x27; is not a function handle (WP-141)
     lsqvce:makeLoader:prepareUnused  &#x27;PrepareDay&#x27; is declared but buildDay takes fewer
                                    than 5 arguments: procOpt.prepared would never
@@ -271,11 +282,15 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
                                    &#x27;prepared&#x27;, the name the hook&#x27;s result takes
 
   Raised while READING a day (your buildDay is wrong):
-    lsqvce:makeLoader:buildDay     your buildDay itself threw; the original error
-                                   is attached as the cause (an lsqvce:* error
-                                   passes unchanged: it names its cause already)
-    lsqvce:makeLoader:prepareDay   your prepareDay threw; the day in the message,
-                                   the original error the cause (WP-141)
+    lsqvce:makeLoader:buildDay     your buildDay itself threw, or its handle does
+                                   not resolve (WP-142); the day and the stream in
+                                   the message, the original error the cause (an
+                                   lsqvce:* error passes unchanged: it names its
+                                   cause already)
+    lsqvce:makeLoader:prepareDay   your prepareDay threw, or its handle does not
+                                   resolve; the day in the message, the original
+                                   error the cause, an lsqvce:* error unchanged
+                                   (WP-141, WP-142)
     lsqvce:makeLoader:badDay       a required field (.A .B .l .t) is missing or is not
                                    a 1 x nArc cell, or the day carries a field that is
                                    not .A .B .l .t .Cep .nAxis (the v5 arcIdx / arcId
@@ -307,6 +322,13 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
          LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 
+Updated 2026-10-16 (CEST, UTC+02:00), WP-142 (code review of WP-141): the
+hook&#x27;s result is kept for the current day only, a hook that declares no
+argument gets none, and one helper (callDeclared) calls and wraps both
+buildDay and the hook -- a handle that does not resolve is the documented
+id with the day; the messages name prepareDay and processingOptions, the
+procOpt alias and two dead nargin defaults are gone. With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-141: the per-day hook PrepareDay
 -- called once per day before the day&#x27;s first stream is built, its result
 procOpt.prepared for every buildDay of that day, resident as long as the

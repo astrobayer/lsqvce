@@ -48,7 +48,9 @@ classdef Options
 %                                   exact route, so 0 is refused
 %     Seed       [] | double        RNG seed for the probes (recorded)
 %     CacheDays  double  1          built days kept resident per system; Inf =
-%                                   the whole calendar (one build per run)
+%                                   the whole calendar (one build per run). A
+%                                   system's prepareDay result is the current
+%                                   day's only, whatever CacheDays
 %     Verbose    logical | 0 | 1    screen messages: 0 silent, 1 progress. The
 %                                   value is passed to every driver as a flag
 %                                   (logical(Verbose)), so 2 behaves as 1
@@ -132,6 +134,9 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the API reference, RELEASE_NOTES.md
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-142: CacheDays says that a
+%   system's prepareDay result is the current day's only. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, "Not applicable" with its reason. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.

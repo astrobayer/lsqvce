@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.25.0 — User Manual"
+title: "lsqvce 6.25.1 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -322,8 +322,8 @@ configuration (API reference, chapter `buildDay`, *Where the handle goes*).
 
 When several streams of that system rest on one expensive computation — the orbits of
 both satellites and their partials for the whole day, used by the kinematic orbits and by
-the range-rates — put it in the system's `prepareDay`. It runs once per day, before the
-first stream of the day is built, and every `buildDay` of that day finds its result in
+the range-rates — put it in the system's `prepareDay`. It runs once per build of a day,
+before the first stream of the day is built, and every `buildDay` of that day finds its result in
 `procOpt.prepared` (API reference, chapter `buildDay`, *What all streams of a day share*;
 `template/kbr_variational.m` does exactly this).
 
@@ -1956,7 +1956,7 @@ The other fields default as follows:
   - `'arc'` rows: initial position and velocity per satellite, and the KBR
     bias, drift and once-per-revolution cos/sin terms;
   - `'day'` rows: accelerometer bias and scale per satellite;
-  - `arcs`, `covariance`, `processingOptions` and `buildDay`.
+  - `arcs`, `covariance`, `processingOptions`, `prepareDay` and `buildDay`.
 
 Every column carries a declared unit, so the physical value is
 `unit .* estimate`. Position streams carry their sigmas in `Cep`.
@@ -1966,10 +1966,14 @@ Every column carries a declared unit, so the physical value is
 - `unitCommon` and `unitLocal`;
 - `coeffIndex`, `harmonics`, `makeField` and `fieldEval`;
 - `propagate` and `accModel`;
-- `eraRotation`, `readGfc`, `readL1B` and `buildDay`.
+- `eraRotation`, `readGfc`, `readL1B`, `prepareDay` and `buildDay`.
 
-`buildKbrDay` integrates the whole day once and caches it, keeping one day
-in memory. It then serves every stream of that day from the cache.
+`prepareKbrDay`, the system's `prepareDay`, integrates the whole day once
+each time the day is built and forms the rows of every stream;
+`buildKbrDay` picks its stream out of `procOpt.prepared`. Only the current
+day's integration is kept; `CacheDays` keeps the built rows. Called
+directly, `kit.buildDay` needs `procOpt.prepared` set to what
+`kit.prepareDay` returns for the day.
 
 **Limitations.** The help lists these:
 
@@ -2105,8 +2109,10 @@ arc.
 
 `CacheDays` (default 1) is the number of built days kept resident per system. An
 iterative run reads every day twice per pass; `CacheDays = Inf` builds each day once per
-run if the calendar fits in memory. If reading the raw files is the expensive part, cache
-those inside your `buildDay` closure instead.
+run if the calendar fits in memory. A system's `prepareDay` result is kept for the
+current day only, whatever `CacheDays`: it adds one day's worth, and runs again whenever
+a day is rebuilt. If reading the raw files is the expensive part, cache those inside your
+`buildDay` closure instead.
 
 ## Time
 

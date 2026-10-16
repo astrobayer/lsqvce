@@ -56,17 +56,23 @@ function L = makeLoader(buildDay, opt)
 %
 %   WHAT ALL STREAMS OF A DAY SHARE -- 'PrepareDay' (WP-141)
 %     P = prepareDay(day, common, local, procOpt, info)
-%       is called ONCE per day, before the first stream of that day is built,
-%       with as many of its five arguments as it declares (info: the same
-%       expansion slice buildDay gets). Every buildDay of that day receives
+%       is called ONCE per build of a day, before the first stream of that
+%       day is built, with as many of its five arguments as it declares,
+%       none to all (info: the same expansion slice buildDay gets; procOpt:
+%       the plain ProcessingOptions). Every buildDay of that day receives
 %       procOpt.prepared = P -- the place for what several streams need (the
 %       variational partials of a satellite pair, a file every stream reads).
-%       P stays resident as long as its day: max(1, Cache * CacheDays) days,
-%       so one call per visit of the day, one per run with CacheDays = Inf.
-%       It must be deterministic like buildDay (it runs again when its day
-%       was evicted). Refused: a buildDay that declares fewer than 5 arguments
-%       (it never sees procOpt, P would be dropped) and a ProcessingOptions
-%       that already has a field 'prepared' (the toolbox never overwrites it).
+%       P is kept for the CURRENT day only (WP-142): the engines read every
+%       stream of a day before the next day (one exception: snoop's clean
+%       re-solve reads a system's local-free arcs after all its others), and
+%       'CacheDays' keeps the BUILT streams, not P. So the hook runs as often
+%       as the day is built: once per run with CacheDays = Inf, at every
+%       rebuild otherwise (2n+2 times in an n-pass noise run at CacheDays =
+%       1), and on every parallel worker that builds the day (each holds its
+%       own copy of the loader). It must be deterministic like buildDay.
+%       Refused: a buildDay that declares fewer than 5 arguments (it never
+%       sees procOpt, P would be dropped) and a ProcessingOptions that
+%       already has a field 'prepared' (the toolbox never overwrites it).
 %
 %   INPUT
 %     buildDay   1x1 function_handle   the day builder above. Required.
@@ -141,7 +147,9 @@ function L = makeLoader(buildDay, opt)
 %       'CacheDays'    1x1          resident built DAYS (R5 M4 4d): 1 = the current day
 %                                   with every one of its streams (R6 WP-102: the slot
 %                                   count is CacheDays x streams, the key is day|stream),
-%                                   Inf = the calendar (one build per run) (default 1)
+%                                   Inf = the calendar (one build per run); the
+%                                   PrepareDay result is the current day's only, whatever
+%                                   CacheDays (WP-142)                   (default 1)
 %
 %   RUNTIME ROBUST FACTORS -- TWO CHANNELS, ONE FACT EACH (R5 M2, R6 WP-105)
 %     opt.rowWeights   containers.Map 'sysID|day|obsType|arcId' -> m_arc x 1
@@ -227,6 +235,9 @@ function L = makeLoader(buildDay, opt)
 %                                      already names -- WP-135)
 %       lsqvce:makeLoader:priorType    a stream name collides with a prior group's,
 %                                      or starts with 'prior_' (reserved, WP-131)
+%       lsqvce:makeLoader:buildDay     buildDay is not a function handle, or -- with
+%                                      'PrepareDay', whose check reads its argument
+%                                      count -- it does not resolve (WP-142)
 %       lsqvce:makeLoader:prepareDay   'PrepareDay' is not a function handle (WP-141)
 %       lsqvce:makeLoader:prepareUnused  'PrepareDay' is declared but buildDay takes fewer
 %                                      than 5 arguments: procOpt.prepared would never
@@ -235,11 +246,15 @@ function L = makeLoader(buildDay, opt)
 %                                      'prepared', the name the hook's result takes
 %
 %     Raised while READING a day (your buildDay is wrong):
-%       lsqvce:makeLoader:buildDay     your buildDay itself threw; the original error
-%                                      is attached as the cause (an lsqvce:* error
-%                                      passes unchanged: it names its cause already)
-%       lsqvce:makeLoader:prepareDay   your prepareDay threw; the day in the message,
-%                                      the original error the cause (WP-141)
+%       lsqvce:makeLoader:buildDay     your buildDay itself threw, or its handle does
+%                                      not resolve (WP-142); the day and the stream in
+%                                      the message, the original error the cause (an
+%                                      lsqvce:* error passes unchanged: it names its
+%                                      cause already)
+%       lsqvce:makeLoader:prepareDay   your prepareDay threw, or its handle does not
+%                                      resolve; the day in the message, the original
+%                                      error the cause, an lsqvce:* error unchanged
+%                                      (WP-141, WP-142)
 %       lsqvce:makeLoader:badDay       a required field (.A .B .l .t) is missing or is not
 %                                      a 1 x nArc cell, or the day carries a field that is
 %                                      not .A .B .l .t .Cep .nAxis (the v5 arcIdx / arcId
@@ -271,6 +286,13 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-142 (code review of WP-141): the
+%   hook's result is kept for the current day only, a hook that declares no
+%   argument gets none, and one helper (callDeclared) calls and wraps both
+%   buildDay and the hook -- a handle that does not resolve is the documented
+%   id with the day; the messages name prepareDay and processingOptions, the
+%   procOpt alias and two dead nargin defaults are gone. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-141: the per-day hook PrepareDay
 %   -- called once per day before the day's first stream is built, its result
 %   procOpt.prepared for every buildDay of that day, resident as long as the
@@ -368,8 +390,8 @@ arguments
     opt.CommonParams cell = {}
     opt.LocalParams cell = {}
     opt.ProcessingOptions (1,1) struct = struct()
-    opt.PrepareDay = []           % WP-141: @(day, common, local, procOpt, info) -> P, once per day;
-                                  % every buildDay of that day gets procOpt.prepared = P
+    opt.PrepareDay = []           % WP-141: @(day, common, local, procOpt, info) -> P, once per build
+                                  % of a day; every buildDay of that day gets procOpt.prepared = P
     opt.Scoped (1,1) logical = false
     opt.CommonPlan = []
 end
@@ -402,7 +424,7 @@ end
     o.nc       = o.numCommon;
     o.common   = o.commonParams;
     o.local    = o.localParams;
-    [o.procOpt, prep] = preparedSpec(o.prepareDay, buildDay, o.processingOptions, o.cache, o.cacheDays);
+    prep = preparedSpec(o.prepareDay, buildDay, o.processingOptions);
 
     obsTypes = cellstr(o.obsTypes);
     if isempty(obsTypes)
@@ -535,7 +557,7 @@ end
     % agree on it -- pass nc = L.nc to adjustBlock, or the explicit scalar).
     L.common   = o.common;
     L.local    = o.local;
-    L.procOpt  = o.procOpt;
+    L.procOpt  = o.processingOptions;
     if o.scoped && ~isempty(o.commonPlan)
         % L11 WP-75 (v4): fit builds the COMMON plan over the GLOBAL day
         % calendar (it spans systems) and passes it in; nc is the plan's.
@@ -556,7 +578,7 @@ end
     % without a declared schedule (R6 WP-102), and an anonymous function
     % cannot capture a struct field that does not exist yet.
     dayAccessor = @(day, obsType) dayOf(buildDay, cache, arcCounts, capacity, day, obsType, ...
-                                        o.common, o.local, o.procOpt, plan, o.commonPlan, prep);
+                                        o.common, o.local, o.processingOptions, plan, o.commonPlan, prep);
     disc = struct('dayFcn', dayAccessor, 'counts', arcCounts);   % the discovery instrument
     L.meta    = @(varargin) metaOf(obsTypes, o.arcs, ...
                                    metaDay(varargin, o.days), disc, L);
@@ -1128,10 +1150,8 @@ function D = dayOf(buildDay, cache, arcCounts, capacity, day, obsType, common, l
 %   number stored with each entry (R6 WP-102). Every build memoises the
 %   day's arc count in ARCCOUNTS for the discovery probe. PREP is the per-day
 %   hook (WP-141, preparedSpec): its result for the day rides into buildDay
-%   as procOpt.prepared, computed once per resident day (preparedOf).
+%   as procOpt.prepared, computed once per build of the day (preparedOf).
 %   OUTPUT D 1x1 struct  the day data.
-    if nargin < 11, commonPlan = []; end
-    if nargin < 12, prep = struct('fcn', []); end
     key = dayKey(day, obsType);
     useCache = capacity > 0;
     if useCache && isKey(cache, key)
@@ -1142,7 +1162,8 @@ function D = dayOf(buildDay, cache, arcCounts, capacity, day, obsType, common, l
     if ~isempty(prep.fcn)                                  % WP-141: what all streams share
         procOpt.prepared = preparedOf(prep, day, common, local, procOpt, arcInfo);
     end
-    D = callBuildDay(buildDay, day, obsType, common, local, procOpt, arcInfo);
+    D = callDeclared(buildDay, {day, obsType, common, local, procOpt, arcInfo}, 2, ...
+                     'lsqvce:makeLoader:buildDay', day, obsType);
     D = validateDay(D, day, obsType);
     arcCounts(key) = numel(D.A);             %#ok<NASGU>  the memo (handle Map)
     if useCache
@@ -1164,98 +1185,88 @@ function key = dayKey(day, obsType)
     key = sprintf('%d|%s', day, obsType);
 end
 
-function [procOpt, prep] = preparedSpec(fcn, buildDay, procOpt, useCache, cacheDays)
-%PREPAREDSPEC  The processing options (returned as given) and the per-day hook
-%   (WP-141) validated against them and buildDay, with its own day cache of
-%   max(1, Cache * CacheDays) resident days: one at least, because the
-%   engines read the streams of a day one after another and the hook exists
-%   to run once for all of them. fcn = [] -> no hook (prep.fcn empty).
-    prep = struct('fcn', [], 'cache', [], 'capacity', 0);
+function prep = preparedSpec(fcn, buildDay, procOpt)
+%PREPAREDSPEC  The per-day hook (WP-141) validated against buildDay and the
+%   processing options, with its ONE-day slot (WP-142): the engines read
+%   every stream of a day before they read the next day, so the current
+%   day's result serves them all, and a result kept longer is never read
+%   again -- the (day, stream) cache holds the built streams. (Snoop's
+%   clean re-solve reads a system's local-free arcs last; a day it revisits
+%   is a day the (day, stream) cache lost too, which a slot of CacheDays
+%   days could not have kept either.) fcn = [] -> no
+%   hook (prep.fcn empty). buildDay's argument count is read here only for
+%   the hook; a handle that does not resolve is refused here.
+    prep = struct('fcn', [], 'slot', []);
     if isempty(fcn), return, end
     if ~isa(fcn, 'function_handle')
         error('lsqvce:makeLoader:prepareDay', ...
-              'PrepareDay must be a function handle (or [] for none), not a %s.', class(fcn));
+              'prepareDay must be a function handle (or [] for none), not a %s.', class(fcn));
     end
-    n = nargin(buildDay);
+    try
+        n = nargin(buildDay);
+    catch ME
+        E = MException('lsqvce:makeLoader:buildDay', ...
+                       'buildDay does not resolve, and prepareDay needs its argument count: %s (%s)', ...
+                       ME.message, ME.identifier);
+        throw(addCause(E, ME));
+    end
     if n >= 0 && n < 5
         error('lsqvce:makeLoader:prepareUnused', ...
-              ['PrepareDay is declared, but buildDay takes %d argument(s): the hook''s result ' ...
+              ['prepareDay is declared, but buildDay takes %d argument(s): the hook''s result ' ...
                'reaches buildDay as procOpt.prepared, its 5th argument -- declare ' ...
                'buildDay(day, obsType, common, local, procOpt[, info]).'], n);
     end
     if isfield(procOpt, 'prepared')
         error('lsqvce:makeLoader:preparedField', ...
-              ['ProcessingOptions already has a field ''prepared'', the name the result of ' ...
-               'PrepareDay takes in procOpt -- rename your field.']);
+              ['processingOptions already has a field ''prepared'', the name the result of ' ...
+               'prepareDay takes in procOpt -- rename your field.']);
     end
-    prep.fcn      = fcn;
-    prep.cache    = containers.Map('KeyType', 'char', 'ValueType', 'any');   % handle: mutable
-    prep.capacity = 1;                                   % Cache false: the current day
-    if useCache, prep.capacity = max(1, cacheDays); end  % (0 * Inf would be NaN)
+    prep.fcn  = fcn;
+    prep.slot = containers.Map('KeyType', 'char', 'ValueType', 'any');   % handle: mutable
 end
 
 function P = preparedOf(prep, day, common, local, procOpt, arcInfo)
-%PREPAREDOF  The per-day hook's result for DAY (WP-141): from its day cache, or
-%   computed once -- with as many of (day, common, local, procOpt, info) as
-%   the hook declares, a varargin hook all five -- and kept FIFO among
-%   prep.capacity days (the day cache's eviction rule). Anything it throws is
-%   lsqvce:makeLoader:prepareDay with the day, the user's error the cause;
-%   an lsqvce:* error passes unchanged, as in callBuildDay.
-    key = sprintf('%d', day);
-    if isKey(prep.cache, key)
-        e = prep.cache(key);  P = e.P;  return
+%PREPAREDOF  The per-day hook's result for DAY (WP-141): the slot's when it
+%   holds DAY, else computed with as many of (day, common, local, procOpt,
+%   info) as the hook declares -- none included (WP-142: a hook @() ...
+%   took one) -- and kept IN PLACE of the previous day's. The old result is
+%   dropped BEFORE the call, so two days' results are never resident
+%   together. What the hook throws is callDeclared's rule.
+    if isKey(prep.slot, 'day') && isequal(prep.slot('day'), day)
+        P = prep.slot('P');  return
     end
-    args = {day, common, local, procOpt, arcInfo};
-    n = nargin(prep.fcn);
-    try
-        if n < 0 || n >= 5
-            P = prep.fcn(args{:});
-        else
-            P = prep.fcn(args{1:max(1, n)});
-        end
-    catch ME
-        if startsWith(ME.identifier, 'lsqvce:'), rethrow(ME), end
-        E = MException('lsqvce:makeLoader:prepareDay', 'prepareDay threw on day %s: %s (%s)', ...
-                       string(day), ME.message, ME.identifier);
-        throw(addCause(E, ME));
-    end
-    seq = 0;
-    if prep.cache.Count > 0
-        ks = prep.cache.keys;  seqs = cellfun(@(x) x.seq, prep.cache.values);   % same order
-        seq = max(seqs);
-        while numel(ks) >= prep.capacity        % evict the OLDEST day (FIFO)
-            [~, i] = min(seqs);
-            remove(prep.cache, ks{i});  seqs(i) = [];  ks(i) = [];
-        end
-    end
-    prep.cache(key) = struct('P', P, 'seq', seq + 1);   %#ok<NASGU> the handle Map
+    if prep.slot.Count > 0, remove(prep.slot, keys(prep.slot)); end
+    P = callDeclared(prep.fcn, {day, common, local, procOpt, arcInfo}, 0, ...
+                     'lsqvce:makeLoader:prepareDay', day, '');
+    prep.slot('day') = day;
+    prep.slot('P')   = P;                     %#ok<NASGU> the handle Map
 end
 
-function D = callBuildDay(buildDay, day, obsType, common, local, procOpt, arcInfo)
-%CALLBUILDDAY  Call buildDay with as many of the 6 args as it declares, so an
-%   OLD 2-arg builder @(day,obsType) keeps working while a NEW builder can take
-%   @(day,obsType,common,local,procOpt,arcInfo). Anonymous handles report a
-%   fixed nargin; a named function that uses varargin reports a negative
-%   nargin, in which case we pass all six. WP-52 added the 6th (arcInfo, the
-%   per-day local-block plan; empty unless 'localsPerArc' was declared).
-%   Anything buildDay throws is re-raised as lsqvce:makeLoader:buildDay with
-%   the day and stream in the message and the user's error as the cause
-%   (WP-135: documented, but the raw error arrived without its context). An
-%   lsqvce:* error passes unchanged: it is a toolbox id that names its cause
-%   (batchSystem's builder raises badMatrix / weightMatrix, documented there).
-    n = nargin(buildDay);
-    args = {day, obsType, common, local, procOpt, arcInfo};
+function out = callDeclared(fcn, args, nMin, id, day, obsType)
+%CALLDECLARED  Call a user's function -- buildDay or prepareDay, the reason of
+%   ID being its name -- with as many of ARGS as it declares (nargin; at
+%   least NMIN), all of them when it declares that many or uses varargin
+%   (a negative nargin). So an old 2-arg builder @(day,obsType) keeps
+%   working while a new one takes all six (WP-52 added the 6th, arcInfo).
+%   Anything raised -- resolving the handle included: nargin of a function
+%   that is not on the path throws (WP-142) -- is re-raised as ID with the
+%   day (and the stream) in the message, the user's error the cause
+%   (WP-135). An lsqvce:* error passes unchanged: it is a toolbox id that
+%   names its cause (batchSystem's builder raises badMatrix / weightMatrix,
+%   documented there). ONE rule for both functions (WP-142).
     try
-        if n < 0 || n >= 6
-            D = buildDay(args{:});             % varargin, or takes all six
+        n = nargin(fcn);
+        if n < 0 || n >= numel(args)
+            out = fcn(args{:});
         else
-            D = buildDay(args{1:max(2,n)});    % pass exactly what it declares (>=2)
+            out = fcn(args{1:max(nMin, n)});
         end
     catch ME
         if startsWith(ME.identifier, 'lsqvce:'), rethrow(ME), end
-        E = MException('lsqvce:makeLoader:buildDay', ...
-                       'buildDay threw on day %s, stream ''%s'': %s (%s)', ...
-                       string(day), char(obsType), ME.message, ME.identifier);
+        where = sprintf('day %s', string(day));
+        if ~isempty(obsType), where = sprintf('%s, stream ''%s''', where, char(obsType)); end
+        E = MException(id, '%s threw on %s: %s (%s)', extractAfter(id, 'lsqvce:makeLoader:'), ...
+                       where, ME.message, ME.identifier);
         throw(addCause(E, ME));
     end
 end

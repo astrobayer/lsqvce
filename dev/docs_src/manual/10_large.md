@@ -13,8 +13,10 @@ arc.
 
 `CacheDays` (default 1) is the number of built days kept resident per system. An
 iterative run reads every day twice per pass; `CacheDays = Inf` builds each day once per
-run if the calendar fits in memory. If reading the raw files is the expensive part, cache
-those inside your `buildDay` closure instead.
+run if the calendar fits in memory. A system's `prepareDay` result is kept for the
+current day only, whatever `CacheDays`: it adds one day's worth, and runs again whenever
+a day is rebuilt. If reading the raw files is the expensive part, cache those inside your
+`buildDay` closure instead.
 
 ## Time
 

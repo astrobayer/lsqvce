@@ -36,7 +36,7 @@ R = lsqvce.fit(data, Estimate="noise", MaxPasses=6);     % name-value pairs stra
 | knob | values | default | meaning |
 |---|---|---|---|
 | `Backend` | `"qr"`, `"normal"` | `"qr"` | square-root information (Householder QR) or normal equations (Cholesky); the same numbers to rounding, QR the safer on ill-conditioned common blocks |
-| `CacheDays` | > 0 | 1 | built days kept resident per system; `Inf` keeps the calendar and builds each day once per run (a built type-day is m × nc doubles) |
+| `CacheDays` | > 0 | 1 | built days kept resident per system; `Inf` keeps the calendar and builds each day once per run (a built type-day is m × nc doubles); a system's `prepareDay` result is the current day's only, whatever `CacheDays` |
 | `Verbose` | logical | `false` | screen messages: 0 silent, 1 progress |
 | `OnPass` | `[]` or `@(ctx)` | `[]` | inspection hook called after every pass of every iterative run (below) |
 

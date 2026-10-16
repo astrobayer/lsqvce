@@ -77,7 +77,9 @@ def chapter_engine():
 def appendix_errors():
     out = ['# Error and warning identifiers\n',
            'Every identifier the package raises (generated from the identifier catalogue, which is kept '
-           'closed both ways: nothing is raised that is not listed, nothing is listed that is not raised).\n',
+           'closed both ways: nothing is raised that is not listed, nothing is listed that is not raised). '
+           'One family is not listed by name: an `lsqvce:makeLoader:<reason>` raised while `fit` builds a '
+           'system\'s loader reaches you as `lsqvce:fit:<reason>`, with the original attached as the cause.\n',
            '| identifier | raised by | kind | introduced |\n|---|---|---|---|']
     with open(os.path.join(ROOT, 'dev', 'docs_src', 'error_ids.csv'), encoding='utf-8') as fh:
         for row in csv.reader(fh):

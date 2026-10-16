@@ -738,7 +738,7 @@ The other fields default as follows:
   - `'arc'` rows: initial position and velocity per satellite, and the KBR
     bias, drift and once-per-revolution cos/sin terms;
   - `'day'` rows: accelerometer bias and scale per satellite;
-  - `arcs`, `covariance`, `processingOptions` and `buildDay`.
+  - `arcs`, `covariance`, `processingOptions`, `prepareDay` and `buildDay`.
 
 Every column carries a declared unit, so the physical value is
 `unit .* estimate`. Position streams carry their sigmas in `Cep`.
@@ -748,10 +748,14 @@ Every column carries a declared unit, so the physical value is
 - `unitCommon` and `unitLocal`;
 - `coeffIndex`, `harmonics`, `makeField` and `fieldEval`;
 - `propagate` and `accModel`;
-- `eraRotation`, `readGfc`, `readL1B` and `buildDay`.
+- `eraRotation`, `readGfc`, `readL1B`, `prepareDay` and `buildDay`.
 
-`buildKbrDay` integrates the whole day once and caches it, keeping one day
-in memory. It then serves every stream of that day from the cache.
+`prepareKbrDay`, the system's `prepareDay`, integrates the whole day once
+each time the day is built and forms the rows of every stream;
+`buildKbrDay` picks its stream out of `procOpt.prepared`. Only the current
+day's integration is kept; `CacheDays` keeps the built rows. Called
+directly, `kit.buildDay` needs `procOpt.prepared` set to what
+`kit.prepareDay` returns for the day.
 
 **Limitations.** The help lists these:
 

@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-15 — WP-141 DONE (PR #173, merge 8902a2a; CI GREEN on 234b113 in the first round: ci_gate 726/726, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.74; no code change, no version (6.25.0 stays, 738 tests).
+Last substantive update: 2026-10-16 — WP-142 OPEN (tier B, model Claude Opus 5.5; user: "/code-review Check also if all pdfs are in sync" -- two review runs of WP-141, then "Go ahead. No content check in audit. I check it visually"): a hook declared with no argument was called with one; the hook's result is kept for the current day only (it was kept CacheDays days, dead memory); one call-and-wrap helper for buildDay and prepareDay (a handle that does not resolve is the documented id); the documentation of the hook's frequency, memory and WP-141's stale lines; the relabelled lsqvce:fit family in the identifier appendix; the PDFs are in sync and stay title-checked only (the user checks them visually); version 6.25.1.
+Preceding entry: Last substantive update: 2026-10-15 — WP-141 DONE (PR #173, merge 8902a2a; CI GREEN on 234b113 in the first round: ci_gate 726/726, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.74; no code change, no version (6.25.0 stays, 738 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-141 OPEN (tier B, model Claude Opus 5.5; user: a hook "before calling buildDay" that does the calculations common to all streams of a day -- the partials of both satellites for the whole day, shared by the kinematic-orbit and range-rate streams; decisions: per system, named prepareDay, its result reaches buildDay inside procOpt): data.systems(k).prepareDay, called once per (system, day), its result procOpt.prepared, resident as long as the day; version 6.25.0.
 Preceding entry: Last substantive update: 2026-10-15 — WP-140 DONE (PR #171, merge 6c100c9; CI GREEN on 99e3c8f in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.73; no code change, no version (6.24.2 stays, 735 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-140 OPEN (tier B, model Claude Opus 5.5; user: "Mach die Beobachtungen aus §12.72 als WP-140"): the nine observations WP-139's research recorded -- copy-pasted and wrong `% tol:` comments, a circular test, applyRegularisation's and mapreduce's help, two unpinned help claims, misplaced stamps and sections, a loose mirror tolerance, a test in the wrong category, an untraced path; version 6.24.2.
@@ -10717,3 +10718,109 @@ included, and testKbrClosedLoopThroughFit on the migrated template. The audit jo
 merge: the ledger row, this note; no code change, no version -- 6.25.0 stays, 738 tests). The user's
 request is met: the work all streams of a day share runs once per (system, day) in `prepareDay` and
 reaches every buildDay as `procOpt.prepared`. No package is open; the next step is the user's.
+
+### 12.75 WP-142 — the code review of WP-141 (2026-10-16, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 142 | the two code reviews of WP-141 (`/code-review`, 2026-10-16; 14 + 12 findings, overlapping): a `prepareDay` declared with no argument was called with one (`args{1:max(1, n)}`, copied from buildDay's minimum of two); the hook's result kept for the CURRENT day only (it was kept `max(1, CacheDays)` days -- never read again once the day's streams are in the (day, stream) cache, and with `CacheDays = Inf` every day's result stayed resident); one call-and-wrap helper `callDeclared` for buildDay and the hook with `nargin` inside the `try` (a handle that does not resolve escaped as a raw MATLAB error), an unresolvable buildDay refused at construction when the hook's check needs its argument count; the refusals name `prepareDay` / `processingOptions`, the fields a fit user writes; the dead `nargin < 11 / 12` defaults and the `o.procOpt` alias retired (the FIFO copy and its O(D^2) scan go with the slot); the documentation said "once per day" (it is once per BUILD of a day) and kept WP-141's stale lines (API ch. buildDay: the closure "is the place for your own cache (rule 2)", the `procOpt` row; Manual ch. 9: the template's retired day cache; Manual ch. 10 and `Options.CacheDays`: the memory); `kit.buildDay`'s 6.25.0 contract in the template help and the release notes; the identifier appendix names the `lsqvce:fit:<reason>` family relabelled from makeLoader; README's theory reference (section 7 -> 1.3); tests of the hand-off and of the slot; **version 6.25.1** | 141 (PR #173 merged 8902a2a; closure #174 merged 3be3731) | OPEN (2026-10-16, tier B) |
+
+**The user's requests (2026-10-16):** "/code-review Check also if all pdfs are in sync" (two runs);
+after the status reply: "Go ahead. No content check in audit. I check it visually".
+**Decisions:**
+- The hook's result is kept for the current day only (proposed in the status reply, "keeping
+  only the current day's result?" -- "Go ahead").
+- No PDF content check in the audit: check 29 stays a title check, the user checks the PDFs
+  visually. Both review runs rebuilt all three PDFs from HEAD (the Manual and the API with
+  build_manual.py, the theory with theory/build.sh): their pdftotext output equals the committed
+  files'. In sync; two of them printed stale source text, corrected here.
+
+**The findings, merged and read in the code** (tier B: none reproduced in MATLAB):
+1. **Zero-argument hook** -- makeLoader:1214 `args{1:max(1, n)}`: `@() load(...)` fails with
+   "Too many input arguments" on the first day. Confirmed.
+2. **Lifetime** -- `dayOf` reaches `preparedOf` only on a (day, stream) miss, so a result kept
+   beyond the current day is read only when a stream of that day was evicted or never built.
+   A read-order sweep of every engine (an Explore agent, file:line evidence, 2026-10-16):
+   systems -> days -> streams -> arcs everywhere (BlockAccumulator.accumDay, residuals,
+   streamContribution, adjustVCEjoint.sweepArcs, redundancy's ordered task list, verdict's
+   ordered batches); the meta probes over all days build nothing in serial flows (the memo is
+   filled by the accumulation). ONE sequential exception: snoop's clean re-solve
+   (verdict.blockResolveAccumulator, `for s = [1:nS, 0]`) reads a system's local-free arcs
+   after all its local-bound ones -- a day it revisits is a day the (day, stream) cache lost
+   too, and a slot of CacheDays days loses it as well (FIFO). Parallel: every worker holds its
+   own copy of the loader; redundancy's per-arc tasks spread a day over workers. So one day is
+   enough, and the hook runs once per build of a day.
+3. **Error handling** -- `nargin(fcn)` outside the `try` in preparedOf AND callBuildDay; the
+   construction-time `nargin(buildDay)` raw; the relabelled messages named `PrepareDay` /
+   `ProcessingOptions`; `lsqvce:fit:prepareUnused` / `preparedField` are raised by the relabel
+   (strrep in declaration), so check 20 keeps them out of the catalogue -- the appendix's
+   "nothing is raised that is not listed" was false for the whole relabel family since it
+   exists.
+4. **Documentation** -- as in the ledger row; Options.CacheDays and API 04 row; the API's
+   "also with caching off" (makeLoader's Cache, not a fit option) is gone with the slot.
+5. **Tests** -- every test hook took one argument: the five-argument hand-off, the plain
+   procOpt, info, the lsqvce:* pass-through and a varargin buildDay were untested.
+6. **Cleanups** -- the FIFO copy and its per-insert scan; dead defaults; preparedSpec's
+   pass-through output.
+**Not acted on (recorded):** build_manual.py's `all()` over a generator stops the remaining
+builds after a failed one (review 2, finding 12's aside) -- a builder robustness point, not
+asked for; the user checks the PDFs visually.
+
+**The contract after WP-142:**
+1. `P = prepareDay(day, common, local, procOpt, info)` with as many of the five as it declares,
+   none to all; a varargin hook gets all five; procOpt is the plain processingOptions.
+2. One slot per loader: the result of the day last built. A build of another day drops it
+   BEFORE the call (two results never resident together), then keeps the new one. CacheDays
+   keeps built streams only. Runs: once per run with CacheDays = Inf; at every rebuild
+   otherwise; on every worker that builds the day.
+3. `callDeclared(fcn, args, nMin, id, day, obsType)`: nargin and the call inside one `try`;
+   a non-lsqvce error becomes ID ("<name> threw on day d[, stream 's']: msg (id)"), the cause
+   attached; an lsqvce:* error passes unchanged. buildDay and prepareDay share it.
+4. With a hook, `nargin(buildDay)` at construction; a handle that does not resolve is
+   `lsqvce:makeLoader:buildDay` there (a refusal, not a default).
+**Tests planned:** test_fit +2 -- testPrepareDayKeepsOnlyTheCurrentDay (CacheDays = Inf: an
+unbuilt stream of day 1 after day 2 costs a second call, a built one none) and
+testPrepareDayHandOff (no / varargin arguments; a varargin buildDay takes the hook; through fit
+the hook gets buildDay's common, local, info and the plain processingOptions); testPrepareDayRefusals
+widened (lsqvce:* pass-through, unresolvable hook and buildDay, the fit messages name the
+fields). Predicted 740 local / 728 CI.
+
+**Round note (2026-10-16, WP-142 implemented, tier B).**
+- **makeLoader.**
+  - `preparedSpec(fcn, buildDay, procOpt)` returns the hook with a one-entry slot (a handle
+    containers.Map: 'day', 'P'); `preparedOf` reads the slot or drops it, calls the hook and
+    refills it. The FIFO copy and its scan are gone with it.
+  - `callDeclared` replaces callBuildDay and the hook's own wrapper: `nargin` inside the `try`,
+    the message format unchanged ("buildDay threw on day 2, stream 'pos': ..."), the name taken
+    from the id's reason (buildDay / prepareDay -- one authority).
+  - `o.procOpt` was an alias of `o.processingOptions`: retired, the main function's code lines
+    stay at their ceiling of 150; the two dead `nargin` defaults in dayOf retired (one caller,
+    twelve arguments).
+  - The messages say `prepareDay` and `processingOptions` -- valid casings of makeLoader's
+    options and the fields a fit user writes, so the relabelled message reads right in both.
+  - Help: the hook's section (frequency, slot, the snoop exception, per-worker copies),
+    CacheDays, the ERRORS rows (buildDay at construction; both reading rows name an
+    unresolvable handle); stamp.
+- **Documentation.** API ch. buildDay (the procOpt row, rule 2, the closure sentence, the
+  section's "once per build", the how-often / memory / when-it-fails rows), ch. data and ch.
+  options; Manual ch. 4, 9 (the template: prepareKbrDay integrates, buildKbrDay picks,
+  kit.buildDay needs procOpt.prepared) and 10 (memory); fit, Options and the template's help
+  with stamps; the identifier appendix (build_manual.py) names the relabelled family; README
+  section 1.3. Docs rebuilt. **Version 6.25.1.**
+- **Tests** (test_fit 82 -> 84; 740 local / 728 CI predicted):
+  - testPrepareDayKeepsOnlyTheCurrentDay: CacheDays = Inf, (1,pos), (2,pos), (1,kbr) -> day 1
+    costs two calls, day 2 one; a built stream none; day 2's unbuilt kbr a second call.
+  - testPrepareDayHandOff: `@() P1` works; a varargin hook records five arguments; a varargin
+    buildDay takes the hook; through fit, per day, the hook's (common, local, info) equal the
+    day's first build's and its procOpt is the declared processingOptions, buildDay's minus
+    `prepared` the same. Recorded from the first call per day only: info carries an anonymous
+    `offsetOf`, equal only to itself, and the first build is the one in which the hook ran.
+  - testPrepareDayRefusals: an `lsqvce:test:passThrough` from the hook passes; `str2func` of a
+    missing function as the hook (prepareDay, "day 1") and as buildDay (construction with a
+    hook; the first read without one); the fit messages start with "data.systems(1):
+    prepareDay is declared" / "processingOptions already has".
+- **Gates:** audit CLEAN; selftest every fault caught; CI and the local ci_gate are pending.
+- **What could make CI red** (MATLAB not run here): `nargin` of a handle to a missing function
+  must throw (MATLAB:narginout:functionDoesnotExist), else the construction refusal of an
+  unresolvable buildDay does not fire; `remove` is guarded by Count; the fit hand-off test
+  assumes the first build of a day is the one in which the hook ran (dayOf: hook, then build).
