@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-17 — WP-144 OPEN (tier A; model Claude Opus 5.5; user: "Go ahead with wp-144"): A2, A3, A4, A6 reproduced before the fix (A6 worse than recorded: the prior held at its declared sigma and the loop reported "converged"), A7's gap closed by a GENERATED GRAVFIRE bundle (dev/tests/fixture_gravfire_bundle.m) that runs template/gravfire_data.m and demo_gravfire in the gate; 5 tests; version 6.26.1; ci_gate GREEN 747/747 locally; §12.80.
+Last substantive update: 2026-10-17 — WP-144 DONE (PR #186, merge 114a03c; CI GREEN on 756fe36 in the first round: ci_gate 747/747, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.80; no code change, no version (6.26.1 stays, 759 declared / 747 run).
+Preceding entry: Last substantive update: 2026-10-17 — WP-144 OPEN (tier A; model Claude Opus 5.5; user: "Go ahead with wp-144"): A2, A3, A4, A6 reproduced before the fix (A6 worse than recorded: the prior held at its declared sigma and the loop reported "converged"), A7's gap closed by a GENERATED GRAVFIRE bundle (dev/tests/fixture_gravfire_bundle.m) that runs template/gravfire_data.m and demo_gravfire in the gate; 5 tests; version 6.26.1; ci_gate GREEN 747/747 locally; §12.80.
 Preceding entry: Last substantive update: 2026-10-17 — WP-147 DONE (part 1 PR #182, merge 40b6144; part 2 PR #184, merge d260dfd; CI GREEN on 728c502 in the first round: ci_gate 742/742, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.79; no code change, no version (6.26.0 stays, 754 declared / 742 run).
 Preceding entry: Last substantive update: 2026-10-17 — WP-147 part 2 (tier A; model Claude Opus 5.5; user: "Continue as suggested" = options A + B of §12.79): the noise loop's bins are held to Tolerance max(1, sqrt(200 / r_j)) -- at the default a tenth of their own standard error where the data say little -- instead of Tolerance; the not-converged warning names the bins that still move and the solution's last step; R.history / convergence() carry binRatio and xStep; psdVCE returns .dev and .redundancy; 4 tests; version 6.26.0; §12.79.
 Preceding entry: Last substantive update: 2026-10-16 — WP-145 DONE (PR #180, merge e7c1d16; CI GREEN on 71fe488 in the first round: ci_gate 738/738, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.78; no code change, no version (6.25.2 stays, 750 declared / 738 run).
@@ -11351,7 +11352,7 @@ rows of §12.77, WP-144 (package and template findings A2, A3, A4, A6, A7) and W
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 144 | The findings A2, A3, A4, A6 and A7 of §12.77, each reproduced before its fix, each fix with a test that fails without it: (A2) `lsqvce.engine.synthLoader`'s one-day cache keyed on the WHOLE configuration, the rule in its help (it is the loader template); (A3) `Results.plot("psd")` draws every pool group's spectrum on a log axis; (A6) `fit`'s prior "scale" update takes N^-1 from the finite cofactor when the normal backend refuses a cancelled v'Pv; (A7) a generated GRAVFIRE bundle runs `template/gravfire_data.m` end to end in a test; (A4) a labelled local Tikhonov group refuses members that differ in fromPass, and the a-priori values per member are decided after reading the common-table path; version by precedent (fixes alone a patch: 6.26.1) | 147 (closure #185) | IN PROGRESS |
+| 144 | The findings A2, A3, A4, A6 and A7 of §12.77, each reproduced before its fix, each fix with a test that fails without it: (A2) `lsqvce.engine.synthLoader`'s one-day cache keyed on the WHOLE configuration, the rule in its help (it is the loader template); (A3) `Results.plot("psd")` draws every pool group's spectrum on a log axis; (A6) `fit`'s prior "scale" update takes N^-1 from the finite cofactor when the normal backend refuses a cancelled v'Pv; (A7) a generated GRAVFIRE bundle runs `template/gravfire_data.m` end to end in a test; (A4) a labelled local Tikhonov group refuses members that differ in fromPass, and the a-priori values per member are decided after reading the common-table path; version by precedent (fixes alone a patch: 6.26.1) | 147 (closure #185) | DONE (2026-10-17, PR #186, merge 114a03c; CI GREEN on 756fe36 in the first round: ci_gate 747/747, warning inventory lsqvce:internal:testProbe only; local postflight on 756fe36 GREEN 747/747) |
 
 **The user's request (2026-10-17):** "Go ahead with wp-144".
 
@@ -11416,6 +11417,18 @@ Linux audit CLEAN, selftest 76 / 76. Version 6.26.1; 759 declared / 747 run.
    gap as one step) and asks for weight 0 instead. The template should weight them out.
 3. The memory of this PC said a real GRAVFIRE bundle lies at `../testdata.mat`; it does not any more.
 
+**CI round 1 (756fe36): GREEN** -- `ci_gate` 747 / 747, 27 / 27 suites, the warning inventory
+`lsqvce:internal:testProbe` only; the audit and release jobs green. The local postflight on the
+same commit: GREEN 747 / 747, 263 s.
+
+**Closure (2026-10-17).** WP-144 DONE: PR #186 merged as 114a03c (the loop's record step after the
+merge: the ledger row, this note; no code change, no version -- 6.26.1 stays, 759 declared / 747
+run). The three observations above went to their own sessions: observation 1 (R.sigma0 NaN after
+a refused v'Pv) is WP-149 (PR #187); observation 2 (the template removes flagged epochs) is WP-148,
+user decision 2026-10-17 "Go ahead as recommended" = option B (the template keeps the epoch, and
+makeLoader composes a day's excluded epochs under a non-diagonal law as the exact nugget deletion:
+measured, D.excluded alone is a phantom under a correlated law, 2.0e-3 off the true deletion).
+Still PROPOSED from §12.77: WP-146 (build_manual.py, B1-B9).
 ### 12.81 WP-149 — a refused v'Pv no longer reaches the fit's own Results (2026-10-17, model Claude Opus 5.5, tier A)
 
 | WP | title | depends on | status |
