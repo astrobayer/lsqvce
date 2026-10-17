@@ -14,6 +14,9 @@ function tests = test_vcePolicy
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTVCEJOINT, TEST_ELLMER, TEST_PHYSORACLE
 %
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-144: plot("psd") on a log axis
+%   for every pool group (A3); the prior's "scale" update survives a refused
+%   v'Pv (A6). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-147: the bins' stop rule -- a
 %   low-information bin no longer blocks the stop, a tighter Tolerance
 %   tightens every bin, the not-converged warning says what still moves.
@@ -327,6 +330,21 @@ function D = countBuild(cnt, inner, varargin)
 end
 
 %% ------------------------------------------------------------- plot (M5 5c)
+function testPsdPlotIsLogarithmicForEveryPoolGroup(tc)
+% categories: contract | tags: diagnostics
+    % WP-144 (A3): with several pool groups the spectra were drawn after
+    % hold on, and semilogy under hold keeps the axes' scale -- they came out
+    % on a LINEAR axis (reproduced: 4 groups, YScale "linear"). Spectra span
+    % decades; the axis must be logarithmic whatever the number of groups.
+    R = tc.TestData.Rv;                              % Pool "stream": one group per stream
+    tc.assertGreaterThan(R.noise.Sgroups.Count, 1, 'the fixture has several pool groups');
+    fh = R.plot("psd", Visible=false);
+    tc.addTeardown(@() close(fh));
+    ax = findall(fh, 'Type', 'axes');
+    tc.verifyEqual(get(ax(1), 'YScale'), 'log');
+    tc.verifyNumElements(findall(ax(1), 'Type', 'line'), R.noise.Sgroups.Count, 'one line per group');
+end
+
 function testPlotReturnsFiguresForEveryKind(tc)
 % categories: contract | tags: diagnostics
     % R5 M5 5c: R.plot(kind) replaces the retired plot hooks -- one figure per
@@ -974,6 +992,63 @@ function testLjungBoxIsSizedOnShortArcs(tc)
     % 13 against 20 degrees of freedom gives p ~ 0.87 at the mean).
     tc.verifyGreaterThan(mean(p), 0.29, 'p-values are not pushed towards 0');
     tc.verifyLessThan(mean(p), 0.71, 'nor piled up towards 1 (the R7-38 symptom)');
+end
+
+%% ------------------------------- WP-144 (A6): the prior's scale after a refused v'Pv
+function testPriorScaleSurvivesARefusedVtPv(tc)
+% categories: robustness, reference
+    % A tight fit (commons of size 1e5 against unit noise) makes the normal
+    % backend refuse v'Pv as cancelled: s0sq and every entry of Cxx are NaN.
+    % The prior's "scale" step took N^-1 = Cxx / s0sq, so r was NaN, the
+    % group was never updated, PriorDev stayed 0 and the loop reported
+    % "converged" with the declared sigma 1e6 (reproduced; the QR backend
+    % found 4.9e4). N^-1 now comes from the cofactor, which is finite.
+    muteWarn(tc, 'lsqvce:accum:cancellation');      % it fires on every solve here, by design
+    data = tightPriorFixture();
+    fitWith = @(backend) lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ...
+        ArcFactors=false, Backend=backend, MaxPasses=6, Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    Rn = fitWith("normal");  Rq = fitWith("qr");
+    upd = cellfun(@(r) r(1).updated, Rn.noise.priorHistory);
+    tc.verifyTrue(all(upd), sprintf('updated on every pass (%s)', mat2str(upd)));
+    tc.verifyTrue(all(cellfun(@(r) isfinite(r(1).r), Rn.noise.priorHistory)), 'its redundancy is finite');
+    % tol: 1e-6 relative -- the same Helmert step on the same data, the two
+    % backends' N^-1 agreeing far below the statistics (measured equal to
+    % four printed digits, 4.886e4 both)
+    tc.verifyEqual(Rn.noise.priors(1).sigma, Rq.noise.priors(1).sigma, 'RelTol', 1e-6, ...
+        'the normal backend estimates the prior as the QR backend does');
+    tc.verifyLessThan(Rn.noise.priors(1).sigma, 1e5, 'and moves it away from the declared 1e6');
+end
+
+function data = tightPriorFixture()
+%TIGHTPRIORFIXTURE  One white stream, 3 days x 4 arcs x 64 epochs, 4 commons of
+%   size 1e5 against unit noise -- l'Pl / v'Pv ~ 1e10, past the backends'
+%   8-digit cancellation guard -- and a loose common prior (sigma 1e6,
+%   estimate "scale"). Deterministic (WP-144, A6).
+    cfg = struct('nc', 4, 'days', 1:3, 'arcs', 4, 'mArc', 64, 'dt', 5, ...
+                 'xTrue', 1e5 * [0.8 -0.45 0.3 0.15]);
+    data = struct();
+    data.commonParams = [repmat({'common'}, cfg.nc, 1), ...
+                         arrayfun(@(j) sprintf('c%d', j), (1:cfg.nc).', 'UniformOutput', false)];
+    data.days = cfg.days;
+    spec = struct('type', 'diag', 'sigma', 1, 'estimate', "scale", 'arcFactors', false);
+    data.systems = struct('buildDay', @(day, ot) tightPriorDay(cfg, day), ...
+                          'covariance', struct('a', spec), 'arcs', cfg.arcs, 'id', 1, 'name', 'tight');
+    data.priors = struct('L', eye(cfg.nc), 'x0', zeros(cfg.nc, 1), 'sigma', 1e6, ...
+                         'name', 'loose', 'estimate', "scale");
+end
+
+function D = tightPriorDay(cfg, day)
+%TIGHTPRIORDAY  One day of the fixture above.
+    m = cfg.arcs * cfg.mArc;
+    t = (day - 1)*86400 + (0:m-1).' * cfg.dt;
+    w = 2*pi / 3000;
+    D.A = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];
+    D.B = zeros(m, 0);
+    rs = RandStream('mt19937ar', 'Seed', 5500 + day);
+    D.l = D.A * cfg.xTrue(:) + randn(rs, m, 1);
+    D.t = t;
+    D.arcIdx = arrayfun(@(a) (a-1)*cfg.mArc + (1:cfg.mArc), 1:cfg.arcs, 'UniformOutput', false);
+    D = arcCells(D);                                 % v6: the cells are the arcs
 end
 
 %% ------------------------------- WP-147: the stop rule and its low-information bins

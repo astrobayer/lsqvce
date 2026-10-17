@@ -69,7 +69,9 @@ function out = adjustVCEjoint(accFcn, opt)
 %               .iter    1x1       the iteration number (1 on the first call)
 %               .final   1x1 logical  true on the closing accumulation under the
 %                                  returned model (same .iter as the last pass;
-%                                  WP-135: .lastSol is then THAT pass's solve)
+%                                  WP-135: .lastSol is then THAT pass's solve;
+%                                  WP-144: .lastSol.Ninv, the commons' cofactor
+%                                  N^-1, when .s0sq is not finite)
 %               .streamSigma2, .arcFactor  the per-stream level and the per-arc
 %                                  factor relative to it (R7-13, since 6.1.6);
 %                                  LSQVCE.ENGINE.JOINTMODELOPT turns the whole
@@ -317,6 +319,10 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A6): model.lastSol carries
+%   Ninv (the commons' cofactor) when the backend refused a cancelled v'Pv,
+%   so a prior's "scale" step does not divide by NaN. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-147: a spectral bin has settled
 %   when it moved by at most Tol max(1, sqrt(200 / r_j)) -- at the default
 %   Tol a tenth of its own standard error where that exceeds Tol;
@@ -609,7 +615,7 @@ end
         % declared sigma 100 returned as 100, |x - x_true| 154 against 5.4.
         priorDev = 0;  priorPending = false;
         if ~isempty(o.PriorDev), [priorDev, priorPending] = o.PriorDev(); end
-        lastSol = struct('x', sol.x(:), 'Cxx', sol.Cxx, 's0sq', sol.s0sq);
+        lastSol = lastSolOf(acc, sol);       % WP-144 (A6): + N^-1 when s0sq is refused
         accF  = acc;  solF = sol;
         s2Prev = sigma2;                     % R7-11: the levels this pass was weighted with
 
@@ -1838,4 +1844,21 @@ function msg = notSettledMessage(maxIter, tol, hist, blocking)
         'arcs per frequency, a prior that keeps moving a declared sigma far from the data.'], ...
         maxIter, hist.maxDev(end), hist.levelDev(end), hist.priorDev(end), tol, ...
         moving, hist.xStep(end));
+end
+
+function last = lastSolOf(acc, sol)
+%LASTSOLOF  The previous pass's solution as the accFcn's model.lastSol sees it.
+%   .x, .Cxx and .s0sq as solved; when the backend refused a cancelled v'Pv
+%   (s0sq NaN, and with it every entry of Cxx) also .Ninv = N^-1, the commons'
+%   cofactor (BlockAccumulator.commonCofactor), which is finite. WP-144 (A6):
+%   fit's prior "scale" step took N^-1 = Cxx / s0sq = NaN, held the group at
+%   its declared sigma and reported PriorDev 0 -- the loop stopped
+%   "converged" with the prior never estimated (reproduced: 1e6 held, the QR
+%   backend found 4.9e4). Computed only in that case: Cxx already carries it.
+%   INPUT   acc  the pass's accumulator;  sol  its solution struct
+%   OUTPUT  last 1x1 struct  .x (nc x 1) .Cxx .s0sq [.Ninv nc x nc]
+    last = struct('x', sol.x(:), 'Cxx', sol.Cxx, 's0sq', sol.s0sq);
+    if ~isfinite(sol.s0sq)
+        last.Ninv = acc.commonCofactor();
+    end
 end
