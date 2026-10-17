@@ -9,6 +9,10 @@ function tests = test_adjustBlock
 %   makeLoader path must recover the synthetic truth and return sigma0 ~ 1.
 %
 %   Run: runtests('tests/test_adjustBlock')
+%
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A2): the template
+%   synthLoader's cache keys on the whole configuration. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
     tests = functiontests(localfunctions);
 end
 
@@ -470,6 +474,30 @@ function D = captureBuild(cfg, day, obsType, common, local, procOpt, seen)
 % buildDay intact (v6: a day struct carries no field but the contract's).
     D = buildDayImpl(cfg, day, obsType);
     seen('common') = common;  seen('local') = local;  seen('po') = procOpt;   %#ok<NASGU>
+end
+
+function testSynthLoaderCacheKeysOnTheWholeConfiguration(tc)
+% categories: contract, robustness
+    % WP-144 (A2): the template's persistent one-day cache was keyed on six
+    % named fields (sat, day, obsType, the tag, nc, nl, seed). Reproduced: a
+    % call with mArc 2 after one with mArc 400 received 400-row arcs, and an
+    % x_c ten times larger returned the old observations -- silently. The key
+    % is now the whole configuration by value, a containers.Map by contents.
+    clear lsqvce.engine.synthLoader                  % start from an empty cache
+    tc.addTeardown(@() clear('lsqvce.engine.synthLoader'));
+    cfg = synthCfg();
+    get = @(c) lsqvce.engine.synthLoader(c, 1, 1, 'pos', 1, struct());
+    a = get(cfg);
+    c2 = cfg;  c2.mArc = 7;
+    tc.verifyEqual(size(get(c2).A, 1), 7, 'another arc length is another day');
+    c3 = cfg;  c3.x_c = 10 * cfg.x_c;
+    tc.verifyNotEqual(get(c3).l, a.l, 'another truth is another day');
+    c4 = cfg;  c4.cov.pos = struct('type', 'diag', 'sigma', 3);
+    tc.verifyNotEqual(get(c4).l, a.l, 'another noise model is another day');
+    tc.verifyEqual(get(cfg).l, a.l, 'the same configuration rebuilds the same day');
+    y0 = cfg.y(1);
+    cfg.y(1) = y0 + 1;                               % the SAME map handle, changed in place
+    tc.verifyNotEqual(get(cfg).l, a.l, 'a map changed in place is seen');
 end
 
 function cfg = synthCfg()

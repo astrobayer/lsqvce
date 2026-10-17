@@ -163,6 +163,10 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A6): a prior group with
+%   estimate "scale" is updated also when the normal backend refuses a
+%   cancelled v'Pv (N^-1 from the cofactor). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-142: prepareDay runs once per
 %   build of a day, not once per day of the run. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -660,7 +664,13 @@ function [groups, rec] = priorUpdate(groups, lastSol)
 %   flagged in rec.
 %   OUTPUT  rec 1xG struct (.name .sigma .omega .r .updated)
     rec = struct('name', {}, 'sigma', {}, 'omega', {}, 'r', {}, 'updated', {});
-    Ninv = lastSol.Cxx / max(lastSol.s0sq, realmin);
+    if ~isfinite(lastSol.s0sq) && isfield(lastSol, 'Ninv')
+        % WP-144 (A6): the backend refused a cancelled v'Pv -- s0sq and Cxx
+        % are NaN, N^-1 is not: the joint loop hands the cofactor itself
+        Ninv = lastSol.Ninv;
+    else
+        Ninv = lastSol.Cxx / max(lastSol.s0sq, realmin);
+    end
     for k = 1:numel(groups)
         g = groups(k);
         v = (g.L * lastSol.x - g.x0) / g.sigma;

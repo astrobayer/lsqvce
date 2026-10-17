@@ -96,11 +96,18 @@ arc-aware: integrate only over the requested arc&#x27;s epochs. The meta call
 must then get the arc boundaries from a lightweight scan of the
 observation timestamps, without touching the design matrix.</pre>
 <h3>The Cache Key Is A Correctness Issue</h3>
-<pre class="example">  The key includes everything that changes the design matrix. If an option
-  in opt alters A or B (e.g. switching empirical accelerations on) it MUST
-  appear in the key, or the second pass in LSQVCE.ENGINE.RESIDUALS will silently
-  reuse a stale day and sigma0 will not reproduce. That mismatch is
-  detected and warned about, but a correct key avoids it entirely.
+<pre class="example">  The key must hold EVERYTHING that changes what buildDay returns. This
+  template keys on (sat, day, obsType, opt.forceModelTag) AND on the WHOLE
+  configuration, compared by value (a containers.Map by its keys and
+  values, so a map changed in place is seen): two runs that differ only in
+  cfg.mArc, cfg.x_c, cfg.cov or any other field never share a day (WP-144:
+  the key held six named fields, and a run differing in mArc was handed
+  the previous run&#x27;s 400-row arcs). In YOUR copy, keep that rule: when
+  buildDay reads a file, key on the file name and its modification time;
+  when an option in opt alters A or B (empirical accelerations, say), it
+  belongs in the key, or the second pass in LSQVCE.ENGINE.RESIDUALS silently
+  reuses a stale day and sigma0 does not reproduce. A field missed is
+  wrong data with no error; a field too many only costs a rebuild.
 
 ARC-WISE LOCAL PARAMETERS
   If the local parameters are per-arc (arc-wise initial state, say), then
@@ -145,6 +152,9 @@ The &#x27;psd&#x27; generator (an AR(200) fit) is not pinned. WP-139.</pre>
 
 See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.COVMODEL
 
+Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A2): the one-day cache is
+keyed on the whole configuration by value, and the help states the rule
+for a copy. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the H1 line names the unit
 in full, lsqvce.engine.synthLoader, as HANDOVER 6.2.1 asks (it read the
 bare name). With assistance from Claude (Anthropic), model Claude Opus

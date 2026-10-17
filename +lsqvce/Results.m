@@ -149,6 +149,9 @@ classdef Results < handle
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: stopReason lists "userStop"
 %   and "diverged". With assistance from Claude (Anthropic), model Claude Opus
 %   5.5.
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A3): plot("psd") draws
+%   every pool group on a log axis. With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-147: convergence() adds the
 %   columns binRatio (the bins' stop quantity) and xStep; maxDev is a
 %   reading. With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -372,6 +375,9 @@ classdef Results < handle
                     ax = axes('Parent', fh);
                     if isfield(obj.noise, 'Sgroups') && ~isempty(obj.noise.Sgroups) && obj.noise.Sgroups.Count > 0
                         ks = obj.noise.Sgroups.keys;
+                        % WP-144 (A3): under hold on, semilogy keeps the axes'
+                        % scale -- the per-group spectra came out on a LINEAR axis
+                        set(ax, 'YScale', 'log');
                         hold(ax, 'on');
                         for k = 1:numel(ks)
                             S = obj.noise.Sgroups(ks{k});  L = numel(S);     % the bins themselves (WP-111)

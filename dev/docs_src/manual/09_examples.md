@@ -681,7 +681,11 @@ Regularisation comes from column 11 of the tables:
 `{'Tikhonov', fromPass, sigma[, label]}`. On common rows, `priorsFromColumn11`
 builds `data.priors` in the `L` form. On local rows, `gravfireLocalPriors`
 builds `data.systems.priors` in the `group` (regular-expression) form.
-Labelled groups get `estimate "scale"`; unlabelled rows get `"none"`.
+Labelled groups get `estimate "scale"`; unlabelled rows get `"none"`. The rows of one
+label must share sigma and `fromPass`, and on local rows also the a-priori value
+(column 10): the `group` form expands its rows in the toolbox's order, so one value per
+member cannot be written there. The test suite runs the whole template on a generated
+bundle (`dev/tests/fixture_gravfire_bundle.m`).
 
 The function raises these errors:
 
@@ -690,7 +694,7 @@ The function raises these errors:
 | `gravfire:designMissing` | no `DesignFcn` and no `DryRun`, raised when a day is read |
 | `gravfire:unknownQuantity` | an observation group has an unsupported quantity |
 | `gravfire:designShape` | `DesignFcn` returned `A` or `B` with the wrong size |
-| `gravfire:badConstraint` | a malformed column-11 entry |
+| `gravfire:badConstraint` | a malformed column-11 entry, or rows of one label that differ in sigma, `fromPass` or (local rows) the a-priori value |
 
 The help also refers to `dev/GRAVFIRE_INTERFACE.md`, the step-by-step guide.
 

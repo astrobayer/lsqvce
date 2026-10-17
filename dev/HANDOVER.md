@@ -8,7 +8,9 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-17 — WP-147 part 2 (tier A; model Claude Opus 5.5; user: "Continue as suggested" = options A + B of §12.79): the noise loop's bins are held to Tolerance max(1, sqrt(200 / r_j)) -- at the default a tenth of their own standard error where the data say little -- instead of Tolerance; the not-converged warning names the bins that still move and the solution's last step; R.history / convergence() carry binRatio and xStep; psdVCE returns .dev and .redundancy; 4 tests; version 6.26.0; §12.79.
+Last substantive update: 2026-10-17 — WP-144 OPEN (tier A; model Claude Opus 5.5; user: "Go ahead with wp-144"): A2, A3, A4, A6 reproduced before the fix (A6 worse than recorded: the prior held at its declared sigma and the loop reported "converged"), A7's gap closed by a GENERATED GRAVFIRE bundle (dev/tests/fixture_gravfire_bundle.m) that runs template/gravfire_data.m and demo_gravfire in the gate; 5 tests; version 6.26.1; ci_gate GREEN 747/747 locally; §12.80.
+Preceding entry: Last substantive update: 2026-10-17 — WP-147 DONE (part 1 PR #182, merge 40b6144; part 2 PR #184, merge d260dfd; CI GREEN on 728c502 in the first round: ci_gate 742/742, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.79; no code change, no version (6.26.0 stays, 754 declared / 742 run).
+Preceding entry: Last substantive update: 2026-10-17 — WP-147 part 2 (tier A; model Claude Opus 5.5; user: "Continue as suggested" = options A + B of §12.79): the noise loop's bins are held to Tolerance max(1, sqrt(200 / r_j)) -- at the default a tenth of their own standard error where the data say little -- instead of Tolerance; the not-converged warning names the bins that still move and the solution's last step; R.history / convergence() carry binRatio and xStep; psdVCE returns .dev and .redundancy; 4 tests; version 6.26.0; §12.79.
 Preceding entry: Last substantive update: 2026-10-16 — WP-145 DONE (PR #180, merge e7c1d16; CI GREEN on 71fe488 in the first round: ci_gate 738/738, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.78; no code change, no version (6.25.2 stays, 750 declared / 738 run).
 Preceding entry: Last substantive update: 2026-10-16 — WP-145 OPEN (tier A: MATLAB R2026a through the bridge and matlab -batch, the Manual under WSL; model Claude Opus 5.5; user: "open WP-145 as §12.77 proposes ... start with the measurement of which warnings the 15 examples raise today, then reproduce A1, A5, A8 and A9 before fixing them", then "Figure out, why they do not converge. The task is to have working examples that ensure and test precision and reliability", then "Coarser law" and "Find the day, then levels"): A1/A5/A8/A9 reproduced and fixed in dev/tests (example warnings reach the gate through private/echoWarnings and a capture probe, rule 5 bound to the run, run_lsqvce on dev/tests with a working LogFile=''); the fixed gate went RED on four unconverged examples; diagnosed (bins the data barely determine) and fixed (Smooth 1 / Grid 8, all converge in 3-7 passes, demo_sensors finds its bad day before the levels -- its levels had been 32-46 % off); version 6.25.2; ci_gate GREEN 738/738 locally; §12.78.
 Preceding entry: Last substantive update: 2026-10-16 — whole-repository code review of v6.25.1 and the handover to a tier-A session (cloud container, no MATLAB; model Claude Opus 5.5; user: "/code-review xhigh - fix" on WP-143, then "I want you to review the repo and the code using /code-review", then "Prepare a handover. I can start a new session on this computer so that you have access to Matlab"): nine repository findings (A1-A9) and nine build_manual.py findings (B1-B9), each with its verification state and its tier-A reproduction step; WP-144 (package and template), WP-145 (test tooling), WP-146 (build_manual.py) PROPOSED, not opened; no code change, no version (6.25.1 stays, 740 tests); §12.77.
@@ -10896,7 +10898,7 @@ recorded-only observation of §12.75 is acted on. No package is open; the next s
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 144 | The package and template findings A2, A3, A4, A6 and the coverage gap A7 below: the one-day cache key of `lsqvce.engine.synthLoader`, `Results.plot("psd")` on a log axis, the local Tikhonov groups of `template/gravfire_data.m`, `fit`'s prior "scale" update after a refused v'Pv, and a generated GRAVFIRE bundle fixture that runs `gravfire_data` end to end; each fix with a test that fails without it; version by precedent (fixes alone a patch, 6.25.2 as WP-142; a new identifier a minor, 6.26.0 as WP-137) | 143 (closure #178 merged ba5b4cd) | PROPOSED (not opened; the user's go opens it) |
+| 144 | The package and template findings A2, A3, A4, A6 and the coverage gap A7 below: the one-day cache key of `lsqvce.engine.synthLoader`, `Results.plot("psd")` on a log axis, the local Tikhonov groups of `template/gravfire_data.m`, `fit`'s prior "scale" update after a refused v'Pv, and a generated GRAVFIRE bundle fixture that runs `gravfire_data` end to end; each fix with a test that fails without it; version by precedent (fixes alone a patch, 6.25.2 as WP-142; a new identifier a minor, 6.26.0 as WP-137) | 143 (closure #178 merged ba5b4cd) | OPENED 2026-10-17 -- its row and status live in §12.80 |
 | 145 | The test-tooling findings A1, A5, A8, A9 below: example warnings reach the gate's warning inventory, `run_lsqvce` on the `dev/tests` layout with a working `LogFile=''`, the gate's log check bound to this run; `dev/tests` only, no version | 143 | OPENED 2026-10-16 -- its row and status live in §12.78 |
 | 146 | The `build_manual.py` findings B1-B9 below (the review of WP-143): every exception caught per document in `main()`, the tracked `_build` intermediates and both targets written only on success (staged beside the targets, then `os.replace`), pandoc's output decoded as UTF-8, a committed test of build mode, the docstring without history and with the stamp; no version | 143 | PROPOSED (not opened) |
 
@@ -11208,7 +11210,7 @@ run). Observation 2 above is opened as WP-147 (§12.79, user: "Erledige diese Au
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 147 | Observation 2 of §12.78: with the package defaults (`Noise.Grid` 60, `MaxPasses` 10, `Tolerance` 1e-2) the joint noise loop often cannot meet its stop rule on short or low-information arcs -- the rule is max abs(alpha2_j - 1) over EVERY bin, and bins with redundancy ~1-6 (the zero-frequency bin the per-arc locals absorb; 60 bins on 60-sample arcs) contract at ~0.98 per pass or decay toward zero, while the solution is long settled. PART 1 (this round): a MEASUREMENT-based design note -- per-pass traces of x, the levels and every bin's alpha2 and redundancy on the four fixtures of §12.78 in their original configuration, the candidate rules evaluated against the fixed point (when each would stop, and how far x and the levels then are from the fixed point in their own standard errors), the candidate defaults (FreezeRedundancy, Grid, Smooth) run live; options and a recommendation; NO code change before the user picks. PART 2: the chosen option, with tests that fail without it; version by precedent (a changed default or stop rule: a minor). PART 1 merged (#182, 40b6144). PART 2 (user, 2026-10-16: "Continue as suggested" = options A + B): a spectral bin is settled when abs(alpha2_j - 1) <= Tolerance max(1, sqrt(200 / r_j)) -- Tolerance for bins of redundancy >= 200, at the default a tenth of the bin's own standard error where the data say little, and a tighter Tolerance tightens every bin (the round note says why it is not max(Tolerance, 0.1 sqrt(2 / r_j))); no new option, a run never stops later than before; the not-converged warning names the bins that still move (group, bin, redundancy against the median) and x's last step in sigma_x; psdVCE returns the redundancy and the deviation per bin; tests that fail without it; the suite's assertions on nIter / converged / stopReason inventoried; version 6.26.0 | 145 (closure #181) | IN PROGRESS (part 2) |
+| 147 | Observation 2 of §12.78: with the package defaults (`Noise.Grid` 60, `MaxPasses` 10, `Tolerance` 1e-2) the joint noise loop often cannot meet its stop rule on short or low-information arcs -- the rule is max abs(alpha2_j - 1) over EVERY bin, and bins with redundancy ~1-6 (the zero-frequency bin the per-arc locals absorb; 60 bins on 60-sample arcs) contract at ~0.98 per pass or decay toward zero, while the solution is long settled. PART 1 (this round): a MEASUREMENT-based design note -- per-pass traces of x, the levels and every bin's alpha2 and redundancy on the four fixtures of §12.78 in their original configuration, the candidate rules evaluated against the fixed point (when each would stop, and how far x and the levels then are from the fixed point in their own standard errors), the candidate defaults (FreezeRedundancy, Grid, Smooth) run live; options and a recommendation; NO code change before the user picks. PART 2: the chosen option, with tests that fail without it; version by precedent (a changed default or stop rule: a minor). PART 1 merged (#182, 40b6144). PART 2 (user, 2026-10-16: "Continue as suggested" = options A + B): a spectral bin is settled when abs(alpha2_j - 1) <= Tolerance max(1, sqrt(200 / r_j)) -- Tolerance for bins of redundancy >= 200, at the default a tenth of the bin's own standard error where the data say little, and a tighter Tolerance tightens every bin (the round note says why it is not max(Tolerance, 0.1 sqrt(2 / r_j))); no new option, a run never stops later than before; the not-converged warning names the bins that still move (group, bin, redundancy against the median) and x's last step in sigma_x; psdVCE returns the redundancy and the deviation per bin; tests that fail without it; the suite's assertions on nIter / converged / stopReason inventoried; version 6.26.0 | 145 (closure #181) | DONE (2026-10-17: part 1 PR #182, merge 40b6144; part 2 PR #184, merge d260dfd; CI GREEN on 728c502 in the first round: ci_gate 742/742, warning inventory lsqvce:internal:testProbe only; local postflight on 728c502 GREEN 742/742) |
 
 **The user's request (2026-10-16):** "Erledige diese Aufgabe hier: „Noise stop rule for low-information
 spectral bins“" -- the proposal card of §12.78 (observation 2), done in this session.
@@ -11333,3 +11335,83 @@ tolerance for every iterative run" holds.
   session's path.
 - **Gates:** Linux audit CLEAN, selftest every fault caught; version 6.26.0 (a changed stop rule: a
   minor); tests 754 declared, 742 run.
+
+**CI round 1 (728c502): GREEN** -- `ci_gate` 742 / 742, 27 / 27 suites, the warning inventory
+`lsqvce:internal:testProbe` only; the audit and release jobs green. The local postflight on the
+same commit: GREEN 742 / 742, 335 s.
+
+**Closure (2026-10-17).** WP-147 DONE: part 1 PR #182 (40b6144), part 2 PR #184 merged as d260dfd
+(the loop's record step after the merge: the ledger row, this note; no code change, no version --
+6.26.0 stays, 754 declared / 742 run). Observation 2 of §12.78 is acted on. Still open from §12.78
+(recorded, not acted on): observation 1, demo_fit mutes its own two-pass warning; and the PROPOSED
+rows of §12.77, WP-144 (package and template findings A2, A3, A4, A6, A7) and WP-146
+(build_manual.py, B1-B9). The next step is the user's.
+
+### 12.80 WP-144 — the package and template findings A2, A3, A4, A6, A7 (2026-10-17, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 144 | The findings A2, A3, A4, A6 and A7 of §12.77, each reproduced before its fix, each fix with a test that fails without it: (A2) `lsqvce.engine.synthLoader`'s one-day cache keyed on the WHOLE configuration, the rule in its help (it is the loader template); (A3) `Results.plot("psd")` draws every pool group's spectrum on a log axis; (A6) `fit`'s prior "scale" update takes N^-1 from the finite cofactor when the normal backend refuses a cancelled v'Pv; (A7) a generated GRAVFIRE bundle runs `template/gravfire_data.m` end to end in a test; (A4) a labelled local Tikhonov group refuses members that differ in fromPass, and the a-priori values per member are decided after reading the common-table path; version by precedent (fixes alone a patch: 6.26.1) | 147 (closure #185) | IN PROGRESS |
+
+**The user's request (2026-10-17):** "Go ahead with wp-144".
+
+**Reproductions (tier A, before any fix; scratch scripts, this tree borrowed first on the shared
+bridge path).**
+- **A2 -- reproduced.** Three direct calls, same (sat, day, obsType, nc, nl, seed): `mArc` 400 gave
+  400-row arcs; then `mArc` 2 gave 400-row arcs again; then `x_c` ten times larger gave the SAME
+  observations (l(1) 7.8073 both). The persistent key misses everything but those six fields.
+- **A3 -- reproduced.** demo_grace's declaration, 4 pool groups: `R.plot("psd", "Visible", false)`
+  draws on a `linear` axis. (§12.77's step wrote `"Visible","off"`; the option is logical.)
+- **A6 -- reproduced, and worse than recorded.** A tight fit (4 commons of size 1e5 against unit
+  noise, 3 days x 4 arcs x 64 epochs) with a common prior of sigma 1e6, estimate "scale": on
+  Backend "normal" `lsqvce:accum:cancellation` warns on every solve (v'Pv against a quadratic mass
+  of 4e12), s0sq and every entry of Cxx are NaN, the group's r is NaN on every pass, it is NEVER
+  updated (sigma stays 1e6) -- and the loop reports "converged" in 2 passes, because PriorDev stayed
+  0. The QR backend on the same data: sigma 4.9e4, updated on every pass. Not acted on here, for
+  the user: the same run returns R.sigma0 = NaN, although the warning says lsqvce.engine.residuals()
+  supersedes it -- the fit's own Results never does.
+- **A4 -- reproduced** on the generated bundle of A7 below: GraceB_accscale's fromPass set to 3,
+  then its a-priori value to 0.25 -- both ACCEPTED, the group kept GraceA's 1 and 0.
+- **A7 -- the gap, confirmed by construction:** demo_gravfire got a path that cannot exist, and
+  the real bundle the memory of this PC pointed at (`../testdata.mat`) is no longer on disk.
+
+**The fixes (each with a test that fails without it).**
+- **A2** `synthLoader`: the key is (sat, day, obsType, tag) AND the whole cfg compared by value
+  (`cfgSnapshot`: a containers.Map by its keys and values -- measured, `isequal` compares a Map's
+  contents but a stored copy shares the handle, so a map changed in place would read as unchanged;
+  `getByteStreamFromArray` would catch it but is undocumented). The help states the rule for a copy
+  (key on everything buildDay reads; a field missed is wrong data with no error). Test:
+  test_adjustBlock `testSynthLoaderCacheKeysOnTheWholeConfiguration` (mArc, x_c, cov, the same cfg,
+  a map changed in place).
+- **A3** `Results.plot("psd")`: YScale log before the per-group loop. Test: test_vcePolicy
+  `testPsdPlotIsLogarithmicForEveryPoolGroup` (one line per group, log axis).
+- **A6** `adjustVCEjoint`'s `lastSolOf` adds `Ninv` (BlockAccumulator.commonCofactor, finite) only
+  when s0sq is not finite, and fit's `priorUpdate` uses it then; the body stays at 286 code lines
+  (the one-line lastSol struct became the call). After the fix the normal backend estimates the
+  group as QR does (4.886e4 both, updated every pass). Test: test_vcePolicy
+  `testPriorScaleSurvivesARefusedVtPv` (it fires `lsqvce:accum:cancellation` on purpose, muted --
+  and that identifier leaves `unfired_ids_baseline.csv`, audit check 26 asked for it).
+- **A7** `dev/tests/fixture_gravfire_bundle.m` GENERATES a bundle with the real structure (2 MJD
+  days; posA/posB 3-axis with iSpp, kbr scalar; 2 pieces x 30 epochs per (day, group), one flagged
+  epoch; the expanded local table with [MJD sec] spans and the day in the flags; a labelled common
+  group 'stokes' with an a-priori value on one member, an unlabelled row, a labelled local group
+  'accscale'). Its numbers are random; no measurement data enters the repository. test_physOracle
+  `testGravfireTemplateRunsOnAGeneratedBundle` runs the whole template and the fit (the dof counts
+  every row of every piece, the prior rows included); test_examples runs `demo_gravfire` on the
+  bundle written to a temporary file, so the example's pipeline runs on every tier.
+- **A4** `gravfireLocalPriors` refuses a member whose fromPass or a-priori value differs
+  (`gravfire:badConstraint`, naming both values). x0 is refused rather than carried because the
+  pattern form expands its rows (per member, per day) in the toolbox's order, which the template
+  would have to restate; the message points at separate labels or the L form. Test: test_physOracle
+  `testGravfireLocalGroupRefusesDisagreeingMembers`. The Manual chapter 09 says both rules.
+
+**Gates (tier A):** `ci_gate` GREEN 747 / 747, inventory `lsqvce:internal:testProbe` only, 267 s;
+Linux audit CLEAN, selftest 76 / 76. Version 6.26.1; 759 declared / 747 run.
+
+**Observations, recorded, not acted on (the user decides):**
+1. From A6's fixture: the fit's own `R.sigma0` is NaN when the normal backend refuses v'Pv, although
+   the warning says lsqvce.engine.residuals() supersedes it.
+2. From A7's fixture: the template REMOVES flagged epochs, which leaves a gap inside the piece; on
+   an `Estimate "noise"` run the toolbox warns `lsqvce:covModel:unevenGrid` (a 'psd' law counts the
+   gap as one step) and asks for weight 0 instead. The template should weight them out.
+3. The memory of this PC said a real GRAVFIRE bundle lies at `../testdata.mat`; it does not any more.

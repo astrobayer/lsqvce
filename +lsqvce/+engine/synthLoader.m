@@ -56,11 +56,18 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 %     observation timestamps, without touching the design matrix.
 %
 %   THE CACHE KEY IS A CORRECTNESS ISSUE
-%     The key includes everything that changes the design matrix. If an option
-%     in opt alters A or B (e.g. switching empirical accelerations on) it MUST
-%     appear in the key, or the second pass in LSQVCE.ENGINE.RESIDUALS will silently
-%     reuse a stale day and sigma0 will not reproduce. That mismatch is
-%     detected and warned about, but a correct key avoids it entirely.
+%     The key must hold EVERYTHING that changes what buildDay returns. This
+%     template keys on (sat, day, obsType, opt.forceModelTag) AND on the WHOLE
+%     configuration, compared by value (a containers.Map by its keys and
+%     values, so a map changed in place is seen): two runs that differ only in
+%     cfg.mArc, cfg.x_c, cfg.cov or any other field never share a day (WP-144:
+%     the key held six named fields, and a run differing in mArc was handed
+%     the previous run's 400-row arcs). In YOUR copy, keep that rule: when
+%     buildDay reads a file, key on the file name and its modification time;
+%     when an option in opt alters A or B (empirical accelerations, say), it
+%     belongs in the key, or the second pass in LSQVCE.ENGINE.RESIDUALS silently
+%     reuses a stale day and sigma0 does not reproduce. A field missed is
+%     wrong data with no error; a field too many only costs a rebuild.
 %
 %   ARC-WISE LOCAL PARAMETERS
 %     If the local parameters are per-arc (arc-wise initial state, say), then
@@ -110,6 +117,9 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A2): the one-day cache is
+%   keyed on the whole configuration by value, and the help states the rule
+%   for a copy. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the H1 line names the unit
 %   in full, lsqvce.engine.synthLoader, as HANDOVER 6.2.1 asks (it read the
 %   bare name). With assistance from Claude (Anthropic), model Claude Opus
@@ -141,7 +151,7 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
 
     persistent CACHE
-    if isempty(CACHE), CACHE = struct('key','', 'D', []); end
+    if isempty(CACHE), CACHE = struct('key', '', 'cfg', [], 'D', []); end
 
     %--------------------------------------------------------------- meta call
     if (ischar(day) || isstring(day)) && strcmp(day, 'meta')
@@ -154,19 +164,19 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
     end
 
     %---------------------------------------------------------------- arc call
-    % Everything that can change A, B or l belongs in the key. That includes the
-    % PROBLEM DIMENSIONS: cfg.nc sets the width of A and cfg.nl the width of B,
-    % so two fixtures sharing (sat, day, obsType) but differing in nc/nl would
-    % otherwise collide and the second would silently receive the first's
-    % wrongly-sized arcs. cfg.seed likewise changes the generated data.
+    % Everything that can change A, B or l belongs in the key (the help's
+    % rule): the day's coordinates, the model tag, and the WHOLE configuration
+    % by value. WP-144 (A2): the key named six fields of cfg and missed x_c, y,
+    % cov, mArc, arcsPerDay, dt and the collinear settings -- reproduced, a run
+    % with mArc 2 after one with mArc 400 received 400-row arcs.
     tag  = lsqvce.util.getfielddef(opt, 'forceModelTag', '');
-    seed = lsqvce.util.getfielddef(cfg, 'seed', 0);
-    key  = sprintf('%d|%d|%s|%s|nc%d|nl%d|sd%g', sat, day, obsType, tag, ...
-                   cfg.nc, cfg.nl, seed);
+    key  = sprintf('%d|%d|%s|%s', sat, day, obsType, tag);
+    snap = cfgSnapshot(cfg);
 
-    if ~strcmp(CACHE.key, key)
+    if ~strcmp(CACHE.key, key) || ~isequal(CACHE.cfg, snap)
         CACHE.D   = buildDay(cfg, sat, day, obsType);
         CACHE.key = key;                        % the previous day is released here
+        CACHE.cfg = snap;
     end
     D = CACHE.D;
 
@@ -209,6 +219,24 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
     if lsqvce.util.getfielddef(info, 'wholeArc', false)
         out.wholeArc = true;                    % a dense law is whitened whole (WP-125)
         out.filterMemory = numel(out.l);
+    end
+end
+
+%==========================================================================
+function snap = cfgSnapshot(cfg)
+%CFGSNAPSHOT  The configuration BY VALUE, for the cache key (WP-144, A2).
+%   A containers.Map is a handle: a stored copy of cfg would share it, and a
+%   map changed in place would compare equal to its own old state. Each Map
+%   field is replaced by its keys and values, so isequal compares contents.
+%   INPUT   cfg   1x1 struct  the synthetic configuration
+%   OUTPUT  snap  1x1 struct  cfg with every containers.Map field as
+%                             struct('keys', {keys}, 'values', {values})
+    snap = cfg;
+    for f = fieldnames(cfg).'
+        v = cfg.(f{1});
+        if isa(v, 'containers.Map')
+            snap.(f{1}) = struct('keys', {v.keys}, 'values', {v.values});
+        end
     end
 end
 

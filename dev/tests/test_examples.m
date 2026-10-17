@@ -40,6 +40,9 @@ function tests = test_examples
 %   Created 2026-09-08 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5 -- R6 WP-99: the example harness had lived
 %   in a scratch directory all review long (HANDOVER 12.23).
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A7): demo_gravfire runs on
+%   a generated bundle. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: the examples' warnings
 %   reach the gate, and the suite carries its capture probe. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -117,18 +120,19 @@ function varargout = exampleCalls(exDir, what)
 %   knob that shortens a run without changing what is exercised is turned down.
     orbit = struct('u', linspace(0, 4*pi, 400).', 'lam0', linspace(0, 0.3, 400).', ...
                    'incl', 89*pi/180, 'r', 1.07);
-    % demo_gravfire is given a path that CANNOT exist, so its no-bundle branch
-    % runs on every machine. Calling it with "" would be tier-dependent: the
-    % default resolves to ../testdata.mat, so a developer with a real GRAVFIRE
-    % bundle on disk would run the whole pipeline here while CI ran a print --
-    % the same suite meaning two different things is not a gate.
+    % demo_gravfire runs on a GENERATED bundle (FIXTURE_GRAVFIRE_BUNDLE, saved
+    % to a temporary file): the whole pipeline on every machine, the same on
+    % every tier. (WP-144, A7: it was given a path that cannot exist, so only
+    % its no-bundle print ran and template/gravfire_data.m ran nowhere; "" would
+    % have been tier-dependent, a real bundle next to the toolbox on one
+    % machine and a print on CI. The real bundle never enters the repository.)
     T = { ...
       'bench_qr_vs_normal',      @() bench_qr_vs_normal('u', [10 20], 'n', 2e4, 'nk', 2000); ...
       'demo_combine',            @() demo_combine(); ...
       'demo_fit',                @() demo_fit(); ...
       'demo_grace',              @() demo_grace('verbose', false); ...
       'demo_grace_dataLoader',   @() demo_grace_dataLoader(); ...
-      'demo_gravfire',           @() demo_gravfire([tempname '.mat']); ...
+      'demo_gravfire',           @() gravfireOnGeneratedBundle(); ...
       'demo_gravity',            @() demo_gravity(); ...
       'demo_gravity_dataLoader', @() demo_gravity_dataLoader(); ...
       'demo_gravity_design',     @() demo_gravity_design(4, orbit); ...
@@ -144,6 +148,16 @@ function varargout = exampleCalls(exDir, what)
         varargout = {T(:, 1).', T(:, 2).'};
     end
     assert(~isempty(exDir), 'the examples folder must be known');
+end
+
+function R = gravfireOnGeneratedBundle()
+%GRAVFIREONGENERATEDBUNDLE  demo_gravfire on FIXTURE_GRAVFIRE_BUNDLE, written to
+%   a temporary file and removed again (WP-144, A7).
+    f = [tempname '.mat'];
+    fixture_gravfire_bundle(f);
+    c = onCleanup(@() delete(f));
+    R = demo_gravfire(f, Verbose=0);
+    assert(isa(R, 'lsqvce.Results'), 'demo_gravfire ran the pipeline, not its no-bundle print');
 end
 
 function runOne(fh)
