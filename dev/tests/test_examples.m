@@ -154,10 +154,21 @@ function R = gravfireOnGeneratedBundle()
 %GRAVFIREONGENERATEDBUNDLE  demo_gravfire on FIXTURE_GRAVFIRE_BUNDLE, written to
 %   a temporary file and removed again (WP-144, A7).
     f = [tempname '.mat'];
-    fixture_gravfire_bundle(f);
+    [commonData, myOptions, systemsData] = fixture_gravfire_bundle();
+    % the labels off: a labelled group is "scale", which the demo's dry-run
+    % single solve holds and says so (lsqvce:fit:priorScaleHeld, WP-150); the
+    % label mapping is tested in test_physOracle, where that warning is muted
+    commonData.parameter(:, 11) = cellfun(@unlabel, commonData.parameter(:, 11), 'UniformOutput', false);
+    systemsData{1}.parameter(:, 11) = cellfun(@unlabel, systemsData{1}.parameter(:, 11), 'UniformOutput', false);
+    save(f, 'commonData', 'myOptions', 'systemsData');
     c = onCleanup(@() delete(f));
     R = demo_gravfire(f, Verbose=0);
     assert(isa(R, 'lsqvce.Results'), 'demo_gravfire ran the pipeline, not its no-bundle print');
+end
+
+function c = unlabel(c)
+%UNLABEL  {'Tikhonov', from, sigma, label} -> {'Tikhonov', from, sigma}.
+    if iscell(c) && numel(c) >= 4, c = c(1:3); end
 end
 
 function runOne(fh)

@@ -483,6 +483,34 @@ function testPriorScaleReachesTheHelmertFixedPoint(tc)
 end
 
 %% ------------------------------------------------ compare (M7 7c): ftest onto Results
+function testCompareRefusesEstimatedWeights(tc)
+% categories: contract, robustness
+    % WP-150 (F1): the nested F test assumes ONE fixed weighting. After
+    % Estimate "noise" each model's v'Pv is normalised to its own redundancy,
+    % so F = 1 whatever the data -- measured: F = 1.000, p 0.32 ("not
+    % significant") for a sine term the declared weights test at F = 2705.
+    % A robust influence re-weights each model differently. Both are refused.
+    rs = RandStream('mt19937ar', 'Seed', 150);
+    n = 600;  t = (1:n).' / n;
+    l = 1 + 2*t + 0.3*sin(2*pi*5*t) + 0.1*randn(rs, n, 1);
+    Af = [ones(n, 1), t, sin(2*pi*5*t)];  Ar = Af(:, 1:2);
+    mk = @(A) struct('days', 1, 'commonParams', {[repmat({'common'}, size(A, 2), 1), ...
+                        arrayfun(@(j) sprintf('c%d', j), (1:size(A, 2)).', 'UniformOutput', false)]}, ...
+        'systems', struct('buildDay', @(d, ot) struct('A', {{A}}, 'B', {{zeros(n, 0)}}, 'l', {{l}}, 't', {{t * 86400}}), ...
+                          'covariance', struct('s', struct('type', 'diag', 'sigma', 1, 'estimate', "scale")), ...
+                          'arcs', 1, 'id', 1, 'name', 's'));
+    o = lsqvce.Options(Estimate="noise", Verbose=0);
+    Rf = lsqvce.fit(mk(Af), o);  Rr = lsqvce.fit(mk(Ar), o);
+    tc.verifyError(@() Rf.compare(Rr), 'lsqvce:Results:compareEstimatedWeights');
+    Rh = lsqvce.fit(struct('A', Af, 'l', l), Robust="huber", Verbose=false);
+    Rd = lsqvce.fit(struct('A', Ar, 'l', l), Verbose=false);
+    tc.verifyError(@() Rh.compare(Rd), 'lsqvce:Results:compareEstimatedWeights');
+    tc.verifyError(@() Rd.compare(Rh), 'lsqvce:Results:compareEstimatedWeights');
+    % the same data under the declared weights: the term is overwhelmingly needed
+    F = lsqvce.fit(struct('A', Af, 'l', l), Verbose=false).compare(Rd);
+    tc.verifyTrue(F.significant && F.F > 100, sprintf('F = %.4g with declared weights', F.F));
+end
+
 function testCompareIsTheNestedModelFTest(tc)
 % categories: contract, reference
     % R5 M7 7c: R.compare(Rred) re-homes lsqvce.engine.verdict.ftest. Reference: the
@@ -1030,6 +1058,7 @@ function testRefusedVtPvIsSupersededInResults(tc)
     % on R.sol the cross-check (it must no longer have anything to supersede).
     muteWarn(tc, 'lsqvce:accum:cancellation');      % fires on every solve here, by design
     muteWarn(tc, 'lsqvce:normalEq:cancellation');   % (the commons' and the backend's guard)
+    muteWarn(tc, 'lsqvce:fit:priorScaleHeld');      % the fixture's "scale" prior, held by the Estimate "none" half
     data = tightPriorFixture();
     noiseNV = {'Pool', "stream", 'ArcFactors', false, 'MaxPasses', 6, ...
                'Noise', struct('Grid', 16), 'Seed', 3};

@@ -122,6 +122,9 @@ function [R, score] = demo_gravity(opt)
 %   See also DEMO_GRAVITY_DATALOADER, DEMO_GRAVITY_DESIGN, DEMO_GRACE,
 %   LSQVCE.FIT, LSQVCE.OPTIONS
 %
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-150 (F7): the formal error is
+%   sqrt(diag(R.sol.Cxx)) -- it was multiplied by sigma0 a second time. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: the run converges --
 %   Noise.Smooth 1 and the toolbox's pass budget 10 (it settles in 4; the
 %   plain 60-bin law needed 72), the ACCURACY block re-measured. With
@@ -212,7 +215,7 @@ end
 
     % ---- 3. the field ----------------------------------------------------
     section('3. The field: recovery read in units of the formal error');
-    sig = sqrt(diag(R.sol.Cxx)) * R.sigma0;
+    sig = sqrt(diag(R.sol.Cxx));            % sol.Cxx is sigma0^2-scaled already (WP-150: was x sigma0 again)
     z   = (R.x - cfg.xTrue) ./ sig;
     fprintf('  max |z| over all %d coefficients : %.2f  (5 would be alarming)\n', ...
             cfg.nc, max(abs(z)));

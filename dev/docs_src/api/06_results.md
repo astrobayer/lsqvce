@@ -35,7 +35,7 @@ the map.
 | `R.reliability()` | per observation: r, w, the minimal detectable bias and its quadrant |
 | `R.systematic(...)` | unmodelled signal in the residuals: Ljung–Box, runs, binned means |
 | `R.snoop(...)` | iterative data snooping with a clean re-solve; R is not changed |
-| `R.compare(Rred)` | the nested-model F test against a reduced fit |
+| `R.compare(Rred)` | the nested-model F test against a reduced fit, under one fixed weighting: fits with estimated weights (`Estimate = "noise"`, `Robust`) are refused (`lsqvce:Results:compareEstimatedWeights`) |
 | `R.ellipse(i, j, ...)` | the confidence ellipse of a parameter pair |
 | `R.plot(kind)` | `"residuals"`, `"contribution"`, `"psd"`, `"convergence"`: one figure per question |
 

@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.27.0 — API Reference"
+title: "lsqvce 6.28.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -474,7 +474,7 @@ is merged onto the defaults; an unknown field is refused
 |---|---|---|
 | `Tuning` | `[]` | tuning constant of the influence function; empty = Huber 1.345, IGG3 (1.5, 2.5), bisquare 4.685 |
 | `MaxIter` | 30 | IRLS passes |
-| `Tol` | 1e-8 | relative change of x that ends the iteration |
+| `Tol` | 1e-8 | IRLS stops when every parameter moved by less than `Tol` of its own formal sigma between two passes |
 
 ### `Diagnostics` — the per-observation tests
 
@@ -607,7 +607,7 @@ the map.
 | `R.reliability()` | per observation: r, w, the minimal detectable bias and its quadrant |
 | `R.systematic(...)` | unmodelled signal in the residuals: Ljung–Box, runs, binned means |
 | `R.snoop(...)` | iterative data snooping with a clean re-solve; R is not changed |
-| `R.compare(Rred)` | the nested-model F test against a reduced fit |
+| `R.compare(Rred)` | the nested-model F test against a reduced fit, under one fixed weighting: fits with estimated weights (`Estimate = "noise"`, `Robust`) are refused (`lsqvce:Results:compareEstimatedWeights`) |
 | `R.ellipse(i, j, ...)` | the confidence ellipse of a parameter pair |
 | `R.plot(kind)` | `"residuals"`, `"contribution"`, `"psd"`, `"convergence"`: one figure per question |
 
@@ -763,6 +763,11 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
                                  or a local group, WP-128), or its from lies
                                  beyond the passes the joint loop ran
                                 
+      lsqvce:fit:priorScaleHeld  (warning) a prior group with estimate
+                                 "scale" in a run that cannot estimate a
+                                 prior's sigma (Estimate "none", or the
+                                 kinds A / B / C) is applied with its
+                                 declared sigma
       lsqvce:fit:badPrior        data.priors is malformed (unknown
                                  field, L not p x nc, sigma not a positive scalar,
                                  x0 of the wrong length)
@@ -1322,6 +1327,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:Results:noHistory` | Results | error | v4.0 |
 | `lsqvce:Results:noPerObservation` | Results | error | v6.5.0 |
 | `lsqvce:Results:noVPv` | Results | error | v4.0 |
+| `lsqvce:Results:compareEstimatedWeights` | Results | error | v6.28.0 |
 | `lsqvce:Results:tableMismatch` | Results | error | v4.0 |
 | `lsqvce:report:badIteration` | report | error | v6.24.0 |
 | `lsqvce:accum:arcBadNc` | engine.BlockAccumulator | error | v4.0 |
@@ -1461,6 +1467,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:fit:noSystems` | engine.declaration | error | v4.0 |
 | `lsqvce:fit:notYet` | fit | error | v4.0 |
 | `lsqvce:fit:priorNotActive` | fit | warning | v4.0 |
+| `lsqvce:fit:priorScaleHeld` | fit | warning | v6.28.0 |
 | `lsqvce:fit:uCount` | fit | error | v4.0 |
 | `lsqvce:fit:varUnderNoise` | fit | error | v6.1.5 |
 | `lsqvce:fit:unknownField` | engine.declaration, fit | error | v4.0 |

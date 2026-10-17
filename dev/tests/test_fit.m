@@ -2781,3 +2781,93 @@ function testRobustJointSweepLeavesThePriorArcsOut(tc)
     tc.verifyFalse(any(startsWith(obsT, "prior_")), 'no prior pseudo-arc in the robust sweep');
     tc.verifyEqual(numel(R.noise.robust.factor), 2 * 3 * 2 * 300, 'one factor per data epoch');
 end
+
+%% ================================================ WP-150: the front-door verdicts
+function testRobustStopRuleIsPerParameterSigma(tc)
+% categories: contract, precision
+    % WP-150 (F2): the stop rule max|dx| < Tol * max(max|x|, max sigma_x)
+    % let one parameter's size set the threshold for all -- a coordinate of
+    % 6.4e6 known to 1e-4 stopped IRLS "converged" after 2 passes at 22.6
+    % formal sd from its fixed point (reproduced). Every parameter's step is
+    % now measured in its own formal sigma.
+    rng(1);  n = 1e4;  t = linspace(-1, 1, n).';  A = [ones(n, 1), t];
+    l = A*[6.4e6; 2] + 1e-3*randn(n, 1);
+    k = randperm(n, 1000);  l(k) = l(k) + 0.05 + 0.05*rand(1000, 1);
+    R1 = lsqvce.fit(struct('A', A, 'l', l), Robust="huber", Verbose=false);
+    % the reference asks for 1e-12 sigma, which this problem cannot resolve:
+    % observations of 6.4e6 against noise of 1e-3 leave ~10 digits in the
+    % residuals, so the Huber weights jitter at ~1e-5 sigma -- its budget runs out
+    muteWarn(tc, 'lsqvce:adjustRobust:notConverged');
+    R2 = lsqvce.fit(struct('A', A, 'l', l), Robust="huber", ...
+                    RobustOpts=struct('Tol', 1e-12, 'MaxIter', 200), Verbose=false);
+    tc.verifyTrue(R1.converged);
+    % tol: the default Tol is 1e-8 of a formal sigma per step; the distance
+    % to a fixed point ten thousand times tighter stays far below 0.01 sd
+    % (measured 1.8e-7; the old rule left 22.6)
+    tc.verifyLessThan(max(abs(R1.x - R2.x) ./ sqrt(diag(R2.sol.Cxx))), 0.01);
+    tc.verifyLessThan(R1.history(end).dx, 1e-8, 'history.dx is the stop quantity, in formal sigma');
+end
+
+function testExcludedRowsStayOutOfTheRobustScale(tc)
+% categories: contract, robustness
+    % WP-150 (F4): rows of weight 0 have a whitened residual of 0 by
+    % construction, and they entered the MAD -- with 40 % zero weights the
+    % robust scale came out 0.33 of the true one and IGG3 rejected a third of
+    % the good rows (reproduced). The scale is the live rows' alone.
+    rng(2);  n = 200;  A = [ones(n, 1), (1:n).'/n];  l = A*[1; 2] + randn(n, 1);
+    p = ones(n, 1);  p(1:80) = 0;
+    R = lsqvce.fit(struct('A', A, 'l', l, 'p', p), Robust="igg3", Verbose=false);
+    Rl = lsqvce.fit(struct('A', A(81:end, :), 'l', l(81:end)), Robust="igg3", Verbose=false);
+    % tol: the same 120 live rows -- the scale and the estimate must not move
+    % because 80 zero-weight rows ride along (measured 0.956 both ways)
+    tc.verifyEqual(R.history(1).scale, Rl.history(1).scale, 'RelTol', 1e-10);
+    tc.verifyEqual(R.x, Rl.x, 'RelTol', 1e-10);
+end
+
+function testHeldScalePriorWarns(tc)
+% categories: contract
+    % WP-150 (F3): a prior group with estimate "scale" in a run that cannot
+    % estimate a prior's sigma was applied with its declared sigma, silently
+    % (a group at 1e-3 shrank x to ~1e-4 against a truth of 1). It warns.
+    rng(4);  A = randn(100, 5);  l = A*ones(5, 1) + randn(100, 1);
+    d = struct('A', A, 'l', l, 'priors', struct('L', eye(5), 'sigma', 1e-3, 'estimate', "scale"));
+    tc.verifyWarning(@() lsqvce.fit(d, Verbose=false), 'lsqvce:fit:priorScaleHeld');
+    d.priors.estimate = "none";
+    tc.verifyWarningFree(@() lsqvce.fit(d, Verbose=false), 'a declared "none" is no surprise');
+end
+
+function testSnoopOnGaussNewtonReturnsEstimates(tc)
+% categories: contract
+    % WP-150 (F5): a Gauss-Newton fit's rows are increments about R.x, and
+    % R.snoop() returned the increment as the estimate (reproduced: [0.021
+    % 0.028] for a fit at [2.985 0.676]). Both snoop paths -- the closed-form
+    % downdate and the clean re-solve -- now return R.x + increment.
+    rs = RandStream('mt19937ar', 'Seed', 5);
+    t = (0:.1:5).';  y = 3*exp(-.7*t) + 1e-2*randn(rs, size(t));  y(20) = y(20) + 1;
+    bf = @(k, x) deal([exp(-x(2)*t), -x(1)*t.*exp(-x(2)*t)], y - x(1)*exp(-x(2)*t));
+    R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [1; .5]), Verbose=false);
+    for re = [true false]
+        [D, ~, sol] = R.snoop(Reaccumulate=re, Verbose=false);
+        % tol: one blunder out of 51 rows moves the estimate by a few of its
+        % formal errors (~1e-2), not back to zero
+        tc.verifyEqual(sol.x, [3; 0.7], 'AbsTol', 0.05, sprintf('Reaccumulate %d: an estimate', re));
+        tc.verifyEqual(D.x(1:2), sol.x, 'AbsTol', 1e-12, 'D.x agrees');
+    end
+end
+
+function testRefusedVtPvIsDiagnosedWithItsOwnSigma0(tc)
+% categories: contract, robustness
+    % WP-150 (F6): after the normal backend refused a cancelled v'Pv,
+    % diagnose studentised with the fallback sigma0 and flagged 28 rows where
+    % the QR backend flags the one blunder (reproduced; R.sigma0 3.27 on
+    % both). The verdict re-diagnoses with its own pass's s0^2.
+    m = 300;  tt = (0:m-1).' * 5;  A = [sin(2*pi*tt/3000), cos(2*pi*tt/3000), ones(m, 1)];
+    rs = RandStream('mt19937ar', 'Seed', 6);
+    l = A * [1e5; -2e5; 3e5] + 3 * randn(rs, m, 1);  l(50) = l(50) + 25;
+    muteWarn(tc, 'lsqvce:normalEq:cancellation');            % refused on purpose
+    Rn = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Backend="normal", Verbose=0));
+    Rq = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Backend="qr", Verbose=0));
+    tc.verifyFalse(Rn.diag.s0Fallback, 'no fallback to the a-priori sigma0');
+    tc.verifyEqual(Rn.diag.flagIdx, Rq.diag.flagIdx, 'the two backends flag the same rows');
+    tc.verifyEqual(Rn.diag.flagIdx, 50);
+end
