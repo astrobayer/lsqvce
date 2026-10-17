@@ -17,6 +17,9 @@ USAGE
 
 Created 2026-09-01 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.1 -- R5 Level M0, WP-78.
+Updated 2026-10-17 (CEST, UTC+02:00), WP-146: the build mode of build_manual.py
+(BUILD_CASES, pandoc faked, one fault per case). With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 """
 import importlib.util
 import os
@@ -530,6 +533,189 @@ case('34 a unit whose ACCURACY heading is gone fires; a prose line starting with
                     '%   PRECISION\n%   ACCURACY block, ACCURACY; or ACCURACY, as prose\n'))
 
 
+# ======================================================================
+# BUILD MODE of build_manual.py (WP-146, finding B5 of HANDOVER 12.77):
+# check 23 drives the builder in CHECK mode only, so nothing exercised what
+# a build writes. These cases build both documents in a scratch copy with
+# pandoc FAKED (it writes its -o file; no pandoc or xelatex needed), every
+# committed output first set to a sentinel, and assert which of a
+# document's four outputs -- html/lsqvce_<doc>.html, lsqvce_<doc>.pdf and
+# the tracked dev/docs_src/manual/_build/lsqvce_<doc>.md / .html -- were
+# replaced, under one fault each.
+# ======================================================================
+import contextlib
+import io
+import subprocess
+import types
+
+OLD = 'OLD -- the committed state\n'
+
+
+def outputs(d, name):
+    stem = 'lsqvce_' + name
+    b = os.path.join(d, 'dev', 'docs_src', 'manual', '_build')
+    return [os.path.join(d, 'html', stem + '.html'), os.path.join(d, stem + '.pdf'),
+            os.path.join(b, stem + '.md'), os.path.join(b, stem + '.html')]
+
+
+def seed(d):
+    for name in ('manual', 'api'):
+        for p in outputs(d, name):
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, 'w', encoding='utf-8') as fh:
+                fh.write(OLD)
+
+
+def state(d, name):
+    """'old' / 'new' per output of one document."""
+    out = []
+    for p in outputs(d, name):
+        with open(p, encoding='utf-8', errors='replace') as fh:
+            out.append('old' if fh.read() == OLD else 'new')
+    return out
+
+
+class FakePandoc:
+    """subprocess.run stand-in: writes the -o file; fails the PDF call of the
+    documents named in fail_pdf; records every call's keyword arguments."""
+
+    def __init__(self, fail_pdf=()):
+        self.fail_pdf = set(fail_pdf)
+        self.calls = []
+
+    def __call__(self, args, **kw):
+        self.calls.append(kw)
+        out = args[args.index('-o') + 1]
+        doc = 'manual' if 'lsqvce_manual' in os.path.basename(out) else 'api'
+        if out.endswith('.pdf') and doc in self.fail_pdf:
+            return types.SimpleNamespace(returncode=43, stdout='',
+                                         stderr='xelatex: the fault injected for %s\n' % doc)
+        with open(out, 'w', encoding='utf-8') as fh:
+            fh.write('NEW %s built by the fake pandoc\n' % os.path.basename(out))
+        return types.SimpleNamespace(returncode=0, stdout='', stderr='')
+
+
+def load_builder(d):
+    spec = importlib.util.spec_from_file_location(
+        'bm_selftest', os.path.join(d, 'dev', 'docs_src', 'build_manual.py'))
+    bm = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bm)
+    return bm
+
+
+def run_build(d, fake, check=False, before=None):
+    """main() of the scratch copy's builder under the fake; returns (result, error)."""
+    os.chdir(d)
+    real = subprocess.run
+    subprocess.run = fake
+    try:
+        bm = load_builder(d)
+        if before:
+            before(bm)
+        with contextlib.redirect_stdout(io.StringIO()):
+            return bm.main(check=check), None
+    except Exception as e:                         # the defect B2 is exactly this escaping
+        return None, '%s: %s' % (type(e).__name__, e)
+    finally:
+        subprocess.run = real
+        os.chdir(ROOT)
+
+
+BUILD_CASES = []
+
+
+def build_case(name):
+    def reg(fn):
+        BUILD_CASES.append((name, fn))
+        return fn
+    return reg
+
+
+@build_case('B5 a healthy build replaces all four outputs of both documents')
+def _(d):
+    res, err = run_build(d, FakePandoc())
+    want = (True, None, ['new'] * 4, ['new'] * 4)
+    got = (res, err, state(d, 'manual'), state(d, 'api'))
+    return got == want, got
+
+
+@build_case('B3/B4 a failed PDF leaves all four outputs of that document, builds the other')
+def _(d):
+    res, err = run_build(d, FakePandoc(fail_pdf={'manual'}))
+    want = (False, None, ['old'] * 4, ['new'] * 4)
+    got = (res, err, state(d, 'manual'), state(d, 'api'))
+    return got == want, got
+
+
+@build_case('B2 an exception in one document is caught, the other still built')
+def _(d):
+    def broken(bm):
+        def raise_(*a, **k):
+            raise RuntimeError('the fault injected into the API appendix')
+        bm.DOCS['api']['appendix'] = raise_
+    res, err = run_build(d, FakePandoc(), before=broken)
+    want = (False, None, ['new'] * 4, ['old'] * 4)
+    got = (res, err, state(d, 'manual'), state(d, 'api'))
+    return got == want, got
+
+
+@build_case('B1 a target that cannot be replaced (a PDF open in a viewer) is caught per document')
+def _(d):
+    locked = os.path.join(d, 'lsqvce_manual.pdf')
+    real_replace, real_copy = os.replace, shutil.copyfile
+
+    def guard(fn):
+        def wrapped(src, dst, *a, **k):
+            if os.path.abspath(dst) == os.path.abspath(locked):
+                raise PermissionError(13, 'locked by a viewer (injected)', dst)
+            return fn(src, dst, *a, **k)
+        return wrapped
+    os.replace, shutil.copyfile = guard(real_replace), guard(real_copy)
+    try:
+        res, err = run_build(d, FakePandoc())
+    finally:
+        os.replace, shutil.copyfile = real_replace, real_copy
+    want = (False, None, ['old'] * 4, ['new'] * 4)
+    got = (res, err, state(d, 'manual'), state(d, 'api'))
+    return got == want, got
+
+
+@build_case('B7 check mode reports the stale documents and writes nothing in the tree')
+def _(d):
+    res, err = run_build(d, FakePandoc(), check=True)
+    want = (['manual', 'api'], None, ['old'] * 4, ['old'] * 4)
+    got = (res, err, state(d, 'manual'), state(d, 'api'))
+    return got == want, got
+
+
+@build_case('B6 every captured pandoc call decodes its output as UTF-8, errors replaced')
+def _(d):
+    fake = FakePandoc()
+    run_build(d, fake)
+    captured = [kw for kw in fake.calls if kw.get('capture_output') or kw.get('text')]
+    ok = bool(captured) and all(kw.get('encoding') == 'utf-8' and kw.get('errors') == 'replace'
+                                for kw in captured)
+    return ok, [{k: v for k, v in kw.items() if k in ('text', 'encoding', 'errors', 'capture_output')}
+                for kw in fake.calls]
+
+
+def build_main():
+    failures = 0
+    print('build-mode self-test of build_manual.py: %d cases' % len(BUILD_CASES))
+    for name, fn in BUILD_CASES:
+        d = scratch()
+        try:
+            seed(d)
+            ok, detail = fn(d)
+        finally:
+            os.chdir(ROOT)
+            shutil.rmtree(d, ignore_errors=True)
+        print('  [%s] %s' % ('ok' if ok else 'FAIL', name))
+        if not ok:
+            print('         got: %s' % (detail,))
+            failures += 1
+    return failures
+
 def main():
     failures = 0
     print('audit self-test: %d cases' % len(CASES))
@@ -550,6 +736,7 @@ def main():
             failures += 1
         print('  [%s] %-40s healthy:%d  after fault:%d  (expected fire=%s)'
               % (status, name, len(healthy), len(fired), expect_fire))
+    failures += build_main()                       # WP-146 (B5): the builder's build mode
     if failures:
         print('%d self-test case(s) FAILED' % failures)
         return 1
