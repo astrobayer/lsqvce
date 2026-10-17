@@ -81,7 +81,13 @@ buildDay(day, obsType, common, local, procOpt, info) -&gt; struct   (with the la
                        index (residuals, verdict) but are not observations --
                        out of the degrees of freedom, &#x27;rejected&#x27; in the
                        verdict. LSQVCE.ENGINE.BATCHSYSTEM sets it for a zero
-                       data weight.
+                       data weight. Under a correlated law (any type but
+                       &#x27;diag&#x27; and &#x27;var&#x27;) an epoch whose d rows are all
+                       excluded is DELETED from the law&#x27;s covariance -- the
+                       nugget of an epoch weight 0 (WP-148): the zero rows
+                       alone would condition their neighbours. Keep a
+                       rejected epoch on the grid this way; removing it
+                       leaves a gap a &#x27;psd&#x27; / &#x27;arma&#x27; law takes for one step.
   An EMPTY cell (0 rows in A, B, l, t) is a DATA GAP: that arc of the
   schedule is skipped by every engine. Any other field is an error --
   in particular the v5 fields arcIdx / arcId, whose job the cells do.
@@ -349,6 +355,10 @@ is a pass number &gt;= 1 and two groups on one stream are refused (badPrior); a
 static arcs id vector is checked like a resolver&#x27;s (badArcs); a validity
 entry of another type or a NaN is refused (badValidity), it read as &quot;always
 valid&quot;. With assistance from Claude (Anthropic), model Claude Opus 5.5.
+Updated 2026-10-17 (CEST, UTC+02:00), WP-148: a day&#x27;s excluded epoch under
+a correlated law is deleted by the nugget (it conditioned its neighbours
+as a phantom observation). With assistance from Claude (Anthropic),
+model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 findings 14, 17,
 18): the day may carry .excluded (rows of weight 0, zero in A, B, l); a
 robust row factor 0 and an epoch weight 0 mark their rows excluded on the

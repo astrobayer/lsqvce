@@ -143,7 +143,7 @@ a day without data returns empty cells.
 | `t` | m_a × 1 | epoch of each row in **seconds** (the whitener needs the lags) |
 | `Cep` | n_a×1, n_a×d or n_a×d×d | *optional* — the per-epoch accuracy of the arc (below) |
 | `nAxis` | scalar | *optional* — the axis count of a multi-axis stream without `Cep` |
-| `excluded` | m_a × 1 logical | *optional* — rows of **weight 0**: zero in `A`, `B` and `l`, kept for their index (residuals, diagnostics) but not observations — out of the degrees of freedom, `rejected` in the verdict |
+| `excluded` | m_a × 1 logical | *optional* — rows of **weight 0**: zero in `A`, `B` and `l`, kept for their index (residuals, diagnostics) but not observations — out of the degrees of freedom, `rejected` in the verdict. Under a correlated law (every type but `diag` and `var`) an epoch whose rows are all excluded is deleted from the law's covariance, so it does not condition its neighbours: keep a rejected epoch on the grid this way rather than removing it |
 
 Arc lengths may differ freely. An arc whose cells have 0 rows is a **data gap** and is
 skipped. Return **raw, unwhitened** matrices: the toolbox whitens every arc from the

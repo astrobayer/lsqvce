@@ -12,6 +12,9 @@ function tests = test_streamUtils
 %
 %   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.COLLECTRESIDUALS
 %
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-148: a day's excluded epoch is
+%   deleted from a correlated law (normals against A_o' C_oo^-1 A_o). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
 %   lsqvce.util.priorStream makes and recognises the prior pseudo-streams.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -389,6 +392,55 @@ function test_epoch_weights_are_an_additive_nugget(tc)
     % tol: one QR of the same whitened rows, merged in two orders
     tc.verifyEqual(sols{1}.x, sols{2}.x, 'RelTol', 1e-10, 'BatchSize does not touch a nugget arc');
     tc.verifyEqual(sols{1}.dof, m - 3 - 6, 'the 3 rejected rows leave the dof (m - 3 - nc - nl)');
+end
+
+function test_excluded_epoch_is_deleted_from_a_correlated_law(tc)
+% categories: reference, precision
+    % WP-148: a day's .excluded rows (zero in A, B, l) kept their epoch in the
+    % law's covariance, a phantom observation that conditioned its neighbours:
+    % the normals were A_o' inv(C)_oo A_o, 2e-3 off the deletion at phi 0.9
+    % (measured). An epoch whose d rows are all excluded is now deleted by the
+    % nugget of an epoch weight 0: the normals are A_o' C_oo^-1 A_o, with C_oo
+    % the covariance of the KEPT rows on the untouched grid.
+    rs = RandStream('mt19937ar', 'Seed', 148);
+    d = 3;  nE = 40;  m = nE * d;  e = [9 20];
+    a = [1 -0.9];  s = 0.8;
+    r = s^2 * lsqvce.kernel.armaACV(a, 1, nE);
+    Cep = zeros(nE, d, d);  Db = zeros(m);
+    for k = 1:nE
+        Q = 0.2 * randn(rs, d, d) + diag([1 1 2.5]);  Ck = Q * Q.';
+        Cep(k, :, :) = Ck;
+        ib = (k-1)*d + (1:d);  Db(ib, ib) = chol(Ck, 'lower');
+    end
+    C = Db * kron(toeplitz(r), eye(d)) * Db.';
+    ex = false(m, 1);  for k = e, ex((k-1)*d + (1:d)) = true; end
+    A = randn(rs, m, 4);  B = randn(rs, m, 2);  l = randn(rs, m, 1);
+    A(ex, :) = 0;  B(ex, :) = 0;  l(ex) = 0;                      % weight 0: zero rows
+    D = struct('A', A, 'B', B, 'l', l, 't', reshape(repmat((0:nE-1)*5, d, 1), [], 1), ...
+               'Cep', Cep);
+    Dc = arcCells(D);  Dc.excluded = {ex};                        % one arc: its excluded rows
+    cov.pos = struct('type', 'arma', 'ar', a, 'sigma', s);
+    L = lsqvce.engine.makeLoader(@(day, ot) Dc, 'ObservationTypes', {'pos'}, 'Covariance', cov, ...
+                                 'Arcs', 1, 'SystemId', 1, 'NumLocal', 2, 'NumCommon', 4);
+    arc = L.closure(1, 'pos', 1, struct('sysID', 1));
+    tc.verifyTrue(arc.wholeArc, 'the deletion is the nugget: the arc is whitened whole');
+    tc.verifyEqual(arc.excluded, ex, 'the excluded rows stay marked');
+    [Aw, Bw, lw] = arc.Wfcn(1:m, arc.A, arc.B, arc.l, struct());
+    k = ~ex;  Co = C(k, k);
+    % tol: 1e-8 relative -- the nugget tests' bound (two square roots of the
+    % same inverse; the scalar mirror of this case agrees to 3e-15)
+    tc.verifyEqual(Aw.'*Aw, A(k,:).' / Co * A(k,:), 'RelTol', 1e-8, 'A_o'' C_oo^-1 A_o');
+    tc.verifyEqual(Aw.'*lw, A(k,:).' / Co * l(k), 'RelTol', 1e-8);     % tol: same source
+    tc.verifyEqual(Bw.'*Bw, B(k,:).' / Co * B(k,:), 'RelTol', 1e-8);   % tol: same source
+    acc = lsqvce.engine.BlockAccumulator(4, 'Backend', 'qr');
+    acc.addSystem(1, 2, L.closure, 1);
+    tc.verifyEqual(acc.solve().dof, nnz(k) - 4 - 2, 'the excluded epochs leave the dof');
+    % a 'diag' law needs no nugget: its epochs are independent, a zero row is a deletion
+    covD.pos = struct('type', 'diag', 'sigma', s);
+    LD = lsqvce.engine.makeLoader(@(day, ot) Dc, 'ObservationTypes', {'pos'}, 'Covariance', covD, ...
+                                  'Arcs', 1, 'SystemId', 1, 'NumLocal', 2, 'NumCommon', 4);
+    arcD = LD.closure(1, 'pos', 1, struct('sysID', 1));
+    tc.verifyFalse(lsqvce.util.getfielddef(arcD, 'wholeArc', false), 'a diag law keeps its batches');
 end
 
 function test_nugget_refusals_by_name(tc)

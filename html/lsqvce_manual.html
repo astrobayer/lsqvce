@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.26.2 — User Manual</title>
+  <title>lsqvce 6.27.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.26.2 — User Manual</h1>
+<h1 class="title">lsqvce 6.27.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1108,7 +1108,8 @@ of the epochs warns that it has reached the breakdown point.</li>
 <code>R.report</code>, repair or remove the observations in
 <code>buildDay</code> and run again. Weights taken from a robust run can
 be made data: zero the rejected epochs’ rows and mark them
-<code>excluded</code> in the day <code>buildDay</code> returns (removing
+<code>excluded</code> in the day <code>buildDay</code> returns — the
+toolbox deletes such an epoch from a correlated law exactly (removing
 them leaves a gap that a <code>psd</code> or <code>arma</code> law,
 which counts lags in samples, takes for one step —
 <code>lsqvce:covModel:unevenGrid</code> says so); store the weights,
