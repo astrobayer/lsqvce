@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-17 — WP-144 DONE (PR #186, merge 114a03c; CI GREEN on 756fe36 in the first round: ci_gate 747/747, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.80; no code change, no version (6.26.1 stays, 759 declared / 747 run).
+Last substantive update: 2026-10-17 — WP-148 OPEN (tier A; model Claude Opus 5.5; the user chose option B, relayed by the session that ran WP-145: "Go ahead as recommende"): observation 2 of §12.80 -- the GRAVFIRE template keeps a flagged epoch on the grid with weight 0 (D.excluded) instead of removing it (the gap a 'psd' law took for one step, lsqvce:covModel:unevenGrid), and makeLoader deletes a day's excluded epoch from a correlated law by the nugget of an epoch weight 0 -- measured, the zero rows alone were a phantom observation (normals A_o' inv(C)_oo A_o, 2e-3 off the deletion at phi 0.9); 2 tests; version 6.27.0.
+Preceding entry: Last substantive update: 2026-10-17 — WP-144 DONE (PR #186, merge 114a03c; CI GREEN on 756fe36 in the first round: ci_gate 747/747, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.80; no code change, no version (6.26.1 stays, 759 declared / 747 run).
 Preceding entry: Last substantive update: 2026-10-17 — WP-144 OPEN (tier A; model Claude Opus 5.5; user: "Go ahead with wp-144"): A2, A3, A4, A6 reproduced before the fix (A6 worse than recorded: the prior held at its declared sigma and the loop reported "converged"), A7's gap closed by a GENERATED GRAVFIRE bundle (dev/tests/fixture_gravfire_bundle.m) that runs template/gravfire_data.m and demo_gravfire in the gate; 5 tests; version 6.26.1; ci_gate GREEN 747/747 locally; §12.80.
 Preceding entry: Last substantive update: 2026-10-17 — WP-147 DONE (part 1 PR #182, merge 40b6144; part 2 PR #184, merge d260dfd; CI GREEN on 728c502 in the first round: ci_gate 742/742, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.79; no code change, no version (6.26.0 stays, 754 declared / 742 run).
 Preceding entry: Last substantive update: 2026-10-17 — WP-147 part 2 (tier A; model Claude Opus 5.5; user: "Continue as suggested" = options A + B of §12.79): the noise loop's bins are held to Tolerance max(1, sqrt(200 / r_j)) -- at the default a tenth of their own standard error where the data say little -- instead of Tolerance; the not-converged warning names the bins that still move and the solution's last step; R.history / convergence() carry binRatio and xStep; psdVCE returns .dev and .redundancy; 4 tests; version 6.26.0; §12.79.
@@ -11493,3 +11494,63 @@ Version 6.26.2; 761 declared / 749 run.
 **Observation, recorded, not acted on:** inside a robust joint run on the normal backend, every
 pass's `robustSweep` calls residuals() on a refused solution, so `lsqvce:residuals:supersedesSol`
 warns once per pass -- correct, but noisy; the test mutes it.
+
+### 12.82 WP-148 — a rejected epoch stays on the grid and is deleted exactly (2026-10-17, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 148 | Observation 2 of §12.80: `template/gravfire_data.m`'s buildGravfireDay REMOVES the epochs flagged in nanIndexOfPiece, which leaves a gap inside a piece; on an Estimate "noise" run the 'psd' law counts lags in samples, takes the gap for one step and warns `lsqvce:covModel:unevenGrid`. Keep the flagged epochs on the grid with weight 0 (`D.excluded`, their values irrelevant), and -- found while reproducing, user option B -- make a day's excluded epoch under a correlated law an exact deletion in `makeLoader` (the nugget of an epoch weight 0); a test pins the normals against A_o' C_oo^-1 A_o, test_physOracle's GRAVFIRE tests that the warning does not fire and the dof is unchanged; dev/GRAVFIRE_INTERFACE.md STEP 8; makeLoader / adjustVCEjoint within their ceilings (check 33); version 6.27.0 (a behaviour change: minor) | 144 (#186), 149 (#187) | IN PROGRESS |
+
+**The request (2026-10-17, from the session that ran WP-145):** observation 2 of §12.80, scoped
+here before any code; the number agreed in the shared notes (WP-149 took observation 1).
+
+**Reproduction (tier A, the bridge, this tree first on the path and restored).**
+fixture_gravfire_bundle (one flagged epoch per (day, group)), DryRun, Estimate "noise",
+MaxPasses 3: `lsqvce:covModel:unevenGrid` fires (largest step 10 s, median 5 s).
+
+**The remedy the warning names is not a deletion -- measured before any fix.** One scalar arc,
+'arma' ar = [1 -0.9], 40 epochs at 5 s, epoch 20 out; the normals of each route against the true
+deletion A_o' C_oo^-1 A_o (C_oo the covariance of the kept epochs on the untouched grid):
+
+| route | N rel. error | n rel. error |
+|---|---|---|
+| epoch removed (the template until now; the gap is one step) | 1.7e-2 | 2.7e-2 |
+| a day's `excluded`, zero rows kept on the grid | 2.0e-3 | 6.8e-3 |
+| ... the same against the phantom A_o' inv(C)_oo A_o | 3.4e-15 | |
+| an epoch weight 0 (opt.epochWeights, the R7 WP-115 nugget) | 2.9e-15 | 3.8e-15 |
+
+The loader carried `D.excluded` to the dof count only; covModel never saw it, so the zero row
+stayed in the law's covariance and conditioned its neighbours -- the phantom observation WP-115
+(§12.43) removed for the robust factors. The parent session asked: (A) the template alone, or
+(B) also the loader. **User: option B** ("Go ahead as recommende", relayed).
+
+**The fix.**
+- `makeLoader>batchOf`: an epoch whose d rows are all excluded, under any law but 'diag' (epochs
+  independent: a zero row already is a deletion) and 'var' (no nugget, as for the robust epoch
+  weights), joins the epoch-weight route: factor 1e-12, the nugget q = 1/w - 1 (> 1e11: the
+  rotation of WP-133), the arc whitened whole. After: the same arc 3.1e-15 / 4.3e-15. A partly
+  excluded epoch stays as before (rows of one epoch share its per-epoch nugget). The body of
+  makeLoader is untouched (batchOf is a local function); check 33 silent.
+- `template/gravfire_data.m`: the flagged epochs stay; lobs zeroed (NaN in a real bundle), the
+  rows of A and B zeroed after the design step, iSpp of a flagged epoch replaced by the mean of
+  the others (deleted: any valid 3x3), `D.excluded{k}` per piece. A DesignFcn returns the rows of
+  EVERY epoch now (help and GRAVFIRE_INTERFACE STEP 8 / 10 say so).
+- Docs: API reference (buildDay, `excluded`), Manual chapter 05 (the robust-weights-as-data
+  step), GRAVFIRE_INTERFACE STEP 8, 10, 11, makeLoader's help.
+
+**Tests (each fails without its fix).** test_streamUtils
+`test_excluded_epoch_is_deleted_from_a_correlated_law` (3-axis arma 0.9 with full 3x3 Cep, two
+epochs out: wholeArc, the normals of A, B, l against A_o' C_oo^-1 A_o at 1e-8, the dof without
+them, a 'diag' law keeps its batches) -- without the loader change the normals are 2e-3 off and
+wholeArc is false. test_physOracle `testGravfireFlaggedEpochsStayOnTheGrid` (90 rows per posA
+piece, 3 excluded in piece 2, no gap; NaN in the flagged lobs and iSpp give the same R.x; the dof
+of the removal; a noise run's inventory without unevenGrid -- the same check on main's template
+finds it).
+
+**Version** 6.27.0 (minor: a behaviour change of the loader). Manual and API reference rebuilt
+under WSL (Debian pandoc 3.1.3).
+
+**Gates (tier A):** `ci_gate` GREEN 751 / 751 (`matlab -batch`, this tree only on the path),
+inventory `lsqvce:internal:testProbe` only, 348 s; Linux audit (WSL) CLEAN, selftest clean.
+Version 6.27.0; 763 declared / 751 run. Merged origin/main (#188, the WP-144 closure) on the way:
+the status line only.

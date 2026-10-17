@@ -23,6 +23,10 @@ function tests = test_physOracle
 %
 %   Created 2026-08-20 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-148: the template's flagged
+%   epochs stay on the grid with weight 0 (no gap, the dof unchanged, their
+%   values irrelevant). With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-17 (CEST, UTC+02:00), WP-144: template/gravfire_data.m
 %   runs on a generated bundle (A7); a local group's members must agree (A4).
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -623,12 +627,50 @@ function testGravfireTemplateRunsOnAGeneratedBundle(tc)
     tc.verifyEqual(data.systems.priors(1).group, '^(GraceA_accscale|GraceB_accscale)$');
     R = lsqvce.fit(data, lsqvce.Options(Verbose=0));
     % rows: 2 days x (posA 59 x 3 + posB 59 x 3 + kbr 59) -- 2 pieces of 30
-    % epochs per (day, group), one flagged epoch removed; unknowns: 6 commons
+    % epochs per (day, group), one flagged epoch at weight 0 (WP-148); unknowns: 6 commons
     % + 6 locals per day; prior rows: 'stokes' 2 + row 3 1 on the commons,
     % 'accscale' 2 members x 2 days on the locals
     tc.verifyEqual(R.sol.dof, 2*(59*3 + 59*3 + 59) - (6 + 2*6) + (2 + 1) + 2*2, ...
         'every row of every piece reached the accumulator');
     tc.verifyNumElements(R.x, 6);
+end
+
+function testGravfireFlaggedEpochsStayOnTheGrid(tc)
+% categories: contract, robustness
+% WP-148 (HANDOVER 12.80, observation 2): the template REMOVED the flagged
+% epochs, which left a gap inside the piece; on a noise run the 'psd' law
+% took it for one step (lsqvce:covModel:unevenGrid). The epochs stay on the
+% grid with weight 0 now (D.excluded): the grid is even, the dof is the one
+% the removal gave, and the flagged epoch's values -- NaN in a real bundle --
+% do not reach the solution.
+    [c, m, s] = fixture_gravfire_bundle();
+    data = gravfire_data(c, m, s, 'DryRun', true);
+    po = data.systems.processingOptions;  info = struct('nc', 6, 'nl', 12);
+    D = data.systems.buildDay(59396, 'posA', [], [], po, info);
+    tc.verifyEqual(cellfun(@numel, D.l), [90 90], 'every epoch of both pieces, 3 rows each');
+    tc.verifyEqual(cellfun(@nnz, D.excluded), [0 3], 'the flagged epoch (piece 2) weighted out');
+    tc.verifyEqual(unique(diff(D.t{2}(1:3:end))), 5, 'no gap inside the piece');
+    % its values do not matter: NaN observations and covariance give the same fit
+    s2 = s;
+    for k = 1:numel(s2{1}.observations)
+        o = s2{1}.observations{k};  f = o.nanIndexOfPiece{1};
+        o.lobs{1}(f, :) = NaN;
+        if isfield(o, 'iSpp'), o.iSpp{1}(f, :) = NaN; end
+        s2{1}.observations{k} = o;
+    end
+    R1 = lsqvce.fit(data, lsqvce.Options(Verbose=0));
+    R2 = lsqvce.fit(gravfire_data(c, m, s2, 'DryRun', true), lsqvce.Options(Verbose=0));
+    % tol: 0 -- the flagged rows are zeroed before any arithmetic; the same doubles
+    tc.verifyEqual(R2.x, R1.x, 'the flagged values never reach the solution');
+    tc.verifyEqual(R1.sol.dof, 2*(59*3 + 59*3 + 59) - (6 + 2*6) + (2 + 1) + 2*2, ...
+        'the dof the removal gave: a weight-0 epoch is no observation');
+    % the noise run: the grid is even, the gap warning does not fire
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');      % 3 passes on 2 days stop early
+    lsqvce.util.log.inventory('reset');
+    lsqvce.fit(data, lsqvce.Options(Verbose=0, Estimate="noise", MaxPasses=3));
+    tc.verifyFalse(any(strcmp(lsqvce.util.log.inventory(), 'lsqvce:covModel:unevenGrid')), ...
+        'no gap inside a piece');
+    lsqvce.util.log.inventory('reset');
 end
 
 function testGravfireLocalGroupRefusesDisagreeingMembers(tc)

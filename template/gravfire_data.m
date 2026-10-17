@@ -23,7 +23,9 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %   NAME-VALUE
 %     'DesignFcn'  function_handle   [A, B] = f(o, day, obsType, common, local, po, info)
 %                  o = the (day, group) bundle struct; must return A (m x info.nc) and
-%                  B (m x info.nl), rows EPOCH-MAJOR for multi-axis streams. Default:
+%                  B (m x info.nl), rows EPOCH-MAJOR for multi-axis streams, m = EVERY
+%                  epoch of the day times its axes -- the flagged epochs included
+%                  (their rows are zeroed and weighted out, whatever you return). Default:
 %                  a function that ERRORS with gravfire:designMissing (so a forgotten
 %                  design step fails loudly, wrapped by lsqvce:makeLoader:buildDay).
 %     'DryRun'     logical, default false   replace the design step by DETERMINISTIC
@@ -84,6 +86,10 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M0 close-out (§12.8).
 %
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-148: the flagged epochs stay on
+%   the grid with weight 0 (D.excluded) instead of being removed -- a removed
+%   epoch left a gap a 'psd' law took for one step. DesignFcn returns the rows
+%   of every epoch. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A4): the members of a
 %   labelled LOCAL group must share fromPass and the a-priori value too (a
 %   later member's were dropped). With assistance from Claude (Anthropic),
@@ -189,12 +195,19 @@ function D = buildGravfireDay(day, obsType, common, local, po, info)
     o  = po.bundles{d, g};
 
     nAx = o.numberOfAxes;
-    keep = ~o.nanIndexOfPiece{1}(:);                          % flagged epochs leave
-    lobs  = o.lobs{1}(keep, :);                               % nEp x nAx
-    tEp   = o.time{1}(keep, 2);                               % seconds of day
-    piece = o.indexOfPiece{1}(keep);                          % nEp x 1
+    % The flagged epochs STAY on the grid with weight 0 (WP-148): removing one
+    % leaves a gap inside its piece that a 'psd' law, counting lags in
+    % samples, takes for ONE step (lsqvce:covModel:unevenGrid). Their rows are
+    % zeroed below and marked D.excluded; the toolbox deletes them from the
+    % law's covariance, so their values -- NaN included -- never matter.
+    flag  = logical(o.nanIndexOfPiece{1}(:));                 % nEp x 1
+    lobs  = o.lobs{1};                                        % nEp x nAx
+    lobs(flag, :) = 0;
+    tEp   = o.time{1}(:, 2);                                  % seconds of day
+    piece = o.indexOfPiece{1}(:);                             % nEp x 1
     nEp   = size(lobs, 1);
     m     = nEp * nAx;
+    ex    = reshape(repmat(flag.', nAx, 1), [], 1);           % m x 1, epoch-major
 
     % STEP 8: epoch-major rows (x1 y1 z1 x2 y2 z2 ...), the whole day first
     l = reshape(lobs.', [], 1);
@@ -205,7 +218,8 @@ function D = buildGravfireDay(day, obsType, common, local, po, info)
     % scalar stream with a per-epoch sigma would carry it as nEpoch x 1.
     Cep = [];
     if nAx > 1
-        C   = o.iSpp{1}(keep, :);                             % nEp x 9 (3x3 per epoch)
+        C   = o.iSpp{1};                                      % nEp x 9 (3x3 per epoch)
+        C(flag, :) = repmat(mean(C(~flag, :), 1), nnz(flag), 1);   % deleted: any valid 3x3
         Cep = permute(reshape(C.', nAx, nAx, []), [3 1 2]);   % nEp x 3 x 3
     end
 
@@ -225,18 +239,21 @@ function D = buildGravfireDay(day, obsType, common, local, po, info)
                    m, info.nc, m, info.nl, day, obsType);
         end
     end
+    A(ex, :) = 0;  B(ex, :) = 0;                              % weight 0: zero rows (API reference)
 
     % STEP 11: THE CELLS ARE THE ARCS (v6) -- one cell per piece, in piece
     % order; the toolbox takes them as this day's arcs (ids 1:nPiece)
     ids  = unique(piece(:)).';
     nP   = numel(ids);
-    D = struct('A', {cell(1, nP)}, 'B', {cell(1, nP)}, 'l', {cell(1, nP)}, 't', {cell(1, nP)});
+    D = struct('A', {cell(1, nP)}, 'B', {cell(1, nP)}, 'l', {cell(1, nP)}, 't', {cell(1, nP)}, ...
+               'excluded', {cell(1, nP)});
     if nAx > 1, D.Cep = cell(1, nP); end
     for k = 1:nP
         ep   = find(piece == ids(k));                          % this piece's epochs
         rows = (ep(:) - 1) * nAx + (1:nAx);                   % nEp_k x nAx, epoch per row
         rows = reshape(rows.', [], 1);                         % their epoch-major rows
         D.A{k} = A(rows, :);  D.B{k} = B(rows, :);  D.l{k} = l(rows);  D.t{k} = t(rows);
+        D.excluded{k} = ex(rows);
         if nAx > 1, D.Cep{k} = Cep(ep, :, :); end
     end
 end

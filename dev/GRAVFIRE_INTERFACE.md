@@ -8,7 +8,9 @@ guide with that file open; the STEP numbers match its comments. Created
 2026-09-02 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model
 Claude Fable 5.1. Updated 2026-09-09 for v6 (R6 WP-102): THE CELLS ARE THE
 ARCS — `buildDay` returns one cell per piece and no arc schedule is declared
-(STEP 5 is empty; STEPS 8–11 renumbered). Model Claude Fable 5.1.*
+(STEP 5 is empty; STEPS 8–11 renumbered). Model Claude Fable 5.1. Updated
+2026-10-17 (WP-148): the flagged epochs stay on the grid with weight 0
+(STEP 8). Model Claude Opus 5.5.*
 
 ---
 
@@ -228,7 +230,8 @@ exactly that coupling. Three systems would sever it.
 residuals). It must return raw, un-whitened matrices — the toolbox whitens,
 weights and eliminates. **v6: every field is a 1 × nPiece cell, one cell per
 piece** (the cells are the arcs). Required fields: `A`, `B`, `l`, `t`;
-optional: `Cep` (a matching cell), `nAxis`. Any other field — `arcIdx`,
+optional: `Cep` (a matching cell), `nAxis`, `excluded` (a matching cell of
+row masks: rows of weight 0, STEP 8). Any other field — `arcIdx`,
 `arcId` included — is refused by name.
 
 ### STEP 8 — observations, epoch-major
@@ -243,8 +246,23 @@ t = repelem(time(:,2), nAxis);          % seconds of day, one per row
 
 (the cut into per-piece cells `D.l{k}`, `D.t{k}` is STEP 11).
 
-Drop the epochs flagged in `nanIndexOfPiece` from `lobs`, `time`, `indexOfPiece`
-and `iSpp` **together** before this (the template does; the file has none).
+The epochs flagged in `nanIndexOfPiece` **stay on the grid with weight 0**
+(WP-148; the template does, the file has none). Zero their rows in `l`, `A` and
+`B` (STEP 10), give them any valid 3×3 in `Cep` (the template takes the mean of
+the others), and mark the rows in `D.excluded{k}` (STEP 11):
+
+```matlab
+flag = logical(nanIndexOfPiece(:));                  % nEpoch x 1
+lobs(flag, :) = 0;                                   % NaN in the file: zero here
+ex   = reshape(repmat(flag.', nAxis, 1), [], 1);     % m x 1, epoch-major
+```
+
+The toolbox deletes such an epoch from the law's covariance: it is out of the
+degrees of freedom and its values never reach the solution. Do **not** remove
+the flagged epochs: a removed epoch leaves a gap inside its piece, and a `psd`
+law (`Estimate="noise"`), which counts lags in samples, takes the gap for ONE
+step (`lsqvce:covModel:unevenGrid` warns). Your design function therefore
+returns the rows of **every** epoch of the day, the flagged ones included.
 
 ### STEP 9 — the error information: `Cep` (v5.3, R6 WP-90)
 
@@ -279,7 +297,8 @@ reshaping it per pass.
 ```
 
 with `A` of size `m × info.nc` (117) and `B` of size `m × info.nl` (144 for
-two days), rows in the same epoch-major order as `l`. Where each local's
+two days), rows in the same epoch-major order as `l` — one row per axis of
+**every** epoch, the flagged ones too (the template zeroes those afterwards). Where each local's
 column is: **ask `info`, never compute it** —
 
 ```matlab
@@ -303,6 +322,7 @@ for k = 1:numel(ids)
     ep   = find(indexOfPiece == ids(k));                       % this piece's epochs
     rows = reshape(((ep(:) - 1) * nAxis + (1:nAxis)).', [], 1); % their epoch-major rows
     D.A{k} = A(rows, :);  D.B{k} = B(rows, :);  D.l{k} = l(rows);  D.t{k} = t(rows);
+    D.excluded{k} = ex(rows);                                  % the flagged rows, weight 0
     D.Cep{k} = Cep(ep, :, :);                                  % positions only
 end
 ```

@@ -38,7 +38,13 @@ function L = makeLoader(buildDay, opt)
 %                            index (residuals, verdict) but are not observations --
 %                            out of the degrees of freedom, 'rejected' in the
 %                            verdict. LSQVCE.ENGINE.BATCHSYSTEM sets it for a zero
-%                            data weight.
+%                            data weight. Under a correlated law (any type but
+%                            'diag' and 'var') an epoch whose d rows are all
+%                            excluded is DELETED from the law's covariance -- the
+%                            nugget of an epoch weight 0 (WP-148): the zero rows
+%                            alone would condition their neighbours. Keep a
+%                            rejected epoch on the grid this way; removing it
+%                            leaves a gap a 'psd' / 'arma' law takes for one step.
 %       An EMPTY cell (0 rows in A, B, l, t) is a DATA GAP: that arc of the
 %       schedule is skipped by every engine. Any other field is an error --
 %       in particular the v5 fields arcIdx / arcId, whose job the cells do.
@@ -313,6 +319,10 @@ function L = makeLoader(buildDay, opt)
 %   static arcs id vector is checked like a resolver's (badArcs); a validity
 %   entry of another type or a NaN is refused (badValidity), it read as "always
 %   valid". With assistance from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-148: a day's excluded epoch under
+%   a correlated law is deleted by the nugget (it conditioned its neighbours
+%   as a phantom observation). With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 findings 14, 17,
 %   18): the day may carry .excluded (rows of weight 0, zero in A, B, l); a
 %   robust row factor 0 and an epoch weight 0 mark their rows excluded on the
@@ -1496,6 +1506,23 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
                        'builder must return the same arc on every call.'], ...
                       key, numel(epochW), numel(out.l) / d);
             end
+        end
+    end
+    % WP-148: a day's EXCLUDED epoch (all d rows of weight 0) under a
+    % correlated law is deleted by the nugget above, as an epoch weight 0 is.
+    % The zero rows alone stay in the law's covariance and condition their
+    % neighbours -- the normals were A_o' inv(C)_oo A_o, not A_o' C_oo^-1 A_o
+    % (2e-3 off at phi 0.9, measured). A 'diag' law needs no nugget: its
+    % epochs are independent, so a zero row is already a deletion.
+    if isfield(out, 'excluded') && ~isVar && ...
+            ~strcmpi(lsqvce.util.getfielddef(cm, 'type', ''), 'diag')
+        exDay = all(reshape(out.excluded, d, []), 1).';
+        if any(exDay)
+            if isempty(epochW)
+                epochW = ones(numel(exDay), 1);  exEp = false(numel(exDay), 1);
+            end
+            epochW(exDay) = 1e-12;                    % the loader's floor of a factor 0
+            exEp = exEp | exDay;
         end
     end
     if isfield(D, 'Cep') && ~isempty(D.Cep)
