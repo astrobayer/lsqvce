@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.26.2 — API Reference</title>
+  <title>lsqvce 6.27.0 — API Reference</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.26.2 — API Reference</h1>
+<h1 class="title">lsqvce 6.27.0 — API Reference</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -952,7 +952,11 @@ the lags)</td>
 <td><em>optional</em> — rows of <strong>weight 0</strong>: zero in
 <code>A</code>, <code>B</code> and <code>l</code>, kept for their index
 (residuals, diagnostics) but not observations — out of the degrees of
-freedom, <code>rejected</code> in the verdict</td>
+freedom, <code>rejected</code> in the verdict. Under a correlated law
+(every type but <code>diag</code> and <code>var</code>) an epoch whose
+rows are all excluded is deleted from the law’s covariance, so it does
+not condition its neighbours: keep a rejected epoch on the grid this way
+rather than removing it</td>
 </tr>
 </tbody>
 </table>

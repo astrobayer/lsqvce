@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.26.2 — User Manual"
+title: "lsqvce 6.27.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -499,7 +499,7 @@ Gross outliers belong to preprocessing. Inside the adjustment there are three to
 3. **Diagnose, then decide.** Read the outlier tests in `R.report`, repair or remove the
    observations in `buildDay` and run again. Weights taken from a robust run can be made
    data: zero the rejected epochs' rows and mark them `excluded` in the day `buildDay`
-   returns (removing them
+   returns — the toolbox deletes such an epoch from a correlated law exactly (removing them
    leaves a gap that a `psd` or `arma` law, which counts lags in samples, takes for one
    step — `lsqvce:covModel:unevenGrid` says so); store the weights, never recompute them
    inside `buildDay`.

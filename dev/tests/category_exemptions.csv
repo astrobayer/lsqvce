@@ -184,8 +184,6 @@ util.callUser,reference,no closed form: the unit transports values, it does not 
 util.callUser,vectorisation,no loop over observations or lags -- scalar/struct plumbing
 util.callUser,speed,O(1) per call; no data-sized work to budget
 util.callUser,metamorphic,no invariance beyond the identity already pinned by its contract
-util.getfielddef,precision,plumbing (structs/handles/strings): no floating-point result to bound; its identity behaviour is the contract
-util.getfielddef,reference,no closed form: the unit transports values, it does not compute
 util.getfielddef,vectorisation,no loop over observations or lags -- scalar/struct plumbing
 util.getfielddef,speed,O(1) per call; no data-sized work to budget
 util.getfielddef,metamorphic,no invariance beyond the identity already pinned by its contract

@@ -1,5 +1,22 @@
 # lsqvce release notes
 
+## 6.27.0 — 2026-10-17 (WP-148: a rejected epoch stays on the grid and is deleted exactly)
+
+A behaviour change for rows a `buildDay` marks `excluded` under a correlated law; every other
+fit is unchanged.
+
+- A day's `excluded` epoch (all its rows zero, weight 0) under a correlated law (every type but
+  `diag` and `var`, the estimated `psd` law of `Estimate = "noise"` included) is now deleted
+  from the law's covariance, as an epoch weight 0 of a robust pass is. The zero rows alone stayed
+  in the covariance and conditioned their neighbours like a phantom observation: the normals were
+  2e-3 off the deletion at an AR(1) phi of 0.9 (measured; exact to 3e-15 now). Such an arc is
+  whitened whole.
+- `template/gravfire_data.m` keeps the epochs flagged in `nanIndexOfPiece` on the grid with
+  weight 0 (`D.excluded`) instead of removing them: a removed epoch left a gap inside its piece
+  that the `psd` law of a noise run took for one step (`lsqvce:covModel:unevenGrid`). The degrees
+  of freedom are those of the removal; the flagged values, NaN included, never reach the
+  solution. A `DesignFcn` now returns the rows of every epoch of the day, the flagged ones too.
+
 ## 6.26.2 — 2026-10-17 (WP-149: a refused v'Pv no longer reaches the fit's Results)
 
 A correction. Estimates are unchanged; only numbers that were NaN change.
