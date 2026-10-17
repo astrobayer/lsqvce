@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-17 — WP-148 DONE (PR #189, merge fee9287; CI GREEN on 0e25afc in the first completed round -- two earlier runs cancelled by newer pushes: ci_gate 751/751, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.82; no code change, no version (6.27.0 stays, 763 declared / 751 run).
+Last substantive update: 2026-10-17 — WP-146 OPEN (model Claude Opus 5.5; user: "Go ahead"): build_manual.py -- every failure caught per document, the four outputs of a document staged and replaced together (the PDF first), check mode writes nothing, pandoc decoded as UTF-8; six build-mode cases in audit_selftest.py (pandoc faked) reproduced B1-B4, B6, B7 on the old builder and pass on the new; no version; §12.83.
+Preceding entry: Last substantive update: 2026-10-17 — WP-148 DONE (PR #189, merge fee9287; CI GREEN on 0e25afc in the first completed round -- two earlier runs cancelled by newer pushes: ci_gate 751/751, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.82; no code change, no version (6.27.0 stays, 763 declared / 751 run).
 Preceding entry: Last substantive update: 2026-10-17 — WP-149 DONE (PR #187, merge 5f8eb36; CI GREEN on 426bb82 in the first round: ci_gate 749/749, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.81; no code change, no version (WP-149 shipped 6.26.2; the tree is at WP-148's 6.27.0). WP-149 itself (tier A; model Claude Opus 5.5; observation 1 of §12.80, from the session that ran WP-145): after a refused v'Pv on Backend "normal" the fit's Results carries sigma0 and Cxx from the verdict's residual pass (lsqvce.engine.verdict.supersede, called by the Results constructor), and a robust hard solution keeps its truncation; 2 tests; version 6.26.2.
 Preceding entry: Last substantive update: 2026-10-17 — WP-148 OPEN (tier A; model Claude Opus 5.5; the user chose option B, relayed by the session that ran WP-145: "Go ahead as recommende"): observation 2 of §12.80 -- the GRAVFIRE template keeps a flagged epoch on the grid with weight 0 (D.excluded) instead of removing it (the gap a 'psd' law took for one step, lsqvce:covModel:unevenGrid), and makeLoader deletes a day's excluded epoch from a correlated law by the nugget of an epoch weight 0 -- measured, the zero rows alone were a phantom observation (normals A_o' inv(C)_oo A_o, 2e-3 off the deletion at phi 0.9); 2 tests; version 6.27.0.
 Preceding entry: Last substantive update: 2026-10-17 — WP-144 DONE (PR #186, merge 114a03c; CI GREEN on 756fe36 in the first round: ci_gate 747/747, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.80; no code change, no version (6.26.1 stays, 759 declared / 747 run).
@@ -10904,7 +10905,7 @@ recorded-only observation of §12.75 is acted on. No package is open; the next s
 |----|-------|-----------|--------|
 | 144 | The package and template findings A2, A3, A4, A6 and the coverage gap A7 below: the one-day cache key of `lsqvce.engine.synthLoader`, `Results.plot("psd")` on a log axis, the local Tikhonov groups of `template/gravfire_data.m`, `fit`'s prior "scale" update after a refused v'Pv, and a generated GRAVFIRE bundle fixture that runs `gravfire_data` end to end; each fix with a test that fails without it; version by precedent (fixes alone a patch, 6.25.2 as WP-142; a new identifier a minor, 6.26.0 as WP-137) | 143 (closure #178 merged ba5b4cd) | OPENED 2026-10-17 -- its row and status live in §12.80 |
 | 145 | The test-tooling findings A1, A5, A8, A9 below: example warnings reach the gate's warning inventory, `run_lsqvce` on the `dev/tests` layout with a working `LogFile=''`, the gate's log check bound to this run; `dev/tests` only, no version | 143 | OPENED 2026-10-16 -- its row and status live in §12.78 |
-| 146 | The `build_manual.py` findings B1-B9 below (the review of WP-143): every exception caught per document in `main()`, the tracked `_build` intermediates and both targets written only on success (staged beside the targets, then `os.replace`), pandoc's output decoded as UTF-8, a committed test of build mode, the docstring without history and with the stamp; no version | 143 | PROPOSED (not opened) |
+| 146 | The `build_manual.py` findings B1-B9 below (the review of WP-143): every exception caught per document in `main()`, the tracked `_build` intermediates and both targets written only on success (staged beside the targets, then `os.replace`), pandoc's output decoded as UTF-8, a committed test of build mode, the docstring without history and with the stamp; no version | 143 | OPENED 2026-10-17 -- its row and status live in §12.83 |
 
 **The user's requests (2026-10-16):** "/code-review xhigh - fix" -- a review of WP-143's diff
 (`build_manual.py`), section B; then "You reviewed the documentation building. I want you to review
@@ -11573,3 +11574,45 @@ origin/main for #188's conflict on the status line, then the gates note); no red
 **Closure (2026-10-17).** WP-148 DONE: PR #189 merged as fee9287 (the loop's record step after the
 merge: the ledger row, this note; no code change, no version -- 6.27.0 stays, 763 declared / 751
 run). Nothing recorded as open from this round.
+
+### 12.83 WP-146 — build_manual.py: every failure caught per document, both targets replaced together (2026-10-17, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 146 | The `build_manual.py` findings B1-B9 of §12.77 (the review of WP-143), each reproduced before its fix: (B2, B1) every exception of a document's build is caught in `main()` per document, so an unwritable target or a failing assemble/help_block/pandoc call no longer stops the list; (B3, B4, B7) a document is built entirely in a temporary directory, and its four outputs -- `html/lsqvce_<doc>.html`, `lsqvce_<doc>.pdf` and the tracked intermediates `manual/_build/lsqvce_<doc>.md` / `.html` -- are replaced only when all built, staged beside their targets and moved with `os.replace` (the PDF first: a viewer is what locks a target), and check mode writes nothing in the tree; (B6) pandoc's output decoded as UTF-8 with errors replaced; (B5) a committed test of build mode: cases in `audit_selftest.py` (CI runs it) with pandoc faked, no external tool needed; (B8, B9) the module docstring without WP history and with the stamp; no version (dev tooling only) | 144 (closure #188) | IN PROGRESS |
+
+**The user's request (2026-10-17):** "Go ahead" -- to opening WP-146, the last open item of §12.77.
+
+**Reproductions (Python here; pandoc faked).** The build-mode cases were written first and run
+against the builder of main b895e08 -- the healthy case passed, all five fault cases FAILED, which
+is the reproduction:
+- **B3/B4** a failed PDF (manual): the two tracked `_build` files REWRITTEN, the html/PDF pair kept.
+- **B2** an exception in the API's appendix: escaped `main()` (RuntimeError), nothing after it ran.
+- **B1** the manual PDF unwritable (os.replace / copyfile raising PermissionError on it): escaped
+  `main()` after the manual's `_build` files had been rewritten, and the API was never built.
+- **B7** check mode: the four `_build` files rewritten for both documents (the static audit
+  modified tracked files -- seen live on this PC, §12.78 observation 4).
+- **B6** the captured pandoc call: `text=True`, no encoding.
+
+**The fix (`dev/docs_src/build_manual.py`).** A document is built entirely in a temporary directory
+(md, HTML, PDF), its four outputs staged beside their targets (`<target>.staged`, the same file
+system) and moved with `os.replace`, the PDF first; a replace that fails after earlier ones says
+which were ALREADY replaced. Every exception of a document is caught in `main()` per document and
+printed with its name. Check mode builds in the temporary directory and writes nothing in the tree.
+`pandoc()` runs every call with `capture_output=True, encoding='utf-8', errors='replace'` and raises
+BuildError on a non-zero exit. The module docstring states the contract without WP history, with
+the Created line from git (2026-09-04, the docs level of §12.13) and the stamp (B8, B9).
+
+**Test (B5):** `audit_selftest.py` gains `BUILD_CASES` (6: healthy, B3/B4, B2, B1, B7, B6), run by
+`main()` after the audit cases, so CI's audit job runs them (no pandoc or xelatex needed: the fake
+writes its -o file). All six pass on the fixed builder.
+
+**Real build (WSL, Debian pandoc, xelatex):** exit 0, both documents built; `build_manual.py check`
+"both documents are fresh"; no `.staged` file left. HTML and `_build` byte-equal to the committed
+ones; the PDFs differ only in xelatex's embedded date and ID (as before -- WP-143 compared their
+text), so the rebuilt outputs were restored, not committed. On Windows (pandoc 3.11) check mode now
+reports both stale AND leaves the tree clean: the Windows audit no longer rewrites `_build`.
+
+**Gates:** Linux audit CLEAN, selftest every fault caught (the audit cases and the six build cases);
+`ci_gate` GREEN 751 / 751 (tier A; no MATLAB file changed), inventory `lsqvce:internal:testProbe`
+only. No version (dev tooling only).

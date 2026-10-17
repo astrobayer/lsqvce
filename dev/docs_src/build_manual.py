@@ -15,13 +15,30 @@ dev/docs_src/theory/build.sh.
 
 Run from the toolbox root:  python3 dev/docs_src/build_manual.py
 Needs pandoc (html + pdf via xelatex). audit_tree.py check 23 verifies that both
-built HTML files equal a fresh build.
+built HTML files equal a fresh build (check mode: build_manual.py check).
 
-Every document is built, also after another one failed, and a document's HTML
-and PDF are written TOGETHER, only when both built (WP-143): a failed build
-leaves its committed pair as it was and names itself; the exit code is 1 when
-any document failed. (Before, all() over a generator stopped at the first
-failure, after that document's HTML had already been written.)
+THE CONTRACT. Every document is attempted, whatever happened to another. A
+document is built ENTIRELY in a temporary directory outside the tree, and its
+four outputs -- html/lsqvce_<doc>.html, lsqvce_<doc>.pdf and the tracked
+intermediates dev/docs_src/manual/_build/lsqvce_<doc>.md and .html -- replace
+the committed ones only when all four built: staged beside their targets (same
+file system) and moved with os.replace, the PDF first, because a viewer holding
+the PDF open is what makes a target unwritable. Any failure of a document -- a
+pandoc or xelatex error, an exception in a generated chapter, a target that
+cannot be replaced -- is caught for that document, printed with its name, and
+leaves its outputs as they were; the exit code is 1 when any document failed.
+Check mode builds the HTML in a temporary directory, compares it with the
+committed one and writes nothing in the tree. pandoc's messages are decoded as
+UTF-8 with undecodable bytes replaced, whatever the console's code page.
+audit_selftest.py drives the build mode with pandoc faked and one fault per case.
+
+Created 2026-09-04 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
+model Claude Fable 5.1 -- the docs level of HANDOVER 12.13 (the Manual built from
+its Markdown sources; the API reference joined it in WP-124).
+Updated 2026-10-17 (CEST, UTC+02:00), WP-146: the contract above -- every
+failure caught per document, the four outputs staged and replaced together,
+check mode writes nothing, UTF-8 decoding. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 """
 import os, re, shutil, subprocess, sys, csv, io, tempfile
 
@@ -124,40 +141,76 @@ DOCS = {
 }
 
 
+class BuildError(Exception):
+    """A document's build failed; the message says which step."""
+
+
+def pandoc(args, what):
+    """Run pandoc; its messages decoded as UTF-8 (B6: the locale code page, cp1252
+    on Windows, raised on a byte it could not map); a non-zero exit is BuildError."""
+    r = subprocess.run(['pandoc'] + args, capture_output=True, encoding='utf-8', errors='replace')
+    if r.returncode != 0:
+        raise BuildError('%s failed (pandoc exit %d):\n%s' % (what, r.returncode, (r.stderr or '')[-2000:]))
+
+
 def build_one(name, ver, check):
-    """Build one document. With CHECK, return whether its committed HTML differs
-    from a fresh build. Without, build the HTML and the PDF first and write BOTH
-    targets only when both built (WP-143); return whether they were written."""
+    """Build one document in a temporary directory. With CHECK, return whether
+    the committed HTML differs from the fresh one, writing nothing in the tree.
+    Without, replace its four outputs together (the module docstring's
+    contract); raise on any failure, before any output was replaced."""
     d = DOCS[name]
     src = os.path.join(ROOT, 'dev', 'docs_src', name)
+    stem = 'lsqvce_' + name
     md = ('---\ntitle: "lsqvce %s — %s"\nsubtitle: "least-squares adjustment with variance component estimation"\n'
           '---\n\n' % (ver, d['title'])) + assemble(src, d['gens'], d['appendix'])
     build = os.path.join(ROOT, 'dev', 'docs_src', 'manual', '_build')
-    os.makedirs(build, exist_ok=True)
-    stem = 'lsqvce_' + name
-    mdpath = os.path.join(build, stem + '.md')
-    open(mdpath, 'w', encoding='utf-8').write(md)
-    html = os.path.join(build, stem + '.html')
-    subprocess.run(['pandoc', mdpath, '-s', '--toc', '--toc-depth=2', '--number-sections',
-                    '--metadata', 'lang=en', '-c', 'lsqvce_manual.css', '-o', html], check=True)
     target = os.path.join(ROOT, 'html', stem + '.html')
-    new = open(html, encoding='utf-8').read()
-    if check:
-        cur = open(target, encoding='utf-8').read() if os.path.exists(target) else ''
-        return cur != new
-    pdf = os.path.join(ROOT, stem + '.pdf')
     with tempfile.TemporaryDirectory() as tmp:          # outside the tree: _build is tracked
-        built = os.path.join(tmp, stem + '.pdf')
-        r = subprocess.run(['pandoc', mdpath, '--toc', '--toc-depth=2', '--number-sections',
-                            '-V', 'geometry:margin=2.2cm', '-V', 'fontsize=10pt', '-V', 'colorlinks=true',
-                            '--pdf-engine=xelatex', '-V', 'fontfamily=mathptmx', '-V', 'mainfont=DejaVu Serif',
-                            '-V', 'monofont=DejaVu Sans Mono', '-o', built], capture_output=True, text=True)
-        if r.returncode != 0:
-            print('PDF build failed (%s); html/%s.html and %s.pdf left as they were:\n%s'
-                  % (name, stem, stem, r.stderr[-2000:]))
-            return False
-        shutil.copyfile(built, pdf)
-    open(target, 'w', encoding='utf-8').write(new)
+        mdpath = os.path.join(tmp, stem + '.md')
+        with open(mdpath, 'w', encoding='utf-8') as fh:
+            fh.write(md)
+        html = os.path.join(tmp, stem + '.html')
+        pandoc([mdpath, '-s', '--toc', '--toc-depth=2', '--number-sections', '--metadata', 'lang=en',
+                '-c', 'lsqvce_manual.css', '-o', html], 'the HTML build (%s)' % name)
+        with open(html, encoding='utf-8') as fh:
+            new = fh.read()
+        if check:
+            cur = ''
+            if os.path.exists(target):
+                with open(target, encoding='utf-8') as fh:
+                    cur = fh.read()
+            return cur != new
+        pdf = os.path.join(tmp, stem + '.pdf')
+        pandoc([mdpath, '--toc', '--toc-depth=2', '--number-sections', '-V', 'geometry:margin=2.2cm',
+                '-V', 'fontsize=10pt', '-V', 'colorlinks=true', '--pdf-engine=xelatex',
+                '-V', 'fontfamily=mathptmx', '-V', 'mainfont=DejaVu Serif',
+                '-V', 'monofont=DejaVu Sans Mono', '-o', pdf], 'the PDF build (%s)' % name)
+        # every output built: stage each beside its target, then replace -- the PDF
+        # first, the one a viewer locks; a failure leaves every output as it was
+        # except when a LATER replace fails, which the caller reports by name
+        pairs = [(pdf, os.path.join(ROOT, stem + '.pdf')), (html, target),
+                 (mdpath, os.path.join(build, stem + '.md')), (html, os.path.join(build, stem + '.html'))]
+        staged = []
+        try:
+            for built, dst in pairs:
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                tmpdst = dst + '.staged'
+                shutil.copyfile(built, tmpdst)
+                staged.append((tmpdst, dst))
+            for k, (tmpdst, dst) in enumerate(staged):
+                try:
+                    os.replace(tmpdst, dst)
+                except OSError as e:
+                    done = [os.path.relpath(x, ROOT) for _, x in staged[:k]]
+                    err = BuildError('cannot replace %s (%s)%s' % (
+                        os.path.relpath(dst, ROOT), e.strerror or e,
+                        '' if not done else '; ALREADY replaced: ' + ', '.join(done)))
+                    err.partial = bool(done)
+                    raise err
+        finally:
+            for tmpdst, _ in staged:
+                if os.path.exists(tmpdst):
+                    os.remove(tmpdst)
     print('built html/%s.html and %s.pdf (%s)' % (stem, stem, ver))
     return True
 
@@ -171,7 +224,14 @@ def main(check=False):
         open(css, 'w', encoding='utf-8').write(CSS)
     if check:
         return [n for n in DOCS if build_one(n, ver, True)]
-    written = [build_one(n, ver, False) for n in DOCS]   # every one, also after a failure
+    written = []
+    for n in DOCS:                                       # every one, also after a failure
+        try:
+            written.append(build_one(n, ver, False))
+        except Exception as e:                           # B2: ANY failure is this document's
+            left = '' if getattr(e, 'partial', False) else '; its outputs were left as they were'
+            print('build failed (%s)%s: %s' % (n, left, e))
+            written.append(False)
     return all(written)
 
 
