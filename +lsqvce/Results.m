@@ -23,8 +23,9 @@ classdef Results < handle
 %                                  redundancy, leverage, w-tests, MDB, ...
 %     history    1xI      struct   Per-iteration record (empty for a single
 %                                  solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT:
-%                                  .maxDev .S .streams .sigma .white
-%                                  .whitePval per pass, .skips, .nIter, and
+%                                  .maxDev .binRatio .xStep .S .streams
+%                                  .sigma .white .whitePval per pass,
+%                                  .skips, .nIter, and
 %                                  under Robust the per-pass .robustScale (one
 %                                  column per stream) .nDown .nZero;
 %                                  by LSQVCE.ENGINE.ADJUSTROBUST: .scale .dx
@@ -148,6 +149,9 @@ classdef Results < handle
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: stopReason lists "userStop"
 %   and "diverged". With assistance from Claude (Anthropic), model Claude Opus
 %   5.5.
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-147: convergence() adds the
+%   columns binRatio (the bins' stop quantity) and xStep; maxDev is a
+%   reading. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: reliability() marks a prior's
 %   datum rows "datum". With assistance from Claude (Anthropic), model Claude
 %   Opus 5.5.
@@ -685,10 +689,18 @@ classdef Results < handle
         %                how far the stream levels sit from their declaration --
         %                a reading, not the stop rule), nWhite (streams declared
         %                white), minWhitePval (worst stream this pass), converged
-        %                (logical, only the last row can be true), and the two
-        %                quantities the STOP RULE compares with Tolerance: maxDev
-        %                (max |alpha^2 - 1| over the spectral bins) and levelDev
-        %                (max relative change of an arc's variance factor).
+        %                (logical, only the last row can be true), maxDev (max
+        %                |alpha^2 - 1| over the spectral bins -- a reading),
+        %                levelDev (max relative change of an arc's variance
+        %                factor; the stop rule compares it with Tolerance),
+        %                binRatio (the bins' stop quantity: the largest change
+        %                of a bin over Tolerance max(1, sqrt(200/r)), r its
+        %                redundancy -- at the default a tenth of its standard
+        %                error where that is larger; <= 1 means every bin settled --
+        %                WP-147) and xStep (the solution's largest change since
+        %                the pass before, in its own standard errors; NaN on
+        %                pass 1). The loop converged when binRatio <= 1 and
+        %                levelDev <= Tolerance.
         %
         %   ERRORS
         %     lsqvce:Results:noHistory   this Results carries no iteration
@@ -738,8 +750,10 @@ classdef Results < handle
 
             T = table((1:nPass).', maxOff(:), nWhite(:), minP(:), conv(:), ...
                       perPass(h, 'maxDev', nPass), perPass(h, 'levelDev', nPass), ...
+                      perPass(h, 'binRatio', nPass), perPass(h, 'xStep', nPass), ...
                 'VariableNames', {'pass','maxSigmaOffset','nWhite', ...
-                                  'minWhitePval','converged','maxDev','levelDev'});
+                                  'minWhitePval','converged','maxDev','levelDev', ...
+                                  'binRatio','xStep'});
 
             if o.plot
                 fh = lsqvce.Results.plotConvergence(h, char(o.stream));
@@ -939,7 +953,7 @@ classdef Results < handle
             grid(ax1, 'on');
             xlabel(ax1, 'iteration');
             ylabel(ax1, 'max|\sigma_g - 1|');      % WP-135: what is plotted (it read sigma^2)
-            title(ax1, 'Stream levels (a reading; the stop rule is maxDev / levelDev)');
+            title(ax1, 'Stream levels (a reading; the stop rule is binRatio / levelDev)');
 
             ax2 = subplot(2, 1, 2, 'Parent', fh);
             hold(ax2, 'on');
@@ -990,8 +1004,9 @@ end
 
 function v = perPass(h, field, nPass)
 %PERPASS  A per-pass scalar history field as an nPass x 1 column, NaN-padded.
-%   WP-125: convergence() reports the two quantities of the stop rule (maxDev,
-%   levelDev). A history that lacks one, or records fewer passes, yields NaN
+%   WP-125: convergence() reports the quantities of the stop rule (since
+%   WP-147 binRatio and levelDev; maxDev and xStep as readings). A history
+%   that lacks one, or records fewer passes, yields NaN
 %   rows instead of an error -- convergence() is a diagnostic.
 %
 %   INPUT

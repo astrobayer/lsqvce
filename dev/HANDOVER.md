@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-16 — WP-145 DONE (PR #180, merge e7c1d16; CI GREEN on 71fe488 in the first round: ci_gate 738/738, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.78; no code change, no version (6.25.2 stays, 750 declared / 738 run).
+Last substantive update: 2026-10-17 — WP-147 part 2 (tier A; model Claude Opus 5.5; user: "Continue as suggested" = options A + B of §12.79): the noise loop's bins are held to Tolerance max(1, sqrt(200 / r_j)) -- at the default a tenth of their own standard error where the data say little -- instead of Tolerance; the not-converged warning names the bins that still move and the solution's last step; R.history / convergence() carry binRatio and xStep; psdVCE returns .dev and .redundancy; 4 tests; version 6.26.0; §12.79.
+Preceding entry: Last substantive update: 2026-10-16 — WP-145 DONE (PR #180, merge e7c1d16; CI GREEN on 71fe488 in the first round: ci_gate 738/738, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.78; no code change, no version (6.25.2 stays, 750 declared / 738 run).
 Preceding entry: Last substantive update: 2026-10-16 — WP-145 OPEN (tier A: MATLAB R2026a through the bridge and matlab -batch, the Manual under WSL; model Claude Opus 5.5; user: "open WP-145 as §12.77 proposes ... start with the measurement of which warnings the 15 examples raise today, then reproduce A1, A5, A8 and A9 before fixing them", then "Figure out, why they do not converge. The task is to have working examples that ensure and test precision and reliability", then "Coarser law" and "Find the day, then levels"): A1/A5/A8/A9 reproduced and fixed in dev/tests (example warnings reach the gate through private/echoWarnings and a capture probe, rule 5 bound to the run, run_lsqvce on dev/tests with a working LogFile=''); the fixed gate went RED on four unconverged examples; diagnosed (bins the data barely determine) and fixed (Smooth 1 / Grid 8, all converge in 3-7 passes, demo_sensors finds its bad day before the levels -- its levels had been 32-46 % off); version 6.25.2; ci_gate GREEN 738/738 locally; §12.78.
 Preceding entry: Last substantive update: 2026-10-16 — whole-repository code review of v6.25.1 and the handover to a tier-A session (cloud container, no MATLAB; model Claude Opus 5.5; user: "/code-review xhigh - fix" on WP-143, then "I want you to review the repo and the code using /code-review", then "Prepare a handover. I can start a new session on this computer so that you have access to Matlab"): nine repository findings (A1-A9) and nine build_manual.py findings (B1-B9), each with its verification state and its tier-A reproduction step; WP-144 (package and template), WP-145 (test tooling), WP-146 (build_manual.py) PROPOSED, not opened; no code change, no version (6.25.1 stays, 740 tests); §12.77.
 Preceding entry: Last substantive update: 2026-10-16 — WP-143 DONE (PR #177, merge 04eef58; CI GREEN on 43c4002 in the first round: ci_gate 728/728, warning inventory lsqvce:internal:testProbe only, the audit job green); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.76; no code change, no version (6.25.1 stays, 740 tests).
@@ -11207,7 +11208,7 @@ run). Observation 2 above is opened as WP-147 (§12.79, user: "Erledige diese Au
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 147 | Observation 2 of §12.78: with the package defaults (`Noise.Grid` 60, `MaxPasses` 10, `Tolerance` 1e-2) the joint noise loop often cannot meet its stop rule on short or low-information arcs -- the rule is max abs(alpha2_j - 1) over EVERY bin, and bins with redundancy ~1-6 (the zero-frequency bin the per-arc locals absorb; 60 bins on 60-sample arcs) contract at ~0.98 per pass or decay toward zero, while the solution is long settled. PART 1 (this round): a MEASUREMENT-based design note -- per-pass traces of x, the levels and every bin's alpha2 and redundancy on the four fixtures of §12.78 in their original configuration, the candidate rules evaluated against the fixed point (when each would stop, and how far x and the levels then are from the fixed point in their own standard errors), the candidate defaults (FreezeRedundancy, Grid, Smooth) run live; options and a recommendation; NO code change before the user picks. PART 2: the chosen option, with tests that fail without it; version by precedent (a changed default or stop rule: a minor) | 145 (closure #181) | IN PROGRESS (part 1) |
+| 147 | Observation 2 of §12.78: with the package defaults (`Noise.Grid` 60, `MaxPasses` 10, `Tolerance` 1e-2) the joint noise loop often cannot meet its stop rule on short or low-information arcs -- the rule is max abs(alpha2_j - 1) over EVERY bin, and bins with redundancy ~1-6 (the zero-frequency bin the per-arc locals absorb; 60 bins on 60-sample arcs) contract at ~0.98 per pass or decay toward zero, while the solution is long settled. PART 1 (this round): a MEASUREMENT-based design note -- per-pass traces of x, the levels and every bin's alpha2 and redundancy on the four fixtures of §12.78 in their original configuration, the candidate rules evaluated against the fixed point (when each would stop, and how far x and the levels then are from the fixed point in their own standard errors), the candidate defaults (FreezeRedundancy, Grid, Smooth) run live; options and a recommendation; NO code change before the user picks. PART 2: the chosen option, with tests that fail without it; version by precedent (a changed default or stop rule: a minor). PART 1 merged (#182, 40b6144). PART 2 (user, 2026-10-16: "Continue as suggested" = options A + B): a spectral bin is settled when abs(alpha2_j - 1) <= Tolerance max(1, sqrt(200 / r_j)) -- Tolerance for bins of redundancy >= 200, at the default a tenth of the bin's own standard error where the data say little, and a tighter Tolerance tightens every bin (the round note says why it is not max(Tolerance, 0.1 sqrt(2 / r_j))); no new option, a run never stops later than before; the not-converged warning names the bins that still move (group, bin, redundancy against the median) and x's last step in sigma_x; psdVCE returns the redundancy and the deviation per bin; tests that fail without it; the suite's assertions on nIter / converged / stopReason inventoried; version 6.26.0 | 145 (closure #181) | IN PROGRESS (part 2) |
 
 **The user's request (2026-10-16):** "Erledige diese Aufgabe hier: „Noise stop rule for low-information
 spectral bins“" -- the proposal card of §12.78 (observation 2), done in this session.
@@ -11281,3 +11282,54 @@ shortest arcs.
 Part 2's cost, not yet measured: every suite fixture with an Estimate "noise" run under the
 default stop rule can change its pass count (A), so the suite's assertions on nIter / converged /
 stopReason are the part-2 inventory.
+
+**Part 2 opened (2026-10-16; user: "Continue as suggested" -- options A + B).** The open point of
+option A (one knob or two) is settled by measurement, not by a new name: rule R1' -- a bin is
+settled when abs(alpha2_j - 1) <= max(Tolerance, 0.1 sqrt(2 / r_j)) -- stopped on the same pass as
+R1 at tau 0.1 on all four traces (gravity 12, sensors 25, noisePolicy 8, grace 10; x within 0.093 /
+0.100 / 0.000 / 0.029 sigma_x of the fixed point). It keeps `Tolerance`'s meaning for every bin whose
+standard error is below 10 Tolerance (r_j > 200 at the default), relaxes only the bins the data
+barely determine, and is implied by today's rule -- so no run stops later than before, and v5's "one
+tolerance for every iterative run" holds.
+
+**Part 2 round note (2026-10-17, tier A).**
+- **The bound, corrected while writing its test.** max(Tolerance, 0.1 sqrt(2 / r_j)) puts a FLOOR
+  of a tenth of a standard error under every bin: a user who asks for Tolerance 1e-3 (demo_grace
+  does, "for more digits") would get no tighter weak bins at all. The bound is now Tolerance
+  max(1, sqrt(200 / r_j)) -- IDENTICAL at the default 1e-2 (so every number above stands), scaled by
+  Tolerance below it. Measured on the test fixture: maxDev at the stop 0.0276 at 1e-2 (8 passes),
+  0.0035 at 1e-3 (49 passes) -- every bin about ten times tighter; a floor would have left ~0.02.
+- **Code.** `psdVCE` returns `.dev` (the per-bin deviation .maxDev is the max of; 0 on a frozen bin;
+  the shape change with Smooth > 0) and `.redundancy` (the number FreezeRedundancy already compared).
+  `adjustVCEjoint`: the bins' test per pool group in a local function `binsAgainstBound`, the stop on
+  `binRatio <= 1` with the level and prior conditions as before, `recordStep` writes `.maxDev`
+  (now a reading), `.binRatio` and `.xStep` (x's largest change since the pass before in its own
+  standard errors) into the history, the OnPass ctx carries both, and `notSettledMessage` builds the
+  warning: up to three bins above their bound with their redundancy against the group's median, and
+  the solution's last step. The body is 286 code lines (ceiling 288 lowered to 286 in
+  long_functions.csv: audit check 33 asks it never grows, and it did not). `Results.convergence()`
+  adds the columns `binRatio` and `xStep`; `Options` (Tolerance, the ctx list), the Manual (05, 07:
+  the stop rule and how to read a budget stop), the API (04, 06) and the regenerated help pages say it.
+- **Tests (4 new, each failing on the old code):** test_ellmer
+  `test_psdVCE_reports_each_bins_deviation_and_redundancy`; test_vcePolicy
+  `testLowInformationBinsDoNotBlockTheStop` (a white stream, a law on the default 60 bins from 30-epoch
+  arcs: converged in 8 passes with maxDev 0.028 > Tolerance -- the plain rule could not have
+  stopped there -- binRatio <= 1, xStep 0.007), `testATighterToleranceTightensEveryBin` (the band
+  separates the scaled bound from a floored one, not two runs) and
+  `testNotConvergedWarningSaysWhatStillMoves` (the suite mutes the id in setupOnce; the test switches
+  it on for itself and reads lastwarn after verifyWarning).
+- **The suite inventory part 1 promised:** the full gate on the new rule was GREEN 742 / 742 before
+  the refactor into local functions -- no existing assertion on nIter / converged / stopReason moved
+  (testGateRequiresSettledSpectrum's 3-pass run is still unsettled).
+- **The examples under the new rule:** demo_gravity 4 passes, demo_noisePolicy 3, demo_grace 4 --
+  unchanged, their quoted values to the digits the unseeded probes move; demo_sensors' level run 6
+  passes (7 before; its help and the Manual updated: within 4.0 %), its factor run still 14 of 20.
+- **The shared bridge.** The MATLAB bridge on this PC is shared with a session of another project
+  (NonGravForces) whose own lsqvce copy (v6.24.2, in that session's scratchpad) sat AHEAD of this tree
+  on the path from some point on 2026-10-16. Its `adjustVCEjoint` and `psdVCE` equal this tree's at
+  e483142, so the bridge measurements of §12.78 and part 1 stand (the 400-pass traces and every gate
+  ran detached as `matlab -batch`, clean); from part 2 on every bridge call puts this tree first and
+  restores the shared path exactly afterwards (a scratch `withTree`), never changing the other
+  session's path.
+- **Gates:** Linux audit CLEAN, selftest every fault caught; version 6.26.0 (a changed stop rule: a
+  minor); tests 754 declared, 742 run.

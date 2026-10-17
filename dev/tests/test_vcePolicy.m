@@ -14,6 +14,10 @@ function tests = test_vcePolicy
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTVCEJOINT, TEST_ELLMER, TEST_PHYSORACLE
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-147: the bins' stop rule -- a
+%   low-information bin no longer blocks the stop, a tighter Tolerance
+%   tightens every bin, the not-converged warning says what still moves.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: demo_noisePolicy must
 %   converge; the captures echo their warnings. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -970,6 +974,101 @@ function testLjungBoxIsSizedOnShortArcs(tc)
     % 13 against 20 degrees of freedom gives p ~ 0.87 at the mean).
     tc.verifyGreaterThan(mean(p), 0.29, 'p-values are not pushed towards 0');
     tc.verifyLessThan(mean(p), 0.71, 'nor piled up towards 1 (the R7-38 symptom)');
+end
+
+%% ------------------------------- WP-147: the stop rule and its low-information bins
+function testLowInformationBinsDoNotBlockTheStop(tc)
+% categories: contract, reference | tags: diagnostics
+    % WP-147: the loop stopped only when EVERY spectral bin moved by at most
+    % Tolerance. On short arcs a 60-bin law has bins the data barely
+    % determine; held to a precision far finer than their estimate has, they
+    % kept the loop going for 14-168 passes on the fixtures of HANDOVER 12.79
+    % while the solution had settled. A bin is now held to Tolerance max(1,
+    % sqrt(200 / r)): at the default a tenth of its own standard error where
+    % that is larger. On this fixture (30-epoch arcs, white, the default 60
+    % bins) the loop settles in 8 passes, measured, and the history shows the
+    % plain rule could not have stopped there.
+    R = lsqvce.fit(lawShortArcFixture(), lsqvce.Options(Estimate="noise", Pool="stream", ...
+                   ArcFactors=false, MaxPasses=20, Verbose=false, Seed=5));
+    h = R.history;
+    tc.verifyTrue(R.converged, sprintf('settles within the budget (binRatio %s)', mat2str(h.binRatio.', 3)));
+    tc.verifyGreaterThan(h.maxDev(end), 1e-2, ...
+        'the stop is the relaxed bins'' doing: max abs(alpha2 - 1) is still above Tolerance');
+    tc.verifyLessThanOrEqual(h.binRatio(end), 1, 'every bin within its bound');
+    % tol: the solution's last step in its own standard errors -- the claim
+    % the rule makes is that the estimate has settled (measured 0.007)
+    tc.verifyLessThan(h.xStep(end), 0.05, 'the solution has settled');
+    T = R.convergence();
+    tc.verifyEqual(T.binRatio, h.binRatio);
+    tc.verifyEqual(T.xStep(2:end), h.xStep(2:end));
+    tc.verifyTrue(isnan(T.xStep(1)), 'pass 1 has no step');
+end
+
+function testATighterToleranceTightensEveryBin(tc)
+% categories: contract, metamorphic
+    % The bound SCALES with Tolerance, it is not floored at a tenth of a
+    % standard error: a floor would leave the weak bins' bound where it was,
+    % so Tolerance 1e-3 could not ask for more digits (demo_grace does).
+    % Measured on the fixture: maxDev at the stop 0.0276 at 1e-2, 0.0035 at
+    % 1e-3 (49 passes) -- every bin about ten times tighter.
+    data = lawShortArcFixture();
+    run = @(tol) lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ...
+                   ArcFactors=false, MaxPasses=80, Tolerance=tol, Verbose=false, Seed=5));
+    R2 = run(1e-2);  R3 = run(1e-3);
+    tc.verifyTrue(R2.converged && R3.converged);
+    tc.verifyGreaterThan(R3.history.nIter, R2.history.nIter, 'a tighter tolerance takes longer');
+    % tol: a factor 2 between the two stops; the scaled bound gives ~10, a
+    % floored one ~1 -- the band separates the two designs, not two runs
+    tc.verifyLessThan(R3.history.maxDev(end), 0.5 * R2.history.maxDev(end), ...
+        'the weak bins tighten with Tolerance too');
+end
+
+function testNotConvergedWarningSaysWhatStillMoves(tc)
+% categories: contract | tags: diagnostics
+    % WP-147 (option B): a stop on the pass budget names the bins that block
+    % the rule, with their redundancy against their group's median, and the
+    % solution's last step in its own standard errors -- what a user needs
+    % to judge whether the budget stop matters. setupOnce mutes the id for
+    % the whole suite, so this test switches it back on for itself.
+    w = warning('on', 'lsqvce:adjustVCEjoint:notConverged');
+    tc.addTeardown(@() warning(w));
+    lastwarn('');
+    tc.verifyWarning(@() lsqvce.fit(lawShortArcFixture(), lsqvce.Options(Estimate="noise", ...
+        Pool="stream", ArcFactors=false, MaxPasses=2, Verbose=false, Seed=5)), ...
+        'lsqvce:adjustVCEjoint:notConverged');
+    msg = lastwarn;
+    tc.verifySubstring(msg, 'Still moving by more than');
+    tc.verifyTrue(~isempty(regexp(msg, 'x1\|a bin \d+ of 60 \(redundancy [\d.]+, median [\d.]+, moved', 'once')), msg);
+    tc.verifyTrue(~isempty(regexp(msg, 'The solution moved by [\d.e+-]+ of its standard error', 'once')), msg);
+end
+
+function data = lawShortArcFixture()
+%LAWSHORTARCFIXTURE  ONE white stream whose LAW is estimated on the default
+%   60 bins from short arcs: 3 days x 20 arcs x 30 epochs, 4 commons, the
+%   level 0.7 against a declared 1 (WP-147). Deterministic.
+    cfg = struct('nc', 4, 'days', 1:3, 'arcs', 20, 'mArc', 30, 'dt', 5, ...
+                 'xTrue', [0.8 -0.45 0.3 0.15]);
+    data = struct();
+    data.commonParams = [repmat({'common'}, cfg.nc, 1), ...
+                         arrayfun(@(j) sprintf('c%d', j), (1:cfg.nc).', 'UniformOutput', false)];
+    data.days = cfg.days;
+    spec = struct('type', 'diag', 'sigma', 1, 'estimate', "law", 'arcFactors', false);
+    data.systems = struct('buildDay', @(day, ot) lawShortArcDay(cfg, day), ...
+                          'covariance', struct('a', spec), 'arcs', cfg.arcs, 'id', 1, 'name', 'lowInfo');
+end
+
+function D = lawShortArcDay(cfg, day)
+%LAWSHORTARCDAY  One day of the fixture above.
+    m = cfg.arcs * cfg.mArc;
+    t = (day - 1)*86400 + (0:m-1).' * cfg.dt;
+    w = 2*pi / 3000;
+    D.A = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];
+    D.B = zeros(m, 0);
+    rs = RandStream('mt19937ar', 'Seed', 4700 + day);
+    D.l = D.A * cfg.xTrue(:) + 0.7 * randn(rs, m, 1);
+    D.t = t;
+    D.arcIdx = arrayfun(@(a) (a-1)*cfg.mArc + (1:cfg.mArc), 1:cfg.arcs, 'UniformOutput', false);
+    D = arcCells(D);                                 % v6: the cells are the arcs
 end
 
 function data = shortArcFixture(seed)

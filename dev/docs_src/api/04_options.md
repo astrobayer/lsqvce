@@ -27,7 +27,7 @@ R = lsqvce.fit(data, Estimate="noise", MaxPasses=6);     % name-value pairs stra
 | knob | values | default | meaning |
 |---|---|---|---|
 | `MaxPasses` | integer ≥ 1 | 10 | pass budget of the variance-component loop and of Gauss–Newton (IRLS uses `RobustOpts.MaxIter`). Exhausting it returns the last pass with `R.stopReason = "maxPasses"` and one warning. |
-| `Tolerance` | > 0 | 1e-2 | stop rule of the variance-component loop: max \|α² − 1\| over spectral bins and arcs; for Gauss–Newton the relative step in units of the formal error |
+| `Tolerance` | > 0 | 1e-2 | stop rule of the variance-component loop: every arc factor's change ≤ `Tolerance`, every spectral bin's change ≤ `Tolerance`·max(1, sqrt(200/r)), r its redundancy (at the default a tenth of the bin's standard error sqrt(2/r) where that is larger); for Gauss–Newton the relative step in units of the formal error |
 | `Probes` | integer ≥ 1 | 100 | Hutchinson probes for the per-lag redundancies of the joint estimator |
 | `Seed` | `[]` or double | `[]` | seed for the probes, recorded in `R.meta.seeds` |
 
@@ -44,7 +44,7 @@ R = lsqvce.fit(data, Estimate="noise", MaxPasses=6);     % name-value pairs stra
 
 The hook receives one struct: `driver`, `pass`, `x`, `Cxx`, `sigma0`, `s0sq`; the loop
 state (noise loop: `C`, `Cgroups`, `sigma2`, `arcKeys`, `streams`, `sigma`, `white`,
-`whitePval`, `maxDev`, `skips`; IRLS: `factor`, `keys`, `scale`, `dx`; Gauss–Newton:
+`whitePval`, `maxDev`, `binRatio`, `xStep`, `skips`; IRLS: `factor`, `keys`, `scale`, `dx`; Gauss–Newton:
 `vPv`, `dxRel`, `lambda`); `acc`, the live accumulator; `data`, the declaration as
 passed to `fit`; `processingOptions{k}`, system k's as declared. Return nothing to
 continue, `false` to stop after the pass (`R.stopReason = "userStop"`). An error in the

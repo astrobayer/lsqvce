@@ -60,6 +60,15 @@ function out = psdVCE(Q, T, Sprior, opt)
 %                       with Smooth > 0 the change of the SHAPE, max |Shat./
 %                       Sprior - 1| at r(0) = 1 -- a smoothed update's fixed
 %                       point has alpha2 ~= 1 (WP-131)
+%       .dev     L x 1  the per-bin deviation .maxDev is the maximum of:
+%                       abs(alpha2 - 1), or with Smooth > 0 the bin's
+%                       change of shape abs(rho - 1); 0 for a frozen bin
+%                       (WP-147: the stop rule reads it bin by bin)
+%       .redundancy L x 1  the bin's redundancy Sprior_j * sum_m T(j, m), its
+%                       share tr(R V_j) -- the number FreezeRedundancy is
+%                       compared with; 0 where the denominator is not usable.
+%                       A variance component of redundancy r has a relative
+%                       standard error of about sqrt(2 / r) (WP-147)
 %
 %   EXAMPLE
 %     K = lsqvce.kernel.hatACV(L, m);         % per arc length
@@ -82,6 +91,9 @@ function out = psdVCE(Q, T, Sprior, opt)
 %   See also LSQVCE.KERNEL.HATACV, LSQVCE.KERNEL.REDUNDANCYLAGS,
 %            LSQVCE.ENGINE.ARCVARIANCEFACTORS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-147: .dev and .redundancy per
+%   bin, for the joint loop's stop rule. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -122,7 +134,9 @@ end
     ok = isfinite(Qj) & isfinite(Tj) & Tj > 0;
     alpha2 = ones(L, 1);
     alpha2(ok) = max(Qj(ok), 0) ./ Tj(ok);           % both >= 0 in exact arithmetic
-    frozen = ~ok | ~(Sprior .* Tj >= opt.FreezeRedundancy);   % the bin's redundancy
+    red = zeros(L, 1);
+    red(ok) = Sprior(ok) .* Tj(ok);                   % the bin's redundancy (WP-147: returned)
+    frozen = ~ok | ~(red >= opt.FreezeRedundancy);
     if opt.FreezeRedundancy > 0
         alpha2(frozen) = 1;
     end
@@ -135,7 +149,7 @@ end
         Shat = smoothSpectrum(Shat, opt.Smooth);
     end
     Shat = max(Shat, 1e-10 * max(Shat));              % the ONE numerical floor, relative
-    maxDev = max(abs(alpha2 - 1));
+    dev = abs(alpha2 - 1);
     if opt.Smooth > 0
         % WP-131: at the fixed point of a SMOOTHED update S = smooth(alpha2 S)
         % alpha2 is not 1 wherever the true spectrum is not smooth, so
@@ -146,10 +160,11 @@ end
         c = 2 * ones(L, 1);  c([1 L]) = 1;
         in = Sprior > 0;
         rho = (Shat(in) ./ Sprior(in)) * ((c.' * Sprior) / (c.' * Shat));
-        maxDev = max(abs(rho - 1));
+        dev = zeros(L, 1);
+        dev(in) = abs(rho - 1);
     end
     out = struct('Shat', Shat, 'alpha2', alpha2, 'frozen', frozen, 'Sprior', Sprior, ...
-                 'maxDev', maxDev);
+                 'maxDev', max(dev), 'dev', dev, 'redundancy', red);
 end
 
 function S = smoothSpectrum(S, h)

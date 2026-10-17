@@ -52,7 +52,9 @@ whitened residuals and their redundancies, and updates the spectral shape of eve
 group, the level of every stream, the factor of every arc and the σ of every prior with
 `estimate = "scale"`. It stops when no component changes by more than `Tolerance` — the
 σ of a prior group included, which is first updated on the pass after it enters the solve,
-so the loop does not stop before — or after `MaxPasses`.
+so the loop does not stop before — or after `MaxPasses`. A spectral bin the data barely
+determine may change by more, in proportion to its own standard error (the next
+chapter, "When the loop did not settle").
 
 The choices that matter:
 

@@ -12,6 +12,9 @@ function tests = test_ellmer
 %
 %   Run with:  results = runtests('tests/test_ellmer.m')
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-147: psdVCE's per-bin .dev and
+%   .redundancy. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: two copied tol comments
 %   ("fixed-point identity om==s") replaced by the source of their own
 %   assertions. With assistance from Claude (Anthropic), model Claude Opus
@@ -520,6 +523,31 @@ function test_psdVCE_smoothed_fixed_point_settles(tc)
     tc.verifyGreaterThan(max(abs(p.alpha2 - 1)), 0.1, 'though alpha2 stays away from 1');
     p0 = lsqvce.engine.psdVCE(Q, T, S);
     tc.verifyEqual(p0.maxDev, max(abs(p0.alpha2 - 1)), 'Smooth 0 keeps max|alpha2 - 1|');
+end
+
+function test_psdVCE_reports_each_bins_deviation_and_redundancy(tc)
+% categories: contract, precision
+    % WP-147: the joint loop's stop rule reads each bin's deviation against
+    % its own redundancy, so psdVCE returns both per bin. The redundancy is
+    % the number FreezeRedundancy already compared (Sprior_j * sum_m T(j, m));
+    % .dev is abs(alpha2 - 1), 0 on a frozen or unusable bin, its maximum
+    % .maxDev; with Smooth > 0 it is the change of shape .maxDev reports.
+    rs = RandStream('mt19937ar', 'Seed', 147);
+    L = 12;  M = 5;
+    T = rand(rs, L, M);  T(4, :) = 0;              % bin 4: no denominator
+    Q = (0.6 + 0.8*rand(rs, L, 1)) .* T;
+    S = 0.5 + rand(rs, L, 1);
+    p = lsqvce.engine.psdVCE(Q, T, S, 'FreezeRedundancy', 0.8);
+    % tol: the same products and sums, eps-level
+    tc.verifyEqual(p.redundancy([1:3 5:L]), S([1:3 5:L]) .* sum(T([1:3 5:L], :), 2), 'RelTol', 1e-14);
+    tc.verifyEqual(p.redundancy(4), 0, 'an unusable bin has no redundancy');
+    tc.verifyEqual(p.dev(~p.frozen), abs(p.alpha2(~p.frozen) - 1));
+    tc.verifyEqual(p.dev(p.frozen), zeros(nnz(p.frozen), 1), 'a frozen bin does not move');
+    tc.verifyTrue(any(p.frozen) && any(~p.frozen), 'the fixture freezes some bins, not all');
+    tc.verifyEqual(p.maxDev, max(p.dev));
+    ps = lsqvce.engine.psdVCE(Q, T, S, 'Smooth', 1);
+    tc.verifyEqual(ps.maxDev, max(ps.dev), 'Smooth > 0: the shape change, bin by bin');
+    tc.verifyNotEqual(ps.dev, abs(ps.alpha2 - 1), 'and not abs(alpha2 - 1)');
 end
 
 function test_psdVCE_rejects_bad_shapes(tc)

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.25.2 — API Reference</title>
+  <title>lsqvce 6.26.0 — API Reference</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.25.2 — API Reference</h1>
+<h1 class="title">lsqvce 6.26.0 — API Reference</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1381,8 +1381,11 @@ pass with <code>R.stopReason = "maxPasses"</code> and one warning.</td>
 <td><code>Tolerance</code></td>
 <td>&gt; 0</td>
 <td>1e-2</td>
-<td>stop rule of the variance-component loop: max |α² − 1| over spectral
-bins and arcs; for Gauss–Newton the relative step in units of the formal
+<td>stop rule of the variance-component loop: every arc factor’s change
+≤ <code>Tolerance</code>, every spectral bin’s change ≤
+<code>Tolerance</code>·max(1, sqrt(200/r)), r its redundancy (at the
+default a tenth of the bin’s standard error sqrt(2/r) where that is
+larger); for Gauss–Newton the relative step in units of the formal
 error</td>
 </tr>
 <tr class="odd">
@@ -1457,11 +1460,12 @@ class="header-section-number">4.3.1</span> <code>OnPass</code></h3>
 <code>s0sq</code>; the loop state (noise loop: <code>C</code>,
 <code>Cgroups</code>, <code>sigma2</code>, <code>arcKeys</code>,
 <code>streams</code>, <code>sigma</code>, <code>white</code>,
-<code>whitePval</code>, <code>maxDev</code>, <code>skips</code>; IRLS:
-<code>factor</code>, <code>keys</code>, <code>scale</code>,
-<code>dx</code>; Gauss–Newton: <code>vPv</code>, <code>dxRel</code>,
-<code>lambda</code>); <code>acc</code>, the live accumulator;
-<code>data</code>, the declaration as passed to <code>fit</code>;
+<code>whitePval</code>, <code>maxDev</code>, <code>binRatio</code>,
+<code>xStep</code>, <code>skips</code>; IRLS: <code>factor</code>,
+<code>keys</code>, <code>scale</code>, <code>dx</code>; Gauss–Newton:
+<code>vPv</code>, <code>dxRel</code>, <code>lambda</code>);
+<code>acc</code>, the live accumulator; <code>data</code>, the
+declaration as passed to <code>fit</code>;
 <code>processingOptions{k}</code>, system k’s as declared. Return
 nothing to continue, <code>false</code> to stop after the pass
 (<code>R.stopReason = "userStop"</code>). An error in the hook arrives
@@ -1945,9 +1949,10 @@ class="header-section-number">6.2</span> Methods</h2>
 </tr>
 <tr class="odd">
 <td><code>R.convergence()</code></td>
-<td>one row per pass: the stream levels, whiteness and the stop-rule
-quantities <code>maxDev</code>, <code>levelDev</code> (iterative
-runs)</td>
+<td>one row per pass: the stream levels, whiteness, <code>maxDev</code>,
+and the stop-rule quantities <code>binRatio</code> and
+<code>levelDev</code>, with the solution’s step <code>xStep</code>
+(iterative runs)</td>
 </tr>
 <tr class="even">
 <td><code>R.coefficients(Alpha=a)</code></td>
@@ -2223,8 +2228,15 @@ groups.</p>
     MaxPasses  double  10         the pass budget of the variance-component
                                   loop and of Gauss-Newton. IRLS has its OWN
                                   budget, RobustOpts.MaxIter
-    Tolerance  double  1e-2       stop when max|alpha2 - 1| over frequencies
-                                  and arcs is below it
+    Tolerance  double  1e-2       the variance-component loop stops when
+                                  every arc factor changed by less than it,
+                                  and every spectral bin by less than it
+                                  times max(1, sqrt(200/r)), r the bin&#39;s
+                                  redundancy: at the default a tenth of the
+                                  bin&#39;s own standard error sqrt(2/r) where
+                                  that is larger (WP-147: bins the data
+                                  barely determine need no finer step than
+                                  their estimate has; R.history.binRatio)
     Backend    &quot;qr&quot; | &quot;normal&quot;    square-root vs normal equations
     Probes     double  100        Hutchinson probes for the per-lag
                                   redundancies; an integer &gt;= 1 (Ellmer&#39;s
@@ -2244,7 +2256,8 @@ groups.</p>
                                   with ONE ctx struct: .driver .pass .x .Cxx
                                   .sigma0, the loop state (noise: .C .Cgroups
                                   .sigma2 .arcKeys .streams .sigma .white
-                                  .whitePval .maxDev .skips; IRLS: .factor
+                                  .whitePval .maxDev .binRatio .xStep
+                                  .skips; IRLS: .factor
                                   .keys .scale .dx; Gauss-Newton: .vPv .dxRel
                                   .lambda), .acc (the LIVE accumulator: call
                                   lsqvce.engine.residuals(ctx.acc, ...) or any
@@ -2345,8 +2358,9 @@ provenance.</p>
                                  redundancy, leverage, w-tests, MDB, ...
     history    1xI      struct   Per-iteration record (empty for a single
                                  solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT:
-                                 .maxDev .S .streams .sigma .white
-                                 .whitePval per pass, .skips, .nIter, and
+                                 .maxDev .binRatio .xStep .S .streams
+                                 .sigma .white .whitePval per pass,
+                                 .skips, .nIter, and
                                  under Robust the per-pass .robustScale (one
                                  column per stream) .nDown .nZero;
                                  by LSQVCE.ENGINE.ADJUSTROBUST: .scale .dx
