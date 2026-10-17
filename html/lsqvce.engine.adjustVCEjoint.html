@@ -354,6 +354,11 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-17 (CEST, UTC+02:00), WP-149: a robust hard solution
+carries its truncation tau and dof also when the backend refused v&#x27;Pv, so
+the residual pass that replaces the NaN (lsqvce.engine.verdict.supersede)
+divides by tau. With assistance from Claude (Anthropic), model Claude
+Opus 5.5.
 Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A6): model.lastSol carries
 Ninv (the commons&#x27; cofactor) when the backend refused a cancelled v&#x27;Pv,
 so a prior&#x27;s &quot;scale&quot; step does not divide by NaN. With assistance from

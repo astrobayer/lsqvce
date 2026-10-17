@@ -1019,6 +1019,68 @@ function testPriorScaleSurvivesARefusedVtPv(tc)
     tc.verifyLessThan(Rn.noise.priors(1).sigma, 1e5, 'and moves it away from the declared 1e6');
 end
 
+%% ------------------------------- WP-149: the fit's own Results after a refused v'Pv
+function testRefusedVtPvIsSupersededInResults(tc)
+% categories: robustness, reference
+    % The same tight fit: the normal backend refuses v'Pv on every solve, and
+    % the Results fit returned carried R.sigma0 = NaN and NaN formal errors
+    % although the warning says the residual pass supersedes it. The verdict
+    % ran that pass; Results now takes vtv, sigma0 and Cxx from it. The QR
+    % backend on the same data is the independent route, the residual pass
+    % on R.sol the cross-check (it must no longer have anything to supersede).
+    muteWarn(tc, 'lsqvce:accum:cancellation');      % fires on every solve here, by design
+    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % (the commons' and the backend's guard)
+    data = tightPriorFixture();
+    noiseNV = {'Pool', "stream", 'ArcFactors', false, 'MaxPasses', 6, ...
+               'Noise', struct('Grid', 16), 'Seed', 3};
+    for est = ["noise", "none"]
+        nv = {'Estimate', est, 'Verbose', false};
+        if est == "noise", nv = [nv, noiseNV]; end %#ok<AGROW>
+        Rn = lsqvce.fit(data, lsqvce.Options(nv{:}, 'Backend', "normal"));
+        Rq = lsqvce.fit(data, lsqvce.Options(nv{:}, 'Backend', "qr"));
+        tc.verifyTrue(isfinite(Rn.sigma0) && all(isfinite(Rn.sol.Cxx(:))), ...
+            sprintf('%s: sigma0 and Cxx are finite (%g)', est, Rn.sigma0));
+        % tol: 1e-9 relative -- the direct residual sums of two backends at
+        % the same optimum; measured <= 6e-13 (sigma0) and 6e-13 (formal
+        % errors) on both estimates, with and without the prior
+        tc.verifyEqual(Rn.sigma0, Rq.sigma0, 'RelTol', 1e-9, ...
+            sprintf('%s: sigma0 as the QR backend finds it', est));
+        % tol: 1e-9 relative, the same bound -- the formal errors are s0 sqrt(diag(Q))
+        tc.verifyEqual(sqrt(diag(Rn.sol.Cxx)), sqrt(diag(Rq.sol.Cxx)), 'RelTol', 1e-9, ...
+            sprintf('%s: the formal errors as QR''s', est));
+        res = verifyWarningFree(tc, @() lsqvce.engine.residuals(Rn.acc, Rn.sol, ...
+                  'Collect', false, 'Verbose', false));
+        tc.verifyFalse(res.supersedesSol, sprintf('%s: nothing left to supersede', est));
+        % tol: 1e-12 relative -- the same residuals summed in two passes;
+        % measured <= 2.3e-13
+        tc.verifyEqual(Rn.sigma0, res.sigma0, 'RelTol', 1e-12, ...
+            sprintf('%s: R.sigma0 is the residual pass''s', est));
+    end
+end
+
+function testRefusedVtPvKeepsTheRobustTruncation(tc)
+% categories: robustness, reference
+    % A robust joint run's hard solution divides s0^2 by the truncation tau
+    % (adjustVCEjoint>hardSolution). It skipped a refused v'Pv entirely, so
+    % sol.truncation was never set and the superseding residual pass divided
+    % by 1: igg3 on the normal backend gave sigma0 1.3 % off QR's (measured,
+    % tau 0.973). tau and dof are now carried with the NaN.
+    muteWarn(tc, 'lsqvce:accum:cancellation');
+    muteWarn(tc, 'lsqvce:normalEq:cancellation');
+    muteWarn(tc, 'lsqvce:residuals:supersedesSol');  % the robust sweeps inside the loop
+    data = tightPriorFixture();
+    fitWith = @(backend) lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ...
+        ArcFactors=false, Backend=backend, Robust="igg3", MaxPasses=6, Noise=struct('Grid', 16), ...
+        Seed=3, Verbose=false));
+    Rn = fitWith("normal");  Rq = fitWith("qr");
+    tc.assumeLessThan(Rq.sol.truncation, 1, 'the fixture rejects epochs (tau < 1)');
+    % tol: 1e-12 -- tau is a mean of closed-form truncation factors over the same
+    % rejected epochs (the two backends' residuals agree to ~1e-12)
+    tc.verifyEqual(Rn.sol.truncation, Rq.sol.truncation, 'AbsTol', 1e-12, 'the same tau');
+    % tol: 1e-9 relative -- as above; measured 4.3e-13
+    tc.verifyEqual(Rn.sigma0, Rq.sigma0, 'RelTol', 1e-9, 'sigma0 corrected for the truncation');
+end
+
 function data = tightPriorFixture()
 %TIGHTPRIORFIXTURE  One white stream, 3 days x 4 arcs x 64 epochs, 4 commons of
 %   size 1e5 against unit noise -- l'Pl / v'Pv ~ 1e10, past the backends'

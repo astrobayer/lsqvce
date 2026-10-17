@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.26.1 — API Reference"
+title: "lsqvce 6.26.2 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -1067,7 +1067,9 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
   ACCURACY
     Results adds no numerics: x and sigma0 are the engine's (sigma0 is the
     A-POSTERIORI std of unit weight; sol.Cxx the covariance scaled by it --
-    the streaming contract every producer must establish),
+    the streaming contract every producer must establish; a v'Pv the
+    backend refused as cancelled is the verdict's residual pass,
+    LSQVCE.ENGINE.VERDICT.SUPERSEDE),
     report() is lsqvce.report on .diag, coefficients() is arithmetic on x
     and diag(Cxx) with z(0.05) = 1.959963984540054 in closed form.
 

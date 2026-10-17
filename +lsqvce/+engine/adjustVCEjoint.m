@@ -319,6 +319,11 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-149: a robust hard solution
+%   carries its truncation tau and dof also when the backend refused v'Pv, so
+%   the residual pass that replaces the NaN (lsqvce.engine.verdict.supersede)
+%   divides by tau. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A6): model.lastSol carries
 %   Ninv (the commons' cofactor) when the backend refused a cancelled v'Pv,
 %   so a prior's "scale" step does not divide by NaN. With assistance from
@@ -1099,8 +1104,11 @@ function sol = hardSolution(sol, hardFix, nExcl)
 %   live count. sol.truncation = tau, which lsqvce.engine.residuals applies
 %   to ITS s0^2 (review 3 finding 18: it cross-checked against the corrected
 %   number and warned sigma0Mismatch on every igg3 / bisquare noise run).
-%   hardFix = [] (no robust pass): unchanged.
-    if isempty(hardFix) || ~isfinite(sol.s0sq), return, end
+%   hardFix = [] (no robust pass): unchanged. A refused v'Pv (s0sq NaN) stays
+%   NaN but still carries dof and tau: the verdict's residual pass, which
+%   replaces it (lsqvce.engine.verdict.supersede), divides by sol.truncation --
+%   skipped, a normal-backend igg3 run returned sigma0 1.3 % off QR's (WP-149).
+    if isempty(hardFix), return, end
     nLeft = max(hardFix.nRej - nExcl, 0);
     f = sol.dof / max(sol.dof - nLeft, 1) / hardFix.tau;
     sol.dof = sol.dof - nLeft;

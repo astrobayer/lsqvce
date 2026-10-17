@@ -11415,3 +11415,68 @@ Linux audit CLEAN, selftest 76 / 76. Version 6.26.1; 759 declared / 747 run.
    an `Estimate "noise"` run the toolbox warns `lsqvce:covModel:unevenGrid` (a 'psd' law counts the
    gap as one step) and asks for weight 0 instead. The template should weight them out.
 3. The memory of this PC said a real GRAVFIRE bundle lies at `../testdata.mat`; it does not any more.
+
+### 12.81 WP-149 — a refused v'Pv no longer reaches the fit's own Results (2026-10-17, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 149 | Observation 1 of §12.80: with Backend "normal" and a very tight fit the backend refuses a cancelled v'Pv (`lsqvce:accum:cancellation` / `lsqvce:normalEq:cancellation`: s0sq and every entry of Cxx NaN), and the Results that `lsqvce.fit` returns carries `R.sigma0 = NaN` and NaN formal errors, although the warning says `lsqvce.engine.residuals()` supersedes it. Reproduce (tightPriorFixture, Estimate "noise" and "none"), decide by reading the code where the honest v'Pv comes from, fix it once for every producer of a Results, with a test that fails without it; adjustVCEjoint's body within its recorded ceiling (audit check 33); version by precedent (a fix alone: patch) | 144 (#186, merged 114a03c) | IN PROGRESS |
+
+**The request (2026-10-17, from the session that ran WP-145):** observation 1 of §12.80, scoped
+here before any code. WP-148 is left to the parallel session on observation 2 (the GRAVFIRE
+template weighting flagged epochs out); the numbers were agreed in the shared notes.
+
+**Reproduction (tier A, before any fix; `matlab -batch` from a scratch script -- the shared
+bridge was in use by the parallel session, with its tree first on the path).** tightPriorFixture,
+Backend "normal" against "qr", with and without the common prior:
+
+| Estimate | prior | R.sigma0 normal (before) | R.diag.s0 | residuals().sigma0 | QR |
+|----------|-------|--------------------------|-----------|--------------------|----|
+| "noise" | yes | NaN, Cxx all NaN | 1.000000 | 1.000000 (supersedesSol) | 1.000000 |
+| "none"  | yes | NaN, Cxx all NaN | 0.990264 | 0.990264 (supersedesSol) | 0.990264 |
+| "noise" | no  | NaN, Cxx all NaN | 1.000000 | 1.000000 (supersedesSol) | 1.000000 |
+| "none"  | no  | NaN, Cxx all NaN | 0.992847 | 0.992847 (supersedesSol) | 0.992847 |
+
+**Where the honest v'Pv comes from -- decided by reading the code.** Three candidates:
+(1) the joint loop's arc sweep (`sweepArcs`) -- but it runs under each PASS's accumulator, and
+the returned solution is the extra solve under the final model (R7-11), which no sweep follows;
+it would also leave Estimate "none" (adjustBlock) untouched. (2) `lsqvce.engine.residuals` --
+a second data pass, paid again. (3) THE VERDICT: every producer of a Results (fit's joint path,
+adjustBlock, adjustRobust, adjustNonlinear) calls `verdict.fromAccumulator` before building it,
+and its diagnose pass already forms `D.vPv` as the DIRECT sum of the whitened residuals, its
+`D.s0sq` divided by the hard solution's truncation -- the number the cancellation warning
+promises. Taken: (3), at the one place all four meet, the Results constructor.
+
+**The fix.**
+- `lsqvce.engine.verdict.supersede(sol, D, acc)` (new static method): unchanged unless sol.s0sq
+  is not finite; then vtv = D.vPv, s0sq = D.s0sq, sigma0 = D.s0 and Cxx = D.s0sq *
+  acc.commonCofactor() (the rule residuals() already applies to its Cyy, WP-132). No data is
+  read again. `lsqvce.Results`' constructor calls it; ACCURACY of both says so.
+- Found on the way, same root: `adjustVCEjoint>hardSolution` returned at once on a NaN s0sq, so a
+  robust hard solution never got `sol.truncation`, and the superseding pass divided by 1:
+  igg3 on the normal backend gave sigma0 0.98629 against QR's 0.99971 (1.3 %, tau 0.9733). It now
+  carries dof and tau with the NaN. adjustVCEjoint's BODY is untouched (a subfunction and the
+  help stamp only); check 33 silent.
+- After: every case above, and Robust igg3 / huber on both estimates, agrees with QR to at most
+  2.7e-11 relative (sigma0 and the formal errors) and with residuals() to 2.3e-13; residuals() on
+  R.sol has nothing left to supersede.
+
+**Tests (each fails without the fix -- run on a scratch copy with Results.m and adjustVCEjoint.m
+at main's state: the first fails its finiteness, QR and residual-pass verifications on both
+estimates, the second errors on the missing
+sol.truncation).** test_vcePolicy `testRefusedVtPvIsSupersededInResults` (both estimates: sigma0
+and Cxx finite, equal to QR's to 1e-9, R.sol warning-free in residuals() with supersedesSol
+false, R.sigma0 = residuals' to 1e-12) and `testRefusedVtPvKeepsTheRobustTruncation` (igg3: the
+same tau, sigma0 as QR's to 1e-9). The first calls lsqvce.engine.residuals in a reference test,
+so its `engine.residuals,reference` exemption row was stale and is deleted (audit [cat]).
+
+**Version** 6.26.2 (a fix alone: patch, by precedent). Manual and API reference rebuilt under
+WSL (Debian pandoc 3.1.3).
+
+**Gates (tier A):** `ci_gate` GREEN 749 / 749 (`matlab -batch`, this tree only on the path),
+inventory `lsqvce:internal:testProbe` only, 261 s; Linux audit (WSL) CLEAN, selftest 76 / 76.
+Version 6.26.2; 761 declared / 749 run.
+
+**Observation, recorded, not acted on:** inside a robust joint run on the normal backend, every
+pass's `robustSweep` calls residuals() on a refused solution, so `lsqvce:residuals:supersedesSol`
+warns once per pass -- correct, but noisy; the test mutes it.
