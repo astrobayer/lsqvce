@@ -11635,7 +11635,7 @@ observation 1). No package is open; the next step is the user's.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 150 | Wrong verdicts at the front door (findings F1-F6 below): `R.compare` after estimated weights, the IRLS stop rule, a "scale" prior outside the noise loop, zero-weight rows in the robust scale, `snoop` on a Gauss-Newton fit, the diagnostics' sigma0 after a refused v'Pv, demo_gravity's double sigma0 | 146 | PROPOSED (not opened; the user's go opens it) |
+| 150 | Wrong verdicts at the front door (findings F1-F6 below): `R.compare` after estimated weights, the IRLS stop rule, a "scale" prior outside the noise loop, zero-weight rows in the robust scale, `snoop` on a Gauss-Newton fit, the diagnostics' sigma0 after a refused v'Pv, demo_gravity's double sigma0 | 146 | OPENED 2026-10-17 -- its row and status live in §12.85 |
 | 151 | The solve core (S1-S3): the local rank tests on the equilibrated block, a guard for the Schur step's cancellation of l'Pl, the help's memory claims | 146 | PROPOSED |
 | 152 | The noise estimator (N1-N4): the robust stop rule and the truncation factor tau (white value on coloured streams), held arcs under IGG3, excluded rows in the sweep | 146 | PROPOSED |
 | 153 | Covariance and whitening (C1-C6): a PSD grid without f = 0, the d = 1 Cep shape, the frame-dependent Cholesky composition of a full Cep, WP-148's exact deletion for 'var' and partly excluded epochs, the unbounded memory paths | 146 | PROPOSED |
@@ -11844,3 +11844,21 @@ is invalid after estimated weights (F1).
 **Not acted on in this round** (a review: no code change; the user decides which package opens).
 Recommended order: WP-150 (silently wrong verdicts users act on), WP-152 N1/N4 and WP-151 S1/S2
 (wrong numbers), WP-154 M1/M2 (defaults and guards the study measured), WP-153, WP-155.
+
+### 12.85 WP-150 — the wrong verdicts at the front door (2026-10-17, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 150 | The front-door findings F1-F7 of §12.84, each reproduced before its fix, each with a test that fails without it: (F1) `R.compare` refuses two Results whose weights were estimated (Estimate "noise" or a robust influence) -- the nested F test assumes one fixed weighting, and after estimated weights it returns F = 1 whatever the data; (F2) the IRLS stop rule per parameter in its own formal sigma; (F3) a prior group with estimate "scale" in a run that cannot estimate it warns that it is held; (F4) zero-weight rows out of the IRLS median, MAD and live count; (F5) `R.snoop()` on a Gauss-Newton fit returns estimates, not increments; (F6) after a refused v'Pv the diagnostics' tests use the verdict's own sigma0, not 1; (F7) demo_gravity and the Manual scale sigma_x by sigma0 once; version 6.28.0 (a new refusal and a new warning: a minor) | 146 | IN PROGRESS |
+
+**The user's request (2026-10-17):** "Go ahead with WP-150".
+
+**Reproductions (tier A, main 2cc4c91, before any fix).** F1-F4 and F7 as measured in §12.84
+(compare F = 1.000 / p 0.32 against F = 2705 with declared weights; IRLS "converged" after 2 passes
+at 22.6 formal sd from its fixed point; the "scale" prior held at 1e-3, x ~1e-4 against 1, no
+warning; robust scale 0.329 with 40 % zero weights; sigma0 applied twice). New:
+- **F5 -- reproduced.** A Gauss-Newton fit (3 exp(-0.7 t), one blunder): R.x = [2.985 0.676];
+  `R.snoop()` returns sol.x = D.x = [0.021 0.028] -- the linear increment about R.x.
+- **F6 -- reproduced.** One blunder (25 against a true sigma of 3, declared 1), a tight fit (signal
+  1e5): Backend "normal" refuses v'Pv, diagnose falls back to sigma0 = 1 and flags 28 rows; Backend
+  "qr" flags 1 (the blunder). R.sigma0 is 3.2729 on both.
