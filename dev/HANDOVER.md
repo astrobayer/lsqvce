@@ -11415,3 +11415,13 @@ Linux audit CLEAN, selftest 76 / 76. Version 6.26.1; 759 declared / 747 run.
    an `Estimate "noise"` run the toolbox warns `lsqvce:covModel:unevenGrid` (a 'psd' law counts the
    gap as one step) and asks for weight 0 instead. The template should weight them out.
 3. The memory of this PC said a real GRAVFIRE bundle lies at `../testdata.mat`; it does not any more.
+
+### 12.81 WP-149 — a refused v'Pv no longer reaches the fit's own Results (2026-10-17, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 149 | Observation 1 of §12.80: with Backend "normal" and a very tight fit the backend refuses a cancelled v'Pv (`lsqvce:accum:cancellation` / `lsqvce:normalEq:cancellation`: s0sq and every entry of Cxx NaN), and the Results that `lsqvce.fit` returns carries `R.sigma0 = NaN` and NaN formal errors, although the warning says `lsqvce.engine.residuals()` supersedes it. Reproduce (tightPriorFixture, Estimate "noise" and "none"), decide by reading the code where the honest v'Pv comes from, fix it once for every producer of a Results, with a test that fails without it; adjustVCEjoint's body within its recorded ceiling (audit check 33); version by precedent (a fix alone: patch) | 144 (#186, merged 114a03c) | IN PROGRESS |
+
+**The request (2026-10-17, from the session that ran WP-145):** observation 1 of §12.80, scoped
+here before any code. WP-148 is left to the parallel session on observation 2 (the GRAVFIRE
+template weighting flagged epochs out); the numbers were agreed in the shared notes.
