@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-17 — WP-148 OPEN (tier A; model Claude Opus 5.5; the user chose option B, relayed by the session that ran WP-145: "Go ahead as recommende"): observation 2 of §12.80 -- the GRAVFIRE template keeps a flagged epoch on the grid with weight 0 (D.excluded) instead of removing it (the gap a 'psd' law took for one step, lsqvce:covModel:unevenGrid), and makeLoader deletes a day's excluded epoch from a correlated law by the nugget of an epoch weight 0 -- measured, the zero rows alone were a phantom observation (normals A_o' inv(C)_oo A_o, 2e-3 off the deletion at phi 0.9); 2 tests; version 6.27.0.
+Last substantive update: 2026-10-17 — WP-149 DONE (PR #187, merge 5f8eb36; CI GREEN on 426bb82 in the first round: ci_gate 749/749, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.81; no code change, no version (WP-149 shipped 6.26.2; the tree is at WP-148's 6.27.0). WP-149 itself (tier A; model Claude Opus 5.5; observation 1 of §12.80, from the session that ran WP-145): after a refused v'Pv on Backend "normal" the fit's Results carries sigma0 and Cxx from the verdict's residual pass (lsqvce.engine.verdict.supersede, called by the Results constructor), and a robust hard solution keeps its truncation; 2 tests; version 6.26.2.
+Preceding entry: Last substantive update: 2026-10-17 — WP-148 OPEN (tier A; model Claude Opus 5.5; the user chose option B, relayed by the session that ran WP-145: "Go ahead as recommende"): observation 2 of §12.80 -- the GRAVFIRE template keeps a flagged epoch on the grid with weight 0 (D.excluded) instead of removing it (the gap a 'psd' law took for one step, lsqvce:covModel:unevenGrid), and makeLoader deletes a day's excluded epoch from a correlated law by the nugget of an epoch weight 0 -- measured, the zero rows alone were a phantom observation (normals A_o' inv(C)_oo A_o, 2e-3 off the deletion at phi 0.9); 2 tests; version 6.27.0.
 Preceding entry: Last substantive update: 2026-10-17 — WP-144 DONE (PR #186, merge 114a03c; CI GREEN on 756fe36 in the first round: ci_gate 747/747, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.80; no code change, no version (6.26.1 stays, 759 declared / 747 run).
 Preceding entry: Last substantive update: 2026-10-17 — WP-144 OPEN (tier A; model Claude Opus 5.5; user: "Go ahead with wp-144"): A2, A3, A4, A6 reproduced before the fix (A6 worse than recorded: the prior held at its declared sigma and the loop reported "converged"), A7's gap closed by a GENERATED GRAVFIRE bundle (dev/tests/fixture_gravfire_bundle.m) that runs template/gravfire_data.m and demo_gravfire in the gate; 5 tests; version 6.26.1; ci_gate GREEN 747/747 locally; §12.80.
 Preceding entry: Last substantive update: 2026-10-17 — WP-147 DONE (part 1 PR #182, merge 40b6144; part 2 PR #184, merge d260dfd; CI GREEN on 728c502 in the first round: ci_gate 742/742, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.79; no code change, no version (6.26.0 stays, 754 declared / 742 run).
@@ -11434,7 +11435,7 @@ Still PROPOSED from §12.77: WP-146 (build_manual.py, B1-B9).
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 149 | Observation 1 of §12.80: with Backend "normal" and a very tight fit the backend refuses a cancelled v'Pv (`lsqvce:accum:cancellation` / `lsqvce:normalEq:cancellation`: s0sq and every entry of Cxx NaN), and the Results that `lsqvce.fit` returns carries `R.sigma0 = NaN` and NaN formal errors, although the warning says `lsqvce.engine.residuals()` supersedes it. Reproduce (tightPriorFixture, Estimate "noise" and "none"), decide by reading the code where the honest v'Pv comes from, fix it once for every producer of a Results, with a test that fails without it; adjustVCEjoint's body within its recorded ceiling (audit check 33); version by precedent (a fix alone: patch) | 144 (#186, merged 114a03c) | IN PROGRESS |
+| 149 | Observation 1 of §12.80: with Backend "normal" and a very tight fit the backend refuses a cancelled v'Pv (`lsqvce:accum:cancellation` / `lsqvce:normalEq:cancellation`: s0sq and every entry of Cxx NaN), and the Results that `lsqvce.fit` returns carries `R.sigma0 = NaN` and NaN formal errors, although the warning says `lsqvce.engine.residuals()` supersedes it. Reproduce (tightPriorFixture, Estimate "noise" and "none"), decide by reading the code where the honest v'Pv comes from, fix it once for every producer of a Results, with a test that fails without it; adjustVCEjoint's body within its recorded ceiling (audit check 33); version by precedent (a fix alone: patch) | 144 (#186, merged 114a03c) | DONE (2026-10-17: PR #187, merge 5f8eb36; CI GREEN on 426bb82 in the first round: ci_gate 749/749, warning inventory lsqvce:internal:testProbe only; local postflight GREEN 749/749) |
 
 **The request (2026-10-17, from the session that ran WP-145):** observation 1 of §12.80, scoped
 here before any code. WP-148 is left to the parallel session on observation 2 (the GRAVFIRE
@@ -11494,6 +11495,14 @@ Version 6.26.2; 761 declared / 749 run.
 **Observation, recorded, not acted on:** inside a robust joint run on the normal backend, every
 pass's `robustSweep` calls residuals() on a refused solution, so `lsqvce:residuals:supersedesSol`
 warns once per pass -- correct, but noisy; the test mutes it.
+
+**CI round 1 (426bb82): GREEN** -- `ci_gate` 749 / 749, 27 / 27 suites, the warning inventory
+`lsqvce:internal:testProbe` only; the audit and release jobs green.
+
+**Closure (2026-10-17).** WP-149 DONE: PR #187 merged as 5f8eb36 (the loop's record step after the
+merge: the ledger row, this note; no code change, no version -- 6.26.2 stays, 761 declared / 749
+run). Observation 1 of §12.80 is acted on; observation 2 is WP-148 (the parallel session);
+observation 3 needs no code. The next step is the user's.
 
 ### 12.82 WP-148 — a rejected epoch stays on the grid and is deleted exactly (2026-10-17, model Claude Opus 5.5, tier A)
 
