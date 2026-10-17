@@ -11550,4 +11550,7 @@ finds it).
 **Version** 6.27.0 (minor: a behaviour change of the loader). Manual and API reference rebuilt
 under WSL (Debian pandoc 3.1.3).
 
-**Gates (tier A):** pending.
+**Gates (tier A):** `ci_gate` GREEN 751 / 751 (`matlab -batch`, this tree only on the path),
+inventory `lsqvce:internal:testProbe` only, 348 s; Linux audit (WSL) CLEAN, selftest clean.
+Version 6.27.0; 763 declared / 751 run. Merged origin/main (#188, the WP-144 closure) on the way:
+the status line only.
