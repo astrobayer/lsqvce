@@ -1,5 +1,24 @@
 # lsqvce release notes
 
+## 6.26.1 — 2026-10-17 (WP-144: the package and template findings of the repository review)
+
+Corrections. Estimates change only where they were wrong (the prior in the second point).
+
+- `lsqvce.engine.synthLoader`, the loader template: its one-day cache was keyed on six named
+  fields, so a run that differed only in `mArc`, `x_c`, `cov`, `dt` or another configuration
+  field received the previous run's day, silently. It is now keyed on the whole configuration,
+  compared by value, and its help states the rule for a copy.
+- A common prior group with `estimate = "scale"` on `Backend = "normal"`: when the backend
+  refused a cancelled v'Pv (a very tight fit), the group's update divided by NaN, the group kept
+  its declared sigma, and the loop reported "converged". It now takes N⁻¹ from the cofactor, which
+  is finite, and estimates the group as the QR backend does.
+- `R.plot("psd")` draws every pool group's spectrum on a logarithmic axis (with several groups
+  the axis was linear).
+- `template/gravfire_data.m`: the members of a labelled local Tikhonov group must share
+  `fromPass` and the a-priori value (a later member's were dropped); `gravfire:badConstraint`
+  names the disagreement. The template now runs in the test suite on a generated bundle, and
+  `demo_gravfire` runs its pipeline there instead of its no-bundle message.
+
 ## 6.26.0 — 2026-10-16 (WP-147: a stop rule that low-information spectral bins can meet)
 
 The noise loop's stop rule. The estimator is unchanged; a run may now stop on an earlier pass,

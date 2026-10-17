@@ -23,6 +23,9 @@ function tests = test_physOracle
 %
 %   Created 2026-08-20 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-144: template/gravfire_data.m
+%   runs on a generated bundle (A7); a local group's members must agree (A4).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: demo_gravity runs as
 %   shipped and must converge; its statistics are banded. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -593,4 +596,56 @@ function r = keplerPosition(GM, r0, v0, dt)
     for k = 1:50, E = E - (E - e * sin(E) - M) / (1 - e * cos(E)); end
     dE = E - E0;
     r = (1 - a / rn * (1 - cos(dE))) * r0 + (dt - (dE - sin(dE)) / n) * v0;
+end
+
+%% ------------------------------- WP-144: the GRAVFIRE template on a generated bundle
+function testGravfireTemplateRunsOnAGeneratedBundle(tc)
+% categories: contract, robustness
+% WP-144 (A7): template/gravfire_data.m ran in no test -- its only caller,
+% demo_gravfire, is given a path that cannot exist so that every tier runs the
+% same suite, and the user's bundle is measurement data that never enters the
+% repository. FIXTURE_GRAVFIRE_BUNDLE generates one with the real structure;
+% the whole template runs on it: the tables, column 11 -> priors, the
+% epoch-major rows with Cep, the flagged epoch, the cut into pieces, the fit.
+    [c, m, s] = fixture_gravfire_bundle();
+    data = gravfire_data(c, m, s, 'DryRun', true);
+    tc.verifySize(data.commonParams, [6 15], 'the scope token in front of the 14 columns');
+    tc.verifyEqual(data.days, [59396 59397]);
+    tc.verifyEqual(fieldnames(data.systems.covariance).', {'posA', 'posB', 'kbr'});
+    tc.verifySize(data.systems.localParams, [6 15], 'one day''s templates: 2 satellites x 3');
+    tc.verifyTrue(all(strcmp(data.systems.localParams(:, 1), 'day')));
+    % column 11: the labelled common group 'stokes' (rows 1-2, one sigma
+    % estimated, x0 per member) and the unlabelled row 3 (fixed)
+    tc.verifyEqual({data.priors.name}, {'stokes', 's_2_1'});
+    tc.verifyEqual(data.priors(1).L, [eye(2), zeros(2, 4)]);
+    tc.verifyEqual(data.priors(1).x0, [0.5; 0], 'each member keeps its a-priori value');
+    tc.verifyEqual(string({data.priors.estimate}), ["scale", "none"]);
+    tc.verifyEqual(data.systems.priors(1).group, '^(GraceA_accscale|GraceB_accscale)$');
+    R = lsqvce.fit(data, lsqvce.Options(Verbose=0));
+    % rows: 2 days x (posA 59 x 3 + posB 59 x 3 + kbr 59) -- 2 pieces of 30
+    % epochs per (day, group), one flagged epoch removed; unknowns: 6 commons
+    % + 6 locals per day; prior rows: 'stokes' 2 + row 3 1 on the commons,
+    % 'accscale' 2 members x 2 days on the locals
+    tc.verifyEqual(R.sol.dof, 2*(59*3 + 59*3 + 59) - (6 + 2*6) + (2 + 1) + 2*2, ...
+        'every row of every piece reached the accumulator');
+    tc.verifyNumElements(R.x, 6);
+end
+
+function testGravfireLocalGroupRefusesDisagreeingMembers(tc)
+% categories: contract
+% WP-144 (A4): the members of a labelled LOCAL Tikhonov group were checked
+% for sigma only; a later member's fromPass and a-priori value were dropped
+% and the group kept the first member's (reproduced on the generated bundle).
+% Both are refused now, as the common rows refuse a differing fromPass.
+    [c, m, s] = fixture_gravfire_bundle();
+    P = s{1}.parameter;
+    k = find(strcmp(P(:, 1), 'GraceB_accscale')).';
+    s2 = s;  Q = P;
+    for r = k, Q{r, 11} = {'Tikhonov', 3, 1e-6, 'accscale'}; end
+    s2{1}.parameter = Q;
+    tc.verifyError(@() gravfire_data(c, m, s2, 'DryRun', true), 'gravfire:badConstraint');
+    s3 = s;  Q = P;
+    for r = k, Q{r, 10} = 0.25; end
+    s3{1}.parameter = Q;
+    tc.verifyError(@() gravfire_data(c, m, s3, 'DryRun', true), 'gravfire:badConstraint');
 end

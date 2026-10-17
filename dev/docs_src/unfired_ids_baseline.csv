@@ -11,7 +11,6 @@ lsqvce:accum:badPrior,engine.BlockAccumulator
 lsqvce:accum:badSpecs,engine.BlockAccumulator
 lsqvce:accum:badX,engine.BlockAccumulator
 lsqvce:accum:blockSchurFailed,engine.BlockAccumulator
-lsqvce:accum:cancellation,engine.BlockAccumulator
 lsqvce:accum:localSummarySkipped,engine.BlockAccumulator
 lsqvce:accum:notWholeEpochs,engine.private.arcBatchWhiten
 lsqvce:accum:priorNotPD,engine.BlockAccumulator

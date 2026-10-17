@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.26.0 — User Manual</title>
+  <title>lsqvce 6.26.1 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.26.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.26.1 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -3621,8 +3621,12 @@ following:</p>
 <code>L</code> form. On local rows, <code>gravfireLocalPriors</code>
 builds <code>data.systems.priors</code> in the <code>group</code>
 (regular-expression) form. Labelled groups get
-<code>estimate "scale"</code>; unlabelled rows get
-<code>"none"</code>.</p>
+<code>estimate "scale"</code>; unlabelled rows get <code>"none"</code>.
+The rows of one label must share sigma and <code>fromPass</code>, and on
+local rows also the a-priori value (column 10): the <code>group</code>
+form expands its rows in the toolbox’s order, so one value per member
+cannot be written there. The test suite runs the whole template on a
+generated bundle (<code>dev/tests/fixture_gravfire_bundle.m</code>).</p>
 <p>The function raises these errors:</p>
 <table>
 <colgroup>
@@ -3652,7 +3656,8 @@ with the wrong size</td>
 </tr>
 <tr class="even">
 <td><code>gravfire:badConstraint</code></td>
-<td>a malformed column-11 entry</td>
+<td>a malformed column-11 entry, or rows of one label that differ in
+sigma, <code>fromPass</code> or (local rows) the a-priori value</td>
 </tr>
 </tbody>
 </table>

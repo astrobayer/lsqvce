@@ -45,7 +45,8 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %                                   'kinematicPosition' or 'range-rate'
 %     gravfire:designShape          DesignFcn returned A/B with the wrong row/column count
 %     gravfire:badConstraint        column 11 is malformed, or the rows of one label
-%                                   disagree on sigma or on the activation pass
+%                                   disagree on sigma or on the activation pass, or
+%                                   (local rows) on the a-priori value, column 10
 %     (+ every declaration check of lsqvce.fit, raised before any read; the API reference, chapter buildDay)
 %
 %   EXAMPLE
@@ -83,6 +84,10 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M0 close-out (§12.8).
 %
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A4): the members of a
+%   labelled LOCAL group must share fromPass and the a-priori value too (a
+%   later member's were dropped). With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
 %   contract point at the API reference. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -384,6 +389,19 @@ function P = gravfireLocalPriors(~, localParams)
         g = groups(key);
         if g.sigma ~= double(c{3})
             error('gravfire:badConstraint', 'group ''%s'': members must share one sigma (row %d has %g, the group %g).', key, j, double(c{3}), g.sigma);
+        end
+        % WP-144 (A4): a later member's fromPass and a-priori value were
+        % DROPPED -- the group kept its first member's (reproduced). fromPass
+        % is refused as on the common rows; x0 too, because the pattern form
+        % builds L per member and per day in the toolbox's order, so one value
+        % per member cannot be written here without restating that order.
+        if g.from ~= double(c{2})
+            error('gravfire:badConstraint', 'group ''%s'': members must share one fromPass (row %d has %g, the group %g).', key, j, double(c{2}), g.from);
+        end
+        if g.x0 ~= x0
+            error('gravfire:badConstraint', ['group ''%s'': members of a local group must share one a-priori ' ...
+                  'value, column 10 (row %d has %g, the group %g); give them separate labels, or ' ...
+                  'declare the group by L in the columns lsqvce.layout announces.'], key, j, x0, g.x0);
         end
         g.names{end+1} = regexptranslate('escape', nm);
         groups(key) = g;
