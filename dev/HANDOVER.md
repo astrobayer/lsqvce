@@ -10904,7 +10904,7 @@ recorded-only observation of §12.75 is acted on. No package is open; the next s
 |----|-------|-----------|--------|
 | 144 | The package and template findings A2, A3, A4, A6 and the coverage gap A7 below: the one-day cache key of `lsqvce.engine.synthLoader`, `Results.plot("psd")` on a log axis, the local Tikhonov groups of `template/gravfire_data.m`, `fit`'s prior "scale" update after a refused v'Pv, and a generated GRAVFIRE bundle fixture that runs `gravfire_data` end to end; each fix with a test that fails without it; version by precedent (fixes alone a patch, 6.25.2 as WP-142; a new identifier a minor, 6.26.0 as WP-137) | 143 (closure #178 merged ba5b4cd) | OPENED 2026-10-17 -- its row and status live in §12.80 |
 | 145 | The test-tooling findings A1, A5, A8, A9 below: example warnings reach the gate's warning inventory, `run_lsqvce` on the `dev/tests` layout with a working `LogFile=''`, the gate's log check bound to this run; `dev/tests` only, no version | 143 | OPENED 2026-10-16 -- its row and status live in §12.78 |
-| 146 | The `build_manual.py` findings B1-B9 below (the review of WP-143): every exception caught per document in `main()`, the tracked `_build` intermediates and both targets written only on success (staged beside the targets, then `os.replace`), pandoc's output decoded as UTF-8, a committed test of build mode, the docstring without history and with the stamp; no version | 143 | PROPOSED (not opened) |
+| 146 | The `build_manual.py` findings B1-B9 below (the review of WP-143): every exception caught per document in `main()`, the tracked `_build` intermediates and both targets written only on success (staged beside the targets, then `os.replace`), pandoc's output decoded as UTF-8, a committed test of build mode, the docstring without history and with the stamp; no version | 143 | OPENED 2026-10-17 -- its row and status live in §12.83 |
 
 **The user's requests (2026-10-16):** "/code-review xhigh - fix" -- a review of WP-143's diff
 (`build_manual.py`), section B; then "You reviewed the documentation building. I want you to review
@@ -11573,3 +11573,11 @@ origin/main for #188's conflict on the status line, then the gates note); no red
 **Closure (2026-10-17).** WP-148 DONE: PR #189 merged as fee9287 (the loop's record step after the
 merge: the ledger row, this note; no code change, no version -- 6.27.0 stays, 763 declared / 751
 run). Nothing recorded as open from this round.
+
+### 12.83 WP-146 — build_manual.py: every failure caught per document, both targets replaced together (2026-10-17, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 146 | The `build_manual.py` findings B1-B9 of §12.77 (the review of WP-143), each reproduced before its fix: (B2, B1) every exception of a document's build is caught in `main()` per document, so an unwritable target or a failing assemble/help_block/pandoc call no longer stops the list; (B3, B4, B7) a document is built entirely in a temporary directory, and its four outputs -- `html/lsqvce_<doc>.html`, `lsqvce_<doc>.pdf` and the tracked intermediates `manual/_build/lsqvce_<doc>.md` / `.html` -- are replaced only when all built, staged beside their targets and moved with `os.replace` (the PDF first: a viewer is what locks a target), and check mode writes nothing in the tree; (B6) pandoc's output decoded as UTF-8 with errors replaced; (B5) a committed test of build mode: cases in `audit_selftest.py` (CI runs it) with pandoc faked, no external tool needed; (B8, B9) the module docstring without WP history and with the stamp; no version (dev tooling only) | 144 (closure #188) | IN PROGRESS |
+
+**The user's request (2026-10-17):** "Go ahead" -- to opening WP-146, the last open item of §12.77.
