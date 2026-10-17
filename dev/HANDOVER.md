@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-17 — WP-146 DONE (PR #192, merge 6d75bf2; CI GREEN on f45b5aa in the first round: the six build-mode cases on Linux, every fault caught; ci_gate 751/751, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.83 -- every finding of §12.77 acted on; no code change, no version (6.27.0 stays).
+Last substantive update: 2026-10-17 — review of the core calculation behind fit (tier A; model Claude Opus 5.5; user: "Review the core calculation routines needed by fit ... closed loop simulation ... limits"): four static lanes, every material finding reproduced in MATLAB, a 425-run closed-loop Monte Carlo against a true-covariance oracle; the estimator closes (levels 1-2 %, colour to phi 0.98, all runs converged) with 8-16 % variance loss and 5-7 % optimistic formal errors on short arcs under the default Grid 60; 2 high front-door findings (compare after estimated weights F = 1; IRLS stops 22.6 sd off), the normal backend's unit-dependent rank cut (10.7 sd) and Schur cancellation (v'Pv +1000 %), robust noise runs that cannot converge, excluded rows in the sweep; WP-150 to WP-155 PROPOSED; no code change; §12.84.
+Preceding entry: Last substantive update: 2026-10-17 — WP-146 DONE (PR #192, merge 6d75bf2; CI GREEN on f45b5aa in the first round: the six build-mode cases on Linux, every fault caught; ci_gate 751/751, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.83 -- every finding of §12.77 acted on; no code change, no version (6.27.0 stays).
 Preceding entry: Last substantive update: 2026-10-17 — WP-146 OPEN (model Claude Opus 5.5; user: "Go ahead"): build_manual.py -- every failure caught per document, the four outputs of a document staged and replaced together (the PDF first), check mode writes nothing, pandoc decoded as UTF-8; six build-mode cases in audit_selftest.py (pandoc faked) reproduced B1-B4, B6, B7 on the old builder and pass on the new; no version; §12.83.
 Preceding entry: Last substantive update: 2026-10-17 — WP-148 DONE (PR #189, merge fee9287; CI GREEN on 0e25afc in the first completed round -- two earlier runs cancelled by newer pushes: ci_gate 751/751, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.82; no code change, no version (6.27.0 stays, 763 declared / 751 run).
 Preceding entry: Last substantive update: 2026-10-17 — WP-149 DONE (PR #187, merge 5f8eb36; CI GREEN on 426bb82 in the first round: ci_gate 749/749, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.81; no code change, no version (WP-149 shipped 6.26.2; the tree is at WP-148's 6.27.0). WP-149 itself (tier A; model Claude Opus 5.5; observation 1 of §12.80, from the session that ran WP-145): after a refused v'Pv on Backend "normal" the fit's Results carries sigma0 and Cxx from the verdict's residual pass (lsqvce.engine.verdict.supersede, called by the Results constructor), and a robust hard solution keeps its truncation; 2 tests; version 6.26.2.
@@ -11629,3 +11630,217 @@ run). With it every finding of §12.77 is acted on: A1, A5, A8, A9 (WP-145), A2,
 the stop rule (WP-147), the refused v'Pv in the fit's Results (WP-149) and the template's flagged
 epochs (WP-148). Recorded and not acted on: demo_fit mutes its own two-pass warning (§12.78,
 observation 1). No package is open; the next step is the user's.
+
+### 12.84 Review of the core calculation behind fit: correctness, precision, speed, and a closed-loop Monte Carlo study (2026-10-17, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 150 | Wrong verdicts at the front door (findings F1-F6 below): `R.compare` after estimated weights, the IRLS stop rule, a "scale" prior outside the noise loop, zero-weight rows in the robust scale, `snoop` on a Gauss-Newton fit, the diagnostics' sigma0 after a refused v'Pv, demo_gravity's double sigma0 | 146 | PROPOSED (not opened; the user's go opens it) |
+| 151 | The solve core (S1-S3): the local rank tests on the equilibrated block, a guard for the Schur step's cancellation of l'Pl, the help's memory claims | 146 | PROPOSED |
+| 152 | The noise estimator (N1-N4): the robust stop rule and the truncation factor tau (white value on coloured streams), held arcs under IGG3, excluded rows in the sweep | 146 | PROPOSED |
+| 153 | Covariance and whitening (C1-C6): a PSD grid without f = 0, the d = 1 Cep shape, the frame-dependent Cholesky composition of a full Cep, WP-148's exact deletion for 'var' and partly excluded epochs, the unbounded memory paths | 146 | PROPOSED |
+| 154 | Defaults and guards from the Monte Carlo study (M1-M5): a Noise.Grid default tied to the arc length, a warning when one pool group mixes spectra, a hint for a drifting level, a near-unit-root warning, the formal errors' plug-in optimism documented | 146 | PROPOSED |
+| 155 | Speed without loss of precision (P1-P3): the Toeplitz law whitened through its structure (Levinson / Gohberg-Semencul) instead of a dense factor and an explicit inverse per arc, the O(N^2) lag loop by FFT, the per-axis repeats | 146 | PROPOSED |
+
+**The user's request (2026-10-17):** "Review the core calculation routines needed by fit. Ensure
+mathematical correctness, numerical precision and clean and fast code. Do not sacrifice precision
+for speed. Test examples that calculate in a closed loop simulation the unknown parameter and the
+stochastic model. Identify the limits of the code and the procedure."
+
+**Method.** (1) Four static review lanes in parallel, read-only, each checking formulas against
+Koch / Ellmer and porting the doubtful ones to NumPy: the solve core (BlockAccumulator, the QR and
+normal backends, CommonPrior, BlockCofactor, datum, residuals), the noise estimator
+(adjustVCEjoint, psdVCE, arcVarianceFactors, sharedProbe, traceEstimate, redundancyLags, hatACV),
+covariance and whitening (covModel and its kernels), the front door and the other drivers (fit,
+adjustRobust, adjustNonlinear, redundancy, vce, verdict, Results). (2) Every high or medium
+finding that a MATLAB call could settle was reproduced on main 6d75bf2 (tier A; this tree put first
+on the shared bridge path, restored after) -- marked VERIFIED below, otherwise "read" or "mirror".
+(3) A closed-loop Monte Carlo campaign: 33 scenarios, 10-25 seeds each, 425 runs.
+
+**What holds (checked and confirmed, not findings).** The Schur reduction and back-substitution,
+the minimum-constraint datum, BlockCofactor's block inverse and downdate, the prior redundancy and
+QR prior fold; the Helmert pair of the noise estimator (E Q_j = tr(R V_j) with the locals in the
+projector) and that its fixed point is the REML score equation; hatACV, psd2acv (1e-12 against
+quadrature), the pure-AR and VAR whiteners (exact Cholesky inverse factors), Whittle, the nugget
+deletion of WP-148 (to 4e-15 on its routes); the Koch-Kusche step, snoop's Sherman-Morrison update,
+the w-test, MDB, F-test degrees of freedom, robust weight functions and critical values; Levinson /
+Gohberg-Semencul accurate to 3.5e-8 per bin at condition 1.7e9; Hutchinson error ~1 % of a bin's own
+statistical error. The default QR backend reproduces the dense least-squares solution to 2e-13
+formal sd in every case tried.
+
+**The closed loop (scratch harness `mc/` in the session's scratchpad; not committed).** Each run
+plants a truth -- 6 commons (half-day harmonics), one bias per arc as a local, two streams: white
+sigma 0.5 and AR(1) phi, sigma 1.2, every arc generated independently -- declares both streams
+"white, sigma 1, estimate law" and runs `fit` (Estimate "noise", Pool "stream", MaxPasses 30, the
+probe seed fixed). Each run is scored against the ORACLE -- the same data solved by GLS with the
+TRUE covariance, in square-root form (a first oracle on normals lost every digit on short arcs;
+measured, corrected) -- and against white GLS. eff = var(x_hat - x) / var(x_oracle - x), per
+parameter, median (1 = the estimated noise model costs nothing); sx/so = the run's formal sigma over
+the oracle's exact sigma, same data (1 = calibrated formal errors); levels and lag-1 correlation
+against the truth (median, 90 % range).
+
+| scenario (base: 3 days x 4 arcs x 256 epochs, Grid 60) | conv | passes | eff | white GLS | sx/so | level b / truth | phi_b (truth) |
+|---|---|---|---|---|---|---|---|
+| base (phi 0.5), 25 seeds | 25/25 | 11 | 1.137 | 7.5 | 0.95 | 1.006 [0.97-1.04] | 0.504 (0.50) |
+| phi 0 / 0.8 / 0.9 / 0.95 / 0.98 | all | 11-12 | 1.08-1.16 | 2.8-60 | 0.93 | 0.98-1.02 | 0.006 / 0.804 / 0.899 / 0.947 / 0.979 |
+| phi 0.995 / 0.999 | all | 13 / 21 | 1.17 / 1.44 | 31 / 10 | 0.88 / 0.91 | **0.88 / 0.76** | 0.993 / 0.998 |
+| arc length 32 / 64 / 1024 / 4096 | all | 15 / 22 / 8 / 5 | 0.85 / 1.12 / 1.000 / 1.008 | 3-5 | 0.89 / 0.97 / 1.005 / 1.003 | 0.96-1.00 | 0.485-0.505 |
+| arcs per day 1 / 16 / 64; one day | all | 16 / 10 / 11 / 16 | 1.16 / 1.04 / 0.99 / 0.95 | 4-12 | 0.88 / 0.995 / 1.000 / 0.87 | 1.00-1.02 | 0.50-0.52 |
+| one arc (256) / one arc (3072) | all | 17 / 9 | **1.92** / 1.04 | 4.5 / 3.4 | 0.90 / 0.93 | 1.00 | 0.506 / 0.504 |
+| Grid 8 / 16 / 30 / **60 (default)** / 120 | all | 7 / 8 / 8 / 11 / 18 | 0.99 / 1.006 / 0.98 / **1.137** / **1.21** | | 0.97 / 0.97 / 0.89 / 0.95 / 0.88 | 1.00 | 0.51-0.52 |
+| Smooth 1 | 15/15 | 4 | 0.975 | | 0.94 | 1.000 | 0.513 |
+| a bad arc 3x in sigma, ArcFactors on that stream | 15/15 | 11 | 1.04 | | 0.96 | (a absorbs the mean factor) | ratio 8.78 (planted 9) |
+| level ratio 1 : 1000 between the streams | 15/15 | 13 | 1.13 | 1.7e6 | 0.93 | 1.00 | 0.513 |
+| **two spectra in one pool group** (white + phi 0.9, Pool "all") | 10/10 | 11 | **36** | 36 | **4.85** | a 1.96, b 0.78 | -- |
+| same spectrum, Pool "all" | 10/10 | 9 | 1.04 | | 0.99 | 1.00 | -- |
+| Student-t3 noise / with phi 0.9 | all | 12 | 0.95 / 0.99 | | 0.94 / 0.95 | 0.97 / 1.02 | 0.508 / 0.903 |
+| noise running on across arcs (phi 0.5 / 0.95) | all | 11 / 12 | 1.06 / 1.15 | | 1.00 / 0.99 | 1.01 | 0.508 / 0.950 |
+| **level drifting by day** (x0.5 / x1 / x2), ArcFactors off | 10/10 | 14 | **4.5** | 16 | **1.52** | 1.33 | 0.511 |
+| the same drift, ArcFactors on | 6/6 | 12 | 1.008 | | 0.87 | -- | 0.517 |
+
+Reading. (a) The procedure closes: every run converged; levels are recovered to 1-2 %, the colour to
++-0.01 up to phi 0.98 (demo_noisePolicy's documented "runaway at phi 0.7" is not met by this
+estimator), a bad arc's variance ratio to 2 %, a 1:1000 level ratio is handled. (b) Precision: with
+records of 256-sample arcs and the default 60-bin law the estimate of x loses 8-16 % variance
+against the oracle and its formal errors are 5-7 % optimistic; with 1024+ samples per arc or more
+arcs it is exact (eff 1.000, sx/so 1.00); a coarser law (Grid 8-30, Smooth 1) removes the loss on
+short records -- the default overfits the realised noise there (M1). (c) Assumption violations that
+cost little: heavy tails, correlation across arcs. (d) Limits where the procedure fails without
+saying so: two spectra in one pool group (M2), a level that drifts and no arc factors (M3), long
+memory against short arcs -- phi 0.999 on 256-sample arcs underestimates the level by 24 %, the
+low-frequency power goes into the per-arc biases and is not identifiable (M4), a single short arc
+(eff 1.9).
+
+**Findings (VERIFIED = reproduced in MATLAB on main 6d75bf2; "read" = confirmed by reading;
+"mirror" = shown in a NumPy port by the lane). Severity: high = a silently wrong result, medium =
+wrong in an edge case or a precision that matters, low = clean code, speed or a help claim.**
+
+*Front door and drivers (WP-150):*
+- **F1 high, VERIFIED** `Results.compare` / `verdict` ftest (Results.m:534-553, verdict.m:2405-2452):
+  after `Estimate="noise"` each model's v'Pv is normalised to its own redundancy, so F = 1 exactly
+  -- measured F = 1.000, p = 0.32, "not significant", for a planted extra term that the same data
+  with declared weights test at F = 2705, p = 6.6e-224. The "same weights" premise is stated, not
+  enforced; also robust and snooped fits.
+- **F2 high, VERIFIED** adjustRobust.m:209: the IRLS stop rule scales with max |x| -- a
+  parameter of 6.4e6 with sigma 1e-4 inflates it; measured "converged" after 2 passes at 22.6 formal
+  sd from the IRLS fixed point (9 passes at Tol 1e-15). A per-parameter |dx_j| / sigma_j test.
+- **F3 medium, VERIFIED** fit.m:283-306: a prior group with estimate "scale" outside
+  Estimate "noise" is held at its declared sigma without a word -- measured: sigma 1e-3 kept, x
+  shrunk to ~1e-4 against a truth of 1, no warning.
+- **F4 medium, VERIFIED** private/lawWhitenedResiduals.m:53-70: zero-weight (excluded) rows enter
+  the IRLS median / MAD -- measured robust scale 0.329 against ~1 with 40 % zero weights (igg3 then
+  rejects a third of the good rows).
+- **F5 medium, read** adjustNonlinear.m:245-247: `R.snoop()` on a Gauss-Newton fit returns the
+  linear increment about the solution, not the estimate.
+- **F6 medium, read** verdict.m:756-765: after a refused v'Pv, diagnose studentises with the
+  a-priori sigma0 = 1 (s0Fallback) although WP-149 supersedes R.sigma0 afterwards -- the two
+  backends flag different outliers on the same data.
+- **F7 low, VERIFIED** examples/demo_gravity.m:215 (and the Manual's formula): sigma_x =
+  sqrt(diag(Cxx)) * sigma0 scales by sigma0 twice -- sol.Cxx is already sigma0^2-scaled.
+- low, read: Gauss-Newton converges in cofactor units and tests damped steps (adjustNonlinear.m:
+  178-199); the MDB is in whitened units, not "the observation's units" as documented; dense
+  trace(L Ninv L') in priorUpdate; diagnose's external reliability O(n Sum nl nc), not as documented;
+  the IRLS collapse guard ignores the locals.
+
+*Solve core (WP-151):*
+- **S1 high, VERIFIED** BlockAccumulator.m:1811, 1820-1822 (normal backend; also localDiagnostics /
+  applyRegularisation under Reg 'auto' on QR, which fit does not reach): the local rank decision is
+  relative to the unscaled block, so a well-determined local in other units (B = [1, t^2], t in
+  seconds) is truncated as rank-deficient -- measured on Backend "normal": x 10.7 formal sd off the
+  least-squares solution, dof 1995 instead of 1994, sigma0 1.97; Backend "qr" 2e-13 sd; the column
+  rescaled, 8e-14. Fix: the tests on the Jacobi-equilibrated block.
+- **S2 medium-high, VERIFIED** BlockAccumulator.m:1787, 1839: the Schur step's l'Pl - n'Z is not
+  guarded -- when the locals absorb a large signal, v'Pv on Backend "normal" is 0.0003 % off at 1e5,
+  -7.8 % at 1e7, +1000 % at 1e8 sigma, without a warning (QR exact; residuals() then blames the
+  loader). Fix: carry the unreduced l'Pl into the guard.
+- **S3 low, read** the class help's "peak memory is one arc" / "stays nc x nc": a system's factor is
+  dense (nc + nl) with nl counting the system's locals over the WHOLE campaign, eliminated after its
+  last day (BlockAccumulator.m:1291) -- a memory limit at large nl. The lane's further claim that a
+  QR batch is ~80x slower than the normal equations is NOT reproduced: measured 0.011 s against
+  0.045 s per 50-row batch at d = 3000 (QR is faster). Also: datum.m's help says fixing a station is
+  "REFUSED", nothing refuses it; the normal backend's datumPart returns [] silently on a failed chol.
+
+*Noise estimator (WP-152):*
+- **N1 medium, VERIFIED** adjustVCEjoint.m:716-721, 779-782 with psdVCE: under a robust influence
+  every level is divided by the truncation factor tau, so at the fixed point every bin's alpha2 =
+  tau (0.9733 for IGG3) and the stop rule can never be met -- measured on clean data: Robust "none"
+  converged in 14 passes, "igg3" not converged after 30 (binRatio 1.72). The stop rule should read
+  the renormalised shape change (as the Smooth > 0 path already does).
+- **N2 medium, read** arcVarianceFactors.m:186-189: a held arc (alpha2 = 1) is still divided by
+  tau each pass -- +2.7 % per pass under IGG3, never converges.
+- **N3 medium, mirror** truncationFactor (:1062-1083): tau is the white-noise value; on coloured
+  streams the deletion lowers the Helmert ratio less (0.983 / 0.9955 / 0.998 at phi 0.5 / 0.9 /
+  0.98 against 0.9733), so the level and the hard sigma0 come out 1-2.5 % high.
+- **N4 medium, VERIFIED** adjustVCEjoint oneArc (:1350-1482): excluded rows are swept as
+  observations with a zero residual (full redundancy, no residual) -- measured: 10 % of a 'diag'
+  "scale" stream excluded, its level 0.926 against 1.018 for a clean twin (both truly 1), i.e. ~20 %
+  relative over-weighting in variance. Partly excluded multi-axis epochs likewise (WP-148 deletes
+  only whole epochs).
+- low: a persistently skipped arc biases out.sigma2 of a stream without arc factors (:745-748); the
+  stop rule's sqrt(2 / r_j) ignores the overlap of neighbouring hats (true SE 1.3-1.6x larger, 3.9x
+  at m = L -- conservative); L > m bins are unidentifiable (S depends on S0); the prior lags one
+  pass.
+
+*Covariance and whitening (WP-153):*
+- **C1 medium, VERIFIED** psd2acv.m:102-112, covModel.m:714-759: a PSD grid that does not start at
+  f = 0 loses the band [0, f1] -- measured AR 0.99: r(0) 47.82 against 50.25 (-4.84 %), with f(1) = 0
+  exact. Refuse it, or extend the first segment to 0.
+- **C2 medium, mirror** separableWhiten.m:184-195: a full 3x3 Cep is composed with its Cholesky
+  factor, which is not rotation-equivariant -- the same data in XYZ vs ZYX (or ECEF vs NEU) give a
+  different C when Cep varies over the arc (2 % of C, 6e-4 of the normals; 5.7 % at phi 0.99 and
+  anisotropy 1:100). The symmetric root Cep^1/2 is frame-invariant at the same cost; a modelling
+  decision (the user's).
+- **C3 medium, VERIFIED** covModel.m:479-494: a d = 1 per-epoch VARIANCE array (nEpoch x 1 x 1) is
+  nEpoch x 1 in MATLAB, the documented per-epoch SIGMA -- measured: variance 4 whitens 1 to 0.25,
+  not 0.5.
+- **C4 medium, read** makeLoader.m:1517-1529: WP-148's exact deletion is skipped for 'var' laws and
+  for epochs with only some axes excluded -- the 2e-3 phantom of §12.82 remains on those routes.
+- **C5 medium, read** unbounded memory: the nugget whitener is O(m k^2) time / O(m k) memory, k ~ m
+  under bisquare (covModel.m:576-587; it can trip denseArcTooLong with a misleading message); the
+  'toeplitz' PSD path allocates O(m nf) BEFORE the guard that should refuse it (covModel.m:749-759 vs
+  459-461); the MA start-up is a dense (p + N)^2 Cholesky, N ~ 36 / (1 - rho_MA), uncapped
+  (armaWhiten.m:162-168).
+- low, read: a dense law with Cep factorised d + 1 times per call; decorrFactor forms an explicit
+  inverse (see P1); gridGuard misses 'var' arcs and non-increasing time stamps; a 'var' Cfcn ignores
+  a given cm.acv; "PSD -> AR is exact" overstated.
+
+*Defaults and guards from the closed loop (WP-154):*
+- **M1** the default `Noise.Grid` 60 overfits records of short arcs: on 256-sample arcs eff 1.137
+  and 1.21 at Grid 60 / 120 against 0.98-1.006 at Grid 8-30; tie the default to the arc length (on
+  this evidence about m / 16 bins, at most 60), or smooth by default -- with the §12.79 finding that
+  bins the data barely determine also slow the loop.
+- **M2** one pool group with two spectra: eff 36, formal errors 4.85x too large, levels +96 % / -22 %,
+  no warning -- a per-stream whiteness or level-ratio check inside a group should warn.
+- **M3** a level drifting between days without arc factors: eff 4.5, formal errors +52 %; arc
+  factors fix it (eff 1.008) -- a per-arc dispersion check could say so.
+- **M4** long memory against short arcs: phi 0.995 / 0.999 on 256-sample arcs -- level -12 % / -24 %
+  (the per-arc biases absorb the low frequencies); warn when the estimated correlation time exceeds
+  a fraction of the arc length.
+- **M5** the formal errors carry the plug-in optimism of an estimated covariance: 3-13 % in sigma on
+  short or few arcs, ~0 on long records -- document it in the ACCURACY of fit / Results.
+
+*Speed without loss of precision (WP-155):*
+- **P1 VERIFIED (profile)** one pass on 3 arcs x 2048 epochs, 3.7 s: decorrFactor 1.30 s (a dense
+  Cholesky and an explicit inverse L \ eye per arc, O(m^3)), the dense Toeplitz matrix 0.59 s,
+  redundancyLags' sigmaInvSubdiagSums 0.46 s (an O(N^2) lag loop). Measured scaling at the same
+  98 304 observations: 64 arcs of 256 epochs 3.2 s per pass, 12 arcs of 4096 epochs 24.7 s per
+  pass (23 us per observation at m = 256, 58 at 1024, 251 at 4096): the per-arc cost grows ~m^2-m^3.
+  The structured route exists and is accurate (Levinson / Gohberg-Semencul, 3.5e-8 at cond 1.7e9):
+  whiten Toeplitz laws through it, compute the lag sums as FFT correlations, and solve multi-RHS
+  instead of forming inverses -- no precision given up.
+- P2/P3 low: the sweep factorises one Sigma two to three times per arc per pass; non-law streams pay
+  for lag sums they never read; multi-axis work repeated per axis.
+
+**Limits of the code and of the procedure (summary).** Identifiability: L > m bins; long memory
+against short arcs (M4); two spectra pooled (M2); a single short arc. Model assumptions that must
+be declared, not detected: a drifting level needs arc factors (M3); correlated errors across arcs
+are ignored (cheap: eff 1.06-1.15). Numerics: the normal backend's unit-dependent rank decisions
+(S1) and unguarded Schur cancellation (S2) -- the default QR backend is exact in every case tried;
+the 1e-10 spectral floor bounds the dynamic range; near-singular Cep amplifies silently. Scale:
+memory (nc + nl_campaign)^2 per system (S3); time per pass ~m^2-m^3 in the arc length (P1); unbounded
+nugget / MA / PSD-grid allocations (C5). Statistics: the formal errors are plug-in (M5); compare()
+is invalid after estimated weights (F1).
+
+**Not acted on in this round** (a review: no code change; the user decides which package opens).
+Recommended order: WP-150 (silently wrong verdicts users act on), WP-152 N1/N4 and WP-151 S1/S2
+(wrong numbers), WP-154 M1/M2 (defaults and guards the study measured), WP-153, WP-155.
