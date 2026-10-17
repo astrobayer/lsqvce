@@ -10897,7 +10897,7 @@ recorded-only observation of §12.75 is acted on. No package is open; the next s
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 144 | The package and template findings A2, A3, A4, A6 and the coverage gap A7 below: the one-day cache key of `lsqvce.engine.synthLoader`, `Results.plot("psd")` on a log axis, the local Tikhonov groups of `template/gravfire_data.m`, `fit`'s prior "scale" update after a refused v'Pv, and a generated GRAVFIRE bundle fixture that runs `gravfire_data` end to end; each fix with a test that fails without it; version by precedent (fixes alone a patch, 6.25.2 as WP-142; a new identifier a minor, 6.26.0 as WP-137) | 143 (closure #178 merged ba5b4cd) | PROPOSED (not opened; the user's go opens it) |
+| 144 | The package and template findings A2, A3, A4, A6 and the coverage gap A7 below: the one-day cache key of `lsqvce.engine.synthLoader`, `Results.plot("psd")` on a log axis, the local Tikhonov groups of `template/gravfire_data.m`, `fit`'s prior "scale" update after a refused v'Pv, and a generated GRAVFIRE bundle fixture that runs `gravfire_data` end to end; each fix with a test that fails without it; version by precedent (fixes alone a patch, 6.25.2 as WP-142; a new identifier a minor, 6.26.0 as WP-137) | 143 (closure #178 merged ba5b4cd) | OPENED 2026-10-17 -- its row and status live in §12.80 |
 | 145 | The test-tooling findings A1, A5, A8, A9 below: example warnings reach the gate's warning inventory, `run_lsqvce` on the `dev/tests` layout with a working `LogFile=''`, the gate's log check bound to this run; `dev/tests` only, no version | 143 | OPENED 2026-10-16 -- its row and status live in §12.78 |
 | 146 | The `build_manual.py` findings B1-B9 below (the review of WP-143): every exception caught per document in `main()`, the tracked `_build` intermediates and both targets written only on success (staged beside the targets, then `os.replace`), pandoc's output decoded as UTF-8, a committed test of build mode, the docstring without history and with the stamp; no version | 143 | PROPOSED (not opened) |
 
@@ -11345,3 +11345,27 @@ same commit: GREEN 742 / 742, 335 s.
 (recorded, not acted on): observation 1, demo_fit mutes its own two-pass warning; and the PROPOSED
 rows of §12.77, WP-144 (package and template findings A2, A3, A4, A6, A7) and WP-146
 (build_manual.py, B1-B9). The next step is the user's.
+
+### 12.80 WP-144 — the package and template findings A2, A3, A4, A6, A7 (2026-10-17, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 144 | The findings A2, A3, A4, A6 and A7 of §12.77, each reproduced before its fix, each fix with a test that fails without it: (A2) `lsqvce.engine.synthLoader`'s one-day cache keyed on the WHOLE configuration, the rule in its help (it is the loader template); (A3) `Results.plot("psd")` draws every pool group's spectrum on a log axis; (A6) `fit`'s prior "scale" update takes N^-1 from the finite cofactor when the normal backend refuses a cancelled v'Pv; (A7) a generated GRAVFIRE bundle runs `template/gravfire_data.m` end to end in a test; (A4) a labelled local Tikhonov group refuses members that differ in fromPass, and the a-priori values per member are decided after reading the common-table path; version by precedent (fixes alone a patch: 6.26.1) | 147 (closure #185) | IN PROGRESS |
+
+**The user's request (2026-10-17):** "Go ahead with wp-144".
+
+**Reproductions (tier A, before any fix; scratch scripts, this tree borrowed first on the shared
+bridge path).**
+- **A2 -- reproduced.** Three direct calls, same (sat, day, obsType, nc, nl, seed): `mArc` 400 gave
+  400-row arcs; then `mArc` 2 gave 400-row arcs again; then `x_c` ten times larger gave the SAME
+  observations (l(1) 7.8073 both). The persistent key misses everything but those six fields.
+- **A3 -- reproduced.** demo_grace's declaration, 4 pool groups: `R.plot("psd", "Visible", false)`
+  draws on a `linear` axis. (§12.77's step wrote `"Visible","off"`; the option is logical.)
+- **A6 -- reproduced, and worse than recorded.** A tight fit (4 commons of size 1e5 against unit
+  noise, 3 days x 4 arcs x 64 epochs) with a common prior of sigma 1e6, estimate "scale": on
+  Backend "normal" `lsqvce:accum:cancellation` warns on every solve (v'Pv against a quadratic mass
+  of 4e12), s0sq and every entry of Cxx are NaN, the group's r is NaN on every pass, it is NEVER
+  updated (sigma stays 1e6) -- and the loop reports "converged" in 2 passes, because PriorDev stayed
+  0. The QR backend on the same data: sigma 4.9e4, updated on every pass. Not acted on here, for
+  the user: the same run returns R.sigma0 = NaN, although the warning says lsqvce.engine.residuals()
+  supersedes it -- the fit's own Results never does.
