@@ -1,5 +1,19 @@
 # lsqvce release notes
 
+## 6.26.2 — 2026-10-17 (WP-149: a refused v'Pv no longer reaches the fit's Results)
+
+A correction. Estimates are unchanged; only numbers that were NaN change.
+
+- `Backend = "normal"` on a very tight fit: when the backend refused a cancelled v'Pv
+  (`lsqvce:accum:cancellation`, `lsqvce:normalEq:cancellation`), the Results that `lsqvce.fit`
+  returned carried `R.sigma0 = NaN` and NaN formal errors in `R.sol.Cxx`, although the warning
+  said the residual pass supersedes the refused number. `R.sigma0`, `R.sol.vtv` and `R.sol.Cxx`
+  now come from the verdict's own residual pass (no data is read again), for every estimate and
+  every producer of a Results, and agree with the QR backend's to 1e-9 or better (measured
+  2.7e-11 at most).
+- A robust noise run (`Robust = "igg3"` / `"bisquare"`) on the same refusal now keeps the
+  truncation correction of its hard solution (measured 1.3 % off QR's sigma0 without it).
+
 ## 6.26.1 — 2026-10-17 (WP-144: the package and template findings of the repository review)
 
 Corrections. Estimates change only where they were wrong (the prior in the second point).

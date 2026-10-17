@@ -118,7 +118,9 @@ classdef Results < handle
 %   ACCURACY
 %     Results adds no numerics: x and sigma0 are the engine's (sigma0 is the
 %     A-POSTERIORI std of unit weight; sol.Cxx the covariance scaled by it --
-%     the streaming contract every producer must establish),
+%     the streaming contract every producer must establish; a v'Pv the
+%     backend refused as cancelled is the verdict's residual pass,
+%     LSQVCE.ENGINE.VERDICT.SUPERSEDE),
 %     report() is lsqvce.report on .diag, coefficients() is arithmetic on x
 %     and diag(Cxx) with z(0.05) = 1.959963984540054 in closed form.
 %
@@ -149,6 +151,10 @@ classdef Results < handle
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: stopReason lists "userStop"
 %   and "diverged". With assistance from Claude (Anthropic), model Claude Opus
 %   5.5.
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-149: after a refused v'Pv
+%   (Backend "normal", a tight fit) sigma0 and sol.Cxx are the verdict's
+%   residual pass (lsqvce.engine.verdict.supersede), not NaN. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A3): plot("psd") draws
 %   every pool group on a log axis. With assistance from Claude (Anthropic),
 %   model Claude Opus 5.5.
@@ -244,6 +250,9 @@ classdef Results < handle
                 % promise: never a missing meta, never a missing field).
                 meta = lsqvce.engine.runMeta(struct(), struct());
             end
+            % WP-149: a refused v'Pv (s0sq, sigma0, Cxx NaN) is replaced by
+            % the verdict's residual pass, for every producer at once
+            sol          = lsqvce.engine.verdict.supersede(sol, D, acc);
             obj.sol      = sol;
             obj.x        = sol.x(:);
             obj.sigma0   = sol.sigma0;

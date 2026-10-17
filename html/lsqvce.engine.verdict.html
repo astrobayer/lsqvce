@@ -57,6 +57,9 @@ METHODS (static)
   [D, dsol, src, nB] = fromAccumulator(acc, sol, Name, Value, ...)
       the five-level verdict of a solved block accumulator in one call:
       source + diagnose (what every driver runs; Name-Value forwarded)
+  sol = supersede(sol, D, acc)
+      a refused (cancelled) v&#x27;Pv replaced by D&#x27;s residual pass: vtv,
+      s0sq, sigma0 and Cxx (what lsqvce.Results stores; WP-149)
   [dsol, src, nB] = source(acc, sol)
       the full-parameter solution (its cofactor as blocks,
       LSQVCE.ENGINE.BLOCKCOFACTOR) and the replayable batch source
@@ -79,6 +82,9 @@ Each method&#x27;s own help: help lsqvce.engine.verdict.&lt;method&gt;.</pre>
 
 See also LSQVCE.RESULTS, LSQVCE.REPORT, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.KERNEL.STAT
 
+Updated 2026-10-17 (CEST, UTC+02:00), WP-149: supersede, the refused v&#x27;Pv
+replaced by the verdict&#x27;s residual pass. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
 every method states its ACCURACY; the contamination gauge -- fhat&#x27;s null
 law and the ladder -- is the private contaminationOf (the class stays one,

@@ -14,6 +14,9 @@ classdef verdict
 %     [D, dsol, src, nB] = fromAccumulator(acc, sol, Name, Value, ...)
 %         the five-level verdict of a solved block accumulator in one call:
 %         source + diagnose (what every driver runs; Name-Value forwarded)
+%     sol = supersede(sol, D, acc)
+%         a refused (cancelled) v'Pv replaced by D's residual pass: vtv,
+%         s0sq, sigma0 and Cxx (what lsqvce.Results stores; WP-149)
 %     [dsol, src, nB] = source(acc, sol)
 %         the full-parameter solution (its cofactor as blocks,
 %         LSQVCE.ENGINE.BLOCKCOFACTOR) and the replayable batch source
@@ -37,6 +40,9 @@ classdef verdict
 %
 %   See also LSQVCE.RESULTS, LSQVCE.REPORT, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.KERNEL.STAT
 %
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-149: supersede, the refused v'Pv
+%   replaced by the verdict's residual pass. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
 %   every method states its ACCURACY; the contamination gauge -- fhat's null
 %   law and the ladder -- is the private contaminationOf (the class stays one,
@@ -93,6 +99,58 @@ function [D, diagSol, batchFcn, nBatch] = fromAccumulator(acc, sol, varargin)
 %   (Anthropic), model Claude Opus 5.5.
     [diagSol, batchFcn, nBatch] = lsqvce.engine.verdict.source(acc, sol);
     D = lsqvce.engine.verdict.diagnose(diagSol, batchFcn, 'nBatch', nBatch, varargin{:});
+end
+
+function sol = supersede(sol, D, acc)
+%LSQVCE.ENGINE.VERDICT.SUPERSEDE  A refused v'Pv replaced by the verdict's residual pass.
+%
+%   sol = LSQVCE.ENGINE.VERDICT.SUPERSEDE(sol, D, acc) returns sol unchanged
+%   unless the backend refused a cancellation-destroyed v'Pv (sol.s0sq NaN,
+%   and with it sol.sigma0 and every entry of sol.Cxx; lsqvce:accum:cancellation,
+%   lsqvce:normalEq:cancellation). Then vtv, s0sq and sigma0 are the verdict's
+%   own -- D.vPv, the DIRECT sum of the whitened residuals of its second pass,
+%   which is what those warnings promise supersedes the refused number
+%   (WP-49) -- and Cxx is the solve's cofactor scaled by it,
+%   D.s0sq * acc.commonCofactor(), the rule lsqvce.engine.residuals applies to
+%   its local covariances (WP-132). lsqvce.Results calls it, so every producer
+%   of a Results (fit, adjustBlock, adjustRobust, adjustNonlinear) returns
+%   the honest numbers rather than the NaN; the pass is the one the verdict
+%   ran anyway, no data is read again.
+%
+%   INPUT
+%     sol   1x1 struct  the solution (.s0sq .sigma0 .vtv .Cxx)
+%     D     1x1 struct  its verdict (LSQVCE.ENGINE.VERDICT.FROMACCUMULATOR's D:
+%                       .vPv .s0sq .s0); anything without them leaves sol as is
+%     acc   lsqvce.engine.BlockAccumulator | []  the accumulator that solved it
+%   OUTPUT
+%     sol   1x1 struct  as the input, or with .vtv .s0sq .sigma0 .Cxx replaced
+%
+%   ACCURACY
+%     No arithmetic beyond the one scaling. On a tight fit refused on every
+%     solve, sigma0 agrees with lsqvce.engine.residuals' to 1e-12 relative
+%     (measured 2.3e-13) and sigma0 and the formal errors with the QR
+%     backend's on the same data to 1e-9 (measured <= 2.7e-11, robust runs
+%     included; test_vcePolicy, WP-149). D.s0sq carries a robust hard
+%     solution's truncation divisor, as sol.s0sq would have.
+%
+%   EXAMPLE
+%       [D, dsol] = lsqvce.engine.verdict.fromAccumulator(acc, sol);
+%       sol = lsqvce.engine.verdict.supersede(sol, D, acc);   % what Results does
+%
+%   See also LSQVCE.RESULTS, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.BLOCKACCUMULATOR
+%
+%   Created 2026-10-17 (CEST, UTC+02:00), WP-149: the fit's own Results carried
+%   R.sigma0 = NaN and NaN formal errors after a refused v'Pv, although the
+%   warning said the residual pass supersedes it. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
+    if ~isa(acc, 'lsqvce.engine.BlockAccumulator') || isfinite(lsqvce.util.getfielddef(sol, 's0sq', 1)) ...
+            || ~all(isfield(D, {'vPv', 's0sq', 's0'})) || ~isfinite(D.s0sq)
+        return
+    end
+    sol.vtv    = D.vPv;
+    sol.s0sq   = D.s0sq;
+    sol.sigma0 = D.s0;
+    sol.Cxx    = D.s0sq * acc.commonCofactor();
 end
 
 function [diagSol, batchFcn, nBatch] = source(acc, sol)
