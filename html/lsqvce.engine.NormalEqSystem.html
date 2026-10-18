@@ -56,6 +56,9 @@ PROPERTIES (read-only)
   N     dim x dim  accumulated normal matrix
   n     dim x 1    accumulated right-hand side
   ltl   scalar     accumulated l&#x27;*l, needed for the residual sum of squares
+  ltlMass scalar   the l&#x27;*l every merged contribution was reduced FROM
+                   (ReducedContribution.ltlMass; = ltl without locals):
+                   the scale of the cancellation guard (WP-151, S2)
   m     scalar     number of observations accumulated
   dim   scalar     number of parameters
 
@@ -85,7 +88,12 @@ conditioning, loses ALL digits at cond(A) = 1e8 where QR keeps 8).
 vtv is formed as l&#x27;Pl - n&#x27;x and is cancellation-prone when the fit is
 tight; since WP-49 a value that is negative or has lost &gt; 8 digits is
 returned as NaN, never as a plausible-looking number -- the honest
-value comes from LSQVCE.ENGINE.RESIDUALS&#x27; second pass, which supersedes it.</pre>
+value comes from LSQVCE.ENGINE.RESIDUALS&#x27; second pass, which supersedes it.
+The digits are counted against ltlMass, the l&#x27;Pl before the local
+blocks were eliminated (WP-151): the Schur step subtracts first, and a
+signal the locals absorbed (1e7 sigma) cost 7.8 % of vtv, 1e8 sigma
+1000 %, while the reduced l&#x27;Pl showed nothing (test_precision
+(testSchurCancellationIsGuarded)).</pre>
 <h3>Errors</h3>
 <pre class="example">  Accumulation:
     lsqvce:normalEq:badWidth      a block&#x27;s column count disagrees with
@@ -109,6 +117,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.QRSYSTEM, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84, S2): the
+cancellation guard counts the digits lost against ltlMass, the l&#x27;Pl before
+the local elimination. With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-133: discount(k) takes k rows of
 weight 0 out of the count m (mExcl keeps them; merge adds them). With
 assistance from Claude (Anthropic), model Claude Opus 5.5.

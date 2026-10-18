@@ -10,6 +10,13 @@ classdef ReducedContribution
 %     n     nc x 1   nc  - Nlc'*inv(Nll)*nl       reduced right-hand side
 %     ltl   scalar   l'l - nl'*inv(Nll)*nl        reduced residual mass
 %     dof   scalar   m - nl                       observations minus locals
+%     ltlMass scalar l'l BEFORE the reduction (WP-151, S2): the mass the
+%                    reduced ltl was subtracted from -- what a cancellation
+%                    guard downstream must compare the final v'Pv with. The
+%                    Schur step's l'l - nl' inv(Nll) nl loses the digits when
+%                    the locals absorb a large signal, and ltl alone cannot
+%                    show it (v'Pv -7.8 % at 1e7 sigma, +1000 % at 1e8, no
+%                    warning). Defaults to ltl (a contribution not reduced)
 %     Rows  k x (nc+1) | []  the SAME contribution as square-root rows
 %                    [R22 r2; 0 rho] (LSQVCE.ENGINE.QRSYSTEM.reducedRows):
 %                    Rows'Rows = [N n; n' ltl]. Given, QRSystem.merge stacks
@@ -18,6 +25,7 @@ classdef ReducedContribution
 %                    the diagnostics.
 %
 %   c = LSQVCE.ENGINE.REDUCEDCONTRIBUTION(N, n, ltl, dof)
+%   c = LSQVCE.ENGINE.REDUCEDCONTRIBUTION(N, n, ltl, dof, [], ltlMass)
 %   c = LSQVCE.ENGINE.REDUCEDCONTRIBUTION([], [], [], dof, Rows)
 %
 %   ltl IS NOT OPTIONAL
@@ -47,6 +55,9 @@ classdef ReducedContribution
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.QRSYSTEM, LSQVCE.ENGINE.NORMALEQSYSTEM
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84, S2): property
+%   ltlMass, the unreduced l'l, for the normal backend's cancellation guard.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the accuracy statement names
 %   the traced path (the QR backend builds this from Rows) and the pin of the
 %   normal backend's form. With assistance from Claude (Anthropic), model
@@ -69,12 +80,13 @@ classdef ReducedContribution
         ltl     % reduced residual mass
         dof     % degrees of freedom contributed
         Rows = []  % the square-root form, or [] (R7 WP-112)
+        ltlMass    % l'l before the reduction (WP-151): the cancellation guard's scale
     end
 
     methods
-        function o = ReducedContribution(N, n, ltl, dof, Rows)
-            narginchk(4,5);
-            if nargin == 5 && ~isempty(Rows)
+        function o = ReducedContribution(N, n, ltl, dof, Rows, ltlMass)
+            narginchk(4,6);
+            if nargin >= 5 && ~isempty(Rows)
                 o.Rows = Rows;
                 Rc  = Rows(:, 1:end-1);  rv = Rows(:, end);
                 N   = Rc.' * Rc;  N = (N + N.')/2;
@@ -92,6 +104,8 @@ classdef ReducedContribution
             o.n   = n(:);
             o.ltl = ltl;
             o.dof = dof;
+            o.ltlMass = ltl;
+            if nargin == 6, o.ltlMass = max(ltlMass, ltl); end
         end
     end
 end

@@ -13,6 +13,9 @@ classdef NormalEqSystem < handle
 %     N     dim x dim  accumulated normal matrix
 %     n     dim x 1    accumulated right-hand side
 %     ltl   scalar     accumulated l'*l, needed for the residual sum of squares
+%     ltlMass scalar   the l'*l every merged contribution was reduced FROM
+%                      (ReducedContribution.ltlMass; = ltl without locals):
+%                      the scale of the cancellation guard (WP-151, S2)
 %     m     scalar     number of observations accumulated
 %     dim   scalar     number of parameters
 %
@@ -46,6 +49,11 @@ classdef NormalEqSystem < handle
 %     tight; since WP-49 a value that is negative or has lost > 8 digits is
 %     returned as NaN, never as a plausible-looking number -- the honest
 %     value comes from LSQVCE.ENGINE.RESIDUALS' second pass, which supersedes it.
+%     The digits are counted against ltlMass, the l'Pl before the local
+%     blocks were eliminated (WP-151): the Schur step subtracts first, and a
+%     signal the locals absorbed (1e7 sigma) cost 7.8 % of vtv, 1e8 sigma
+%     1000 %, while the reduced l'Pl showed nothing (test_precision
+%     (testSchurCancellationIsGuarded)).
 %
 %   ERRORS
 %     Accumulation:
@@ -70,6 +78,10 @@ classdef NormalEqSystem < handle
 %
 %   See also LSQVCE.ENGINE.QRSYSTEM, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84, S2): the
+%   cancellation guard counts the digits lost against ltlMass, the l'Pl before
+%   the local elimination. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: discount(k) takes k rows of
 %   weight 0 out of the count m (mExcl keeps them; merge adds them). With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -87,6 +99,7 @@ classdef NormalEqSystem < handle
         N                       % dim x dim normal matrix
         n                       % dim x 1   right-hand side
         ltl = 0                 % scalar    l'*l
+        ltlMass = 0             % scalar    l'*l before any local elimination (WP-151)
         m   = 0                 % scalar    observation count (weight-0 rows out, WP-133)
         mExcl = 0               % scalar    rows of weight 0 discounted from m (WP-133)
         dim                     % scalar    parameter count
@@ -119,6 +132,7 @@ classdef NormalEqSystem < handle
             o.N   = o.N   + A.'*A;
             o.n   = o.n   + A.'*l;
             o.ltl = o.ltl + l.'*l;
+            o.ltlMass = o.ltlMass + l.'*l;
             o.m   = o.m   + numel(l);
         end
 
@@ -134,6 +148,7 @@ classdef NormalEqSystem < handle
             o.N   = o.N   + red.N;
             o.n   = o.n   + red.n;
             o.ltl = o.ltl + red.ltl;
+            o.ltlMass = o.ltlMass + red.ltlMass;    % WP-151: the mass it was reduced from
             o.m   = o.m   + red.dof;
         end
 
@@ -150,6 +165,7 @@ classdef NormalEqSystem < handle
             o.N   = o.N   + other.N;
             o.n   = o.n   + other.n;
             o.ltl = o.ltl + other.ltl;
+            o.ltlMass = o.ltlMass + other.ltlMass;
             o.m   = o.m   + other.m;
             o.mExcl = o.mExcl + other.mExcl;
         end
@@ -201,19 +217,22 @@ classdef NormalEqSystem < handle
             % speak as lsqvce:normalEq:cancellation. The former
             % 'negativeVtv' name in this namespace is RETIRED (breaking,
             % WP-49; error identifiers are names and get no aliases).
+            % WP-151 (S2): the digits against the mass BEFORE the local
+            % elimination -- the Schur step subtracted first (ltlMass >= ltl)
             poisoned = vtv < 0;
-            if ~poisoned && o.ltl > 0
-                poisoned = log10(max(o.ltl / max(vtv, realmin), 1)) > 8;
+            mass = max(o.ltl, o.ltlMass);
+            if ~poisoned && mass > 0
+                poisoned = log10(max(mass / max(vtv, realmin), 1)) > 8;
             end
             if poisoned
                 lsqvce.util.log.warn('lsqvce:normalEq:cancellation', ...
                     ['vtv was formed as l''Pl - n''x and the cancellation ' ...
-                     'destroyed it (l''Pl = %.6e, vtv = %.6e%s). RETURNING ' ...
+                     'destroyed it (l''Pl = %.6e before the local elimination, vtv = %.6e%s). RETURNING ' ...
                      'NaN rather than a plausible-looking number. ' ...
                      'lsqvce.engine.residuals() recomputes it honestly from a ' ...
                      'second pass and SUPERSEDES this value; to avoid the ' ...
                      'problem entirely, switch to ''Backend'',''qr''.'], ...
-                     o.ltl, vtv, ternaryChar(vtv < 0, ', negative', ''));
+                     mass, vtv, ternaryChar(vtv < 0, ', negative', ''));
                 vtv = NaN;
             end
 

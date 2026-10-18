@@ -17,14 +17,17 @@ function dg = localDiagnostics(Nll, opt)
 %                   .CondWarn   condition number -> 'ill-conditioned'
 %                   .CondAbort  condition number -> 'rank-deficient'
 %
-%   OUTPUT
-%     dg.eig         nl x 1  eigenvalues, descending
-%     dg.V           nl x nl eigenvectors, matching the sorted eigenvalues
-%     dg.condNll     spectral condition number lambda_max / lambda_min
+%   OUTPUT  (WP-151: the spectrum is that of the JACOBI-EQUILIBRATED block
+%           D Nll D, D = diag(Nll)^-1/2 -- the conditioning of the parameters
+%           themselves, not of their units; the solve decides its rank on the
+%           same matrix, LSQVCE.ENGINE.BLOCKACCUMULATOR)
+%     dg.eig         nl x 1  eigenvalues of D Nll D, descending
+%     dg.V           nl x nl its eigenvectors, matching the sorted eigenvalues
+%     dg.condNll     spectral condition number lambda_max / lambda_min of D Nll D
 %     dg.rankDef     number of eigenvalues below TruncTol*lambda_max
 %     dg.spd         true if all eigenvalues are positive
 %     dg.diagDom     min|diag| / max|diag|, a cheap scaling check
-%     dg.nullDir     eigenvector of the smallest eigenvalue -- the direction
+%     dg.nullDir     the weakest direction D v_min, unit norm -- the direction
 %                    in local-parameter space that the data does not constrain
 %     dg.status      'ok' | 'ill-conditioned' | 'rank-deficient'
 %     dg.regUsed     'none' (filled in later by LSQVCE.ENGINE.APPLYREGULARISATION)
@@ -40,9 +43,10 @@ function dg = localDiagnostics(Nll, opt)
 %
 %     dg.diagDom << 1 means the local parameters are badly scaled relative to
 %     each other (e.g. bias in m/s^2 alongside a dimensionless scale factor).
-%     Rescale the columns of B; a large condNll caused purely by scaling is an
-%     artefact and Tikhonov with L = I would penalise the two parameters
-%     unequally.
+%     A large condNll caused purely by scaling is an artefact -- condNll reads
+%     the equilibrated block, so it no longer shows one (WP-151) -- but
+%     Tikhonov with L = I penalises the two parameters unequally: rescale the
+%     columns of B, or give RegMatrix the scales.
 %
 %   TYPICAL THRESHOLDS
 %     CondWarn  = 1e8   double precision starts to bite past this
@@ -58,7 +62,9 @@ function dg = localDiagnostics(Nll, opt)
 %
 %   ACCURACY
 %     No reference value is pinned: the spectral outputs come from one
-%     symmetric eig of (Nll + Nll')/2 and serve as a classification. Pinned
+%     symmetric eig of D (Nll + Nll')/2 D and serve as a classification. A
+%     local column in seconds squared (B = [1, t^2], t to 2e4 s, raw cond
+%     ~1e17) reads 'ok' (test_lsqAccum (testRankDecisionIsUnitFree)). Pinned
 %     by behaviour: near-collinear local columns (collinearEps 1e-9) read
 %     condNll > 1e8 and a status other than 'ok'; at 1e-12 nullDir sits on
 %     the two collinear columns with opposite signs; a zero 3 x 3 block
@@ -71,6 +77,10 @@ function dg = localDiagnostics(Nll, opt)
 %
 %   See also LSQVCE.ENGINE.APPLYREGULARISATION, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84, S1): the spectrum, condNll, rankDef,
+%   status and nullDir read the Jacobi-equilibrated block, so a block in mixed
+%   units is not classified ill-conditioned (and 'auto' does not regularise it).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -99,6 +109,12 @@ function dg = localDiagnostics(Nll, opt)
     cA   = lsqvce.util.getfielddef(opt, 'CondAbort', 1e14);
 
     Nll = (Nll + Nll.')/2;
+    dd  = abs(diag(Nll));
+    % WP-151 (S1): the spectrum of the Jacobi-equilibrated block D Nll D -- a
+    % condition number "caused purely by scaling is an artefact" (above), and
+    % 'auto' regularised a well-determined t^2 local (t in seconds) on it
+    d   = lsqvce.engine.BlockAccumulator.jacobiScale(Nll);
+    Nll = Nll .* (d * d.');
     [V, ev] = eig(Nll, 'vector');              % symmetric -> V orthonormal
     ev      = real(ev);
     [ev, k] = sort(ev, 'descend');
@@ -110,9 +126,9 @@ function dg = localDiagnostics(Nll, opt)
     dg.condNll  = ev(1) / max(abs(ev(end)), realmin);
     dg.rankDef  = sum(ev <= tolT*max(ev(1), 0));   % WP-135: an all-zero block is nl deficient (it read 0)
     dg.spd      = all(ev > 0);
-    dg.nullDir  = V(:, end);
+    dg.nullDir  = d .* V(:, end);              % back in the parameters' units
+    dg.nullDir  = dg.nullDir / max(norm(dg.nullDir), realmin);
 
-    dd          = abs(diag(Nll));
     dg.diagDom  = min(dd) / max(max(dd), realmin);
 
     dg.status = 'ok';

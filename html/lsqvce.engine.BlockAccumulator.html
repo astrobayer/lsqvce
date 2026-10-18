@@ -53,9 +53,14 @@ coefficients, ...) and y_s are LOCAL parameters specific to system s
 (accelerometer bias and scale, ambiguities, ...). The local parameters are
 pre-eliminated by Schur complement after each system, so the global normal
 matrix stays nc x nc no matter how many systems or local parameters exist.
+PER SYSTEM it does not: a system&#x27;s dense (nc + nl_s) x (nc + nl_s) normal
+matrix (or QR factor) is held until the system&#x27;s LAST day, nl_s counting
+its local parameters over the whole campaign (arc locals of every day
+included) -- the memory limit at large nl_s, (nc + nl_s)^2 doubles; one per
+day and worker under day-parallel accumulation (review 12.84, S3).
 
-Data arrive through a lazy callback. Nothing is precomputed and nothing is
-retained: peak memory is one arc of (A,B,l) plus one batch covariance.
+Data arrive through a lazy callback. Nothing else is precomputed or
+retained: one arc of (A,B,l) and one batch covariance at a time.
 
 CONSTRUCTOR
   acc = LSQVCE.ENGINE.BLOCKACCUMULATOR(nc, &#x27;Name&#x27;, value, ...)</pre>
@@ -77,7 +82,8 @@ CONSTRUCTOR
                  Schur complement. See LSQVCE.ENGINE.APPLYREGULARISATION.
   &#x27;RegLambda&#x27;    Tikhonov/LM weight; 0 with &#x27;tikhonov&#x27; triggers GCV.
   &#x27;RegMatrix&#x27;    L in lambda*||L*y||^2 (default identity).
-  &#x27;TruncTol&#x27;     rank tolerance relative to lambda_max (default 1e-10)
+  &#x27;TruncTol&#x27;     rank tolerance relative to lambda_max (default 1e-10), on
+                 the Jacobi-equilibrated local block (WP-151)
   &#x27;CondWarn&#x27;     cond(Nll) above this -&gt; &#x27;ill-conditioned&#x27; (default 1e8)
   &#x27;CondAbort&#x27;    cond(Nll) above this -&gt; &#x27;rank-deficient&#x27;  (default 1e14)
   &#x27;LocalBlockSize&#x27;  [] | k: the locals form independent blocks of k
@@ -279,6 +285,15 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84): (S1) every rank
+decision and solve of a local block on its Jacobi-equilibrated form -- the
+QR pivots relative to their column, the normal form&#x27;s rcond and pinv cut on
+D Nll D, the block path and the cofactor too (jacobiScale, columnScale,
+factorSolve); a t^2 local in seconds was cut as rank-deficient, x 10.7
+formal sd off; (S2) a reduced contribution carries the unreduced l&#x27;Pl to
+the normal backend&#x27;s cancellation guard; (S3) the help states the
+per-system memory. With assistance from Claude (Anthropic), model Claude
+Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the three stamps that sat
 between the error list and the identifiers also raised moved after See
 also, in date order. With assistance from Claude (Anthropic), model Claude

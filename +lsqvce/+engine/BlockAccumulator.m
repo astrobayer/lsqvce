@@ -10,9 +10,14 @@ classdef BlockAccumulator < handle
 %   (accelerometer bias and scale, ambiguities, ...). The local parameters are
 %   pre-eliminated by Schur complement after each system, so the global normal
 %   matrix stays nc x nc no matter how many systems or local parameters exist.
+%   PER SYSTEM it does not: a system's dense (nc + nl_s) x (nc + nl_s) normal
+%   matrix (or QR factor) is held until the system's LAST day, nl_s counting
+%   its local parameters over the whole campaign (arc locals of every day
+%   included) -- the memory limit at large nl_s, (nc + nl_s)^2 doubles; one per
+%   day and worker under day-parallel accumulation (review 12.84, S3).
 %
-%   Data arrive through a lazy callback. Nothing is precomputed and nothing is
-%   retained: peak memory is one arc of (A,B,l) plus one batch covariance.
+%   Data arrive through a lazy callback. Nothing else is precomputed or
+%   retained: one arc of (A,B,l) and one batch covariance at a time.
 %
 %   CONSTRUCTOR
 %     acc = LSQVCE.ENGINE.BLOCKACCUMULATOR(nc, 'Name', value, ...)
@@ -35,7 +40,8 @@ classdef BlockAccumulator < handle
 %                    Schur complement. See LSQVCE.ENGINE.APPLYREGULARISATION.
 %     'RegLambda'    Tikhonov/LM weight; 0 with 'tikhonov' triggers GCV.
 %     'RegMatrix'    L in lambda*||L*y||^2 (default identity).
-%     'TruncTol'     rank tolerance relative to lambda_max (default 1e-10)
+%     'TruncTol'     rank tolerance relative to lambda_max (default 1e-10), on
+%                    the Jacobi-equilibrated local block (WP-151)
 %     'CondWarn'     cond(Nll) above this -> 'ill-conditioned' (default 1e8)
 %     'CondAbort'    cond(Nll) above this -> 'rank-deficient'  (default 1e14)
 %     'LocalBlockSize'  [] | k: the locals form independent blocks of k
@@ -242,6 +248,15 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84): (S1) every rank
+%   decision and solve of a local block on its Jacobi-equilibrated form -- the
+%   QR pivots relative to their column, the normal form's rcond and pinv cut on
+%   D Nll D, the block path and the cofactor too (jacobiScale, columnScale,
+%   factorSolve); a t^2 local in seconds was cut as rank-deficient, x 10.7
+%   formal sd off; (S2) a reduced contribution carries the unreduced l'Pl to
+%   the normal backend's cancellation guard; (S3) the help states the
+%   per-system memory. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the three stamps that sat
 %   between the error list and the identifiers also raised moved after See
 %   also, in date order. With assistance from Claude (Anthropic), model Claude
@@ -622,7 +637,8 @@ classdef BlockAccumulator < handle
                 % failure mode, one identifier per namespace. Negative OR
                 % > 8 digits lost against the total quadratic mass -> NaN;
                 % lsqvce.engine.residuals() supersedes it from a second pass.
-                lPlTot = ltl + obj.prior.x0.'*obj.prior.x0/obj.prior.sigma^2;
+                % WP-151 (S2): against the l'Pl before the local elimination
+                lPlTot = max(ltl, obj.sys.ltlMass) + obj.prior.x0.'*obj.prior.x0/obj.prior.sigma^2;
                 poisoned = vtv < 0 || (lPlTot > 0 && ...
                     log10(max(lPlTot / max(vtv, realmin), 1)) > 8);
                 if poisoned
@@ -794,15 +810,20 @@ classdef BlockAccumulator < handle
 
             if lsqvce.engine.BlockAccumulator.onFactor(s)   % WP-128: on the QR factor,
                 k  = size(s.Rlc, 1);  Ri = zeros(k);  G = zeros(k, obj.nc);   % never the squared Nll
-                if ~isempty(s.Rll), Ri = s.Rll \ eye(k);  G = s.Rll \ s.Rlc; end   % WP-133: rank 0 solves nothing
+                if ~isempty(s.Rll)                      % WP-133: rank 0 solves nothing
+                    Ri = lsqvce.engine.BlockAccumulator.factorSolve(s.Rll, eye(k));
+                    G  = lsqvce.engine.BlockAccumulator.factorSolve(s.Rll, s.Rlc);
+                end
                 Qll = Ri * Ri.';
                 V = lsqvce.engine.BlockAccumulator.keptBasis(s);
                 if size(V, 1) > 0                       % WP-130: the solve's pinv
                     G = V * G;  Qll = V * Qll * V.';
                 end
             else
-                G   = s.Nll_r \ s.Nlc;                     % nl x nc
-                Qll = s.Nll_r \ eye(size(s.Nll_r,1));      % cofactor matrix
+                dq  = lsqvce.engine.BlockAccumulator.jacobiScale(s.Nll_r);   % WP-151: equilibrated
+                Ns  = s.Nll_r .* (dq * dq.');
+                G   = dq .* (Ns \ (dq .* s.Nlc));           % nl x nc
+                Qll = dq .* (Ns \ diag(dq));                % cofactor matrix
             end
             Cyy = s0sq * Qll + G * Cxx * G.';
             Cyy = (Cyy + Cyy.')/2;
@@ -1144,8 +1165,8 @@ classdef BlockAccumulator < handle
                 if ~isempty(st.Rll)
                     sg = sign(diag(st.Rll));  sg(sg == 0) = 1;     % positive pivots: R = Ll'
                     R = sg .* st.Rll;  Rlc = sg .* st.Rlc;  rl = sg .* st.rl;
-                    if ~isempty(x), y = R \ (rl - Rlc * x(:)); end
-                    G = R \ Rlc;  Ll = R.';
+                    if ~isempty(x), y = lsqvce.engine.BlockAccumulator.factorSolve(R, rl - Rlc * x(:)); end   % WP-151
+                    G = lsqvce.engine.BlockAccumulator.factorSolve(R, Rlc);  Ll = R.';
                 end
                 V = lsqvce.engine.BlockAccumulator.keptBasis(st);
                 if size(V, 1) > 0        % WP-130: a rank-deficient block, on its kept
@@ -1154,8 +1175,10 @@ classdef BlockAccumulator < handle
                 end
                 return
             end
-            y = [];  if ~isempty(x), y = st.Nll_r \ (st.nl_r - st.Nlc * x(:)); end
-            G = st.Nll_r \ st.Nlc;
+            dq = lsqvce.engine.BlockAccumulator.jacobiScale(st.Nll_r);   % WP-151: equilibrated
+            Ns = st.Nll_r .* (dq * dq.');
+            y = [];  if ~isempty(x), y = dq .* (Ns \ (dq .* (st.nl_r - st.Nlc * x(:)))); end
+            G = dq .* (Ns \ (dq .* st.Nlc));
             if nargout > 2, [Ll, p] = chol((st.Nll_r + st.Nll_r.')/2, 'lower'); end
         end
 
@@ -1181,6 +1204,53 @@ classdef BlockAccumulator < handle
                     ['Redundancy is %d (m = %d observations + %d prior rows, %d ' ...
                      'parameters after the local elimination). sigma0 is undefined.'], ...
                      dof, m, nk, nc);
+            end
+        end
+
+        %------------------------------------------------------------------
+        function d = jacobiScale(N)
+        %JACOBISCALE  d = diag(N)^-1/2, the Jacobi equilibration of a normal
+        %   matrix: N .* (d * d') has a unit diagonal, so its rcond and its
+        %   eigenvalue cut do not depend on the parameters' units (WP-151, S1;
+        %   van der Sluis: the best diagonal scaling of an SPD matrix to within
+        %   a factor nl). A zero or non-finite diagonal entry keeps the scale 1:
+        %   that column is rank-deficient in any units.
+        %   INPUT   N  n x n;   OUTPUT  d  n x 1
+            dn = full(diag(N));
+            d = ones(numel(dn), 1);
+            ok = isfinite(dn) & dn > 0;
+            d(ok) = 1 ./ sqrt(dn(ok));
+        end
+
+        %------------------------------------------------------------------
+        function d = columnScale(R)
+        %COLUMNSCALE  d = 1 ./ (column norms of R): the factor's equivalent of
+        %   jacobiScale (R'R has diagonal = the squared column norms), 1 for a
+        %   zero column (WP-151, S1).
+        %   INPUT   R  m x n;   OUTPUT  d  n x 1
+            cn = full(sqrt(sum(R.^2, 1))).';
+            d = ones(numel(cn), 1);
+            ok = isfinite(cn) & cn > 0;
+            d(ok) = 1 ./ cn(ok);
+        end
+
+        %------------------------------------------------------------------
+        function X = factorSolve(R, B, transposed)
+        %FACTORSOLVE  R \ B, or R' \ B with TRANSPOSED, for an upper-triangular
+        %   factor, through its column-equilibrated form R Dc (Dc =
+        %   columnScale(R)): R \ B = Dc ((R Dc) \ B), R' \ B = (R Dc)' \ (Dc B).
+        %   The same numbers -- a triangular solve is column-scaling invariant --
+        %   but MATLAB's rcond test reads the unit-free factor: a t^2 local (t in
+        %   seconds) raised MATLAB:nearlySingularMatrix on an exact solve
+        %   (WP-151, S1).
+        %   INPUT   R k x k upper triangular, B k x p, transposed logical (false)
+        %   OUTPUT  X k x p
+            dc = lsqvce.engine.BlockAccumulator.columnScale(R);
+            Rs = R .* dc.';
+            if nargin > 2 && transposed
+                X = Rs.' \ (dc .* B);
+            else
+                X = dc .* (Rs \ B);
             end
         end
 
@@ -1708,7 +1778,11 @@ classdef BlockAccumulator < handle
             % whose pivots fail QRSystem.RankTol (the pinv fallback's case).
             if isa(loc, 'lsqvce.engine.QRSystem') && strcmp(dg.regUsed, 'none')
                 [rows, R11, R12, r1] = loc.reducedRows(nl);
-                dR = abs(diag(R11));
+                % WP-151 (S1): the pivots relative to their COLUMN's norm -- the
+                % sine of each local column's angle to the ones before it, which
+                % no choice of units moves; raw pivots read a t^2 column (t in
+                % seconds) as rank-deficient (x 10.7 formal sd off, dof + 1)
+                dR = abs(diag(R11)) .* lsqvce.engine.BlockAccumulator.columnScale(R11);
                 if numel(dR) == nl && min(dR) > lsqvce.engine.QRSystem.RankTol * max(dR)
                     red  = lsqvce.engine.ReducedContribution([], [], [], mObs - nl, rows);
                     keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, ...
@@ -1747,14 +1821,15 @@ classdef BlockAccumulator < handle
                 % WP-133 (review 3): the block solve IGNORES the coupling between
                 % blocks -- a local column that spans two blocks put x 27 formal
                 % sd off without a word. Verify the declared structure first.
-                off = Nll_r;
+                dq  = lsqvce.engine.BlockAccumulator.jacobiScale(Nll_r);   % WP-151: unit-free
+                off = Nll_r .* (dq * dq.');
                 for b = 1:nl / blkSize
                     ib = (b-1)*blkSize + (1:blkSize);
                     off(ib, ib) = 0;
                 end
                 % tol: the Schur complement's own rounding is ~eps |Nll|; 1e-12
                 % relative leaves 4 orders for accumulated rounding of the blocks
-                if norm(off, 'fro') > 1e-12 * norm(Nll_r, 'fro')
+                if norm(off, 'fro') > 1e-12 * norm(Nll_r .* (dq * dq.'), 'fro')
                     lsqvce.util.log.warn('lsqvce:accum:notBlockDiagonal', ...
                         ['System %s: LocalBlockSize = %d but the local normal matrix couples ' ...
                          'its blocks (off-block norm %.2e of %.2e); the dense Schur ' ...
@@ -1775,11 +1850,11 @@ classdef BlockAccumulator < handle
                 ok   = true;
                 for b = 1:nBlk
                     ib = (b-1)*blkSize + (1:blkSize);
-                    Nb = Nll_r(ib, ib);
+                    db = dq(ib);  Nb = Nll_r(ib, ib) .* (db * db.');   % WP-151: equilibrated
                     if rcond(Nb) < eps
                         ok = false;  break
                     end
-                    Z(ib,:) = Nb \ RHS(ib,:);
+                    Z(ib,:) = db .* (Nb \ (db .* RHS(ib,:)));
                 end
                 if ok
                     Ncc_red = Ncc    - Nlc.'*Z(:,1:nc);
@@ -1787,7 +1862,8 @@ classdef BlockAccumulator < handle
                     ltl_red = ltl    - nl_r.'*Z(:,end);
                     dof_red = mObs   - nl;
                     Ncc_red = (Ncc_red + Ncc_red.')/2;
-                    red  = lsqvce.engine.ReducedContribution(Ncc_red, ncc_red, ltl_red, dof_red);
+                    red  = lsqvce.engine.ReducedContribution(Ncc_red, ncc_red, ltl_red, dof_red, ...
+                                                             [], ltl);   % WP-151: + the mass
                     keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, ...
                                   'ltl', ltl, 'mObs', mObs, ...
                                   's0sq_hint', max(ltl_red,0)/max(dof_red,1), ...
@@ -1808,7 +1884,13 @@ classdef BlockAccumulator < handle
 
             kPinv = struct('Rll', zeros(0), 'Rlc', zeros(0, nc), 'rl', zeros(0, 1), 'Vll', []);
             nRank = nl;
-            if isTsvd || ~all(isfinite(Nll_r(:))) || rcond(Nll_r) < eps
+            % WP-151 (S1): every rank decision and solve on the JACOBI-EQUILIBRATED
+            % block D Nll D, D = diag(Nll)^-1/2 -- the raw rcond read a t^2 local
+            % (t in seconds) as singular and the pinv cut its determined direction:
+            % x 10.7 formal sd off the least-squares solution, dof one too many
+            dq = lsqvce.engine.BlockAccumulator.jacobiScale(Nll_r);
+            Ns = Nll_r .* (dq * dq.');
+            if isTsvd || ~all(isfinite(Nll_r(:))) || rcond(Ns) < eps
                 % WP-130: the pseudo-inverse the solve uses is KEPT -- Rll =
                 % D1^1/2 on the kept eigenvectors Vll -- so y, G, Cyy, the
                 % cofactor and snoop's downdate use this one (they solved the
@@ -1816,13 +1898,18 @@ classdef BlockAccumulator < handle
                 % WP-133 (review 3 finding 6): Reg "tsvd" is this truncation on
                 % the UNFLOORED Nll -- "equivalent to pinv", as its help says; the
                 % floor kept the null directions as 1/floor and counted nl in dof
-                Ne = Nll_r;  if isTsvd, Ne = Nll; end
+                % WP-151: on D Nll D, so the kept basis is D V1 -- y is the
+                % minimum-norm solution in the equilibrated metric, and every
+                % consumer reads the basis as V (.) V' (localSolveOf,
+                % BlockCofactor), which holds for any basis of the kept range
+                Ne = Ns;
+                if isTsvd, dq = lsqvce.engine.BlockAccumulator.jacobiScale(Nll);  Ne = Nll .* (dq * dq.'); end
                 [Vn, dn] = eig((Ne + Ne.')/2, 'vector');
                 kp = dn > opt.TruncTol * max(dn);
                 V1 = Vn(:, kp);  s1 = sqrt(dn(kp));  nRank = nnz(kp);
-                Z  = V1 * ((V1.' * RHS) ./ dn(kp));
-                kPinv = struct('Rll', diag(s1), 'Rlc', (V1.' * Nlc) ./ s1, ...
-                               'rl', (V1.' * nl_r) ./ s1, 'Vll', V1);
+                Z  = dq .* (V1 * ((V1.' * (dq .* RHS)) ./ dn(kp)));
+                kPinv = struct('Rll', diag(s1), 'Rlc', (V1.' * (dq .* Nlc)) ./ s1, ...
+                               'rl', (V1.' * (dq .* nl_r)) ./ s1, 'Vll', dq .* V1);
                 if isTsvd
                     dg.rankDef = nl - nRank;
                 else
@@ -1831,7 +1918,7 @@ classdef BlockAccumulator < handle
                     lsqvce.engine.BlockAccumulator.warnPinv(sysID, opt, dg);
                 end
             else
-                Z = Nll_r \ RHS;
+                Z = dq .* (Ns \ (dq .* RHS));
             end
 
             Ncc_red = Ncc    - Nlc.'*Z(:,1:nc);
@@ -1841,7 +1928,8 @@ classdef BlockAccumulator < handle
 
             Ncc_red = (Ncc_red + Ncc_red.')/2;
 
-            red = lsqvce.engine.ReducedContribution(Ncc_red, ncc_red, ltl_red, dof_red);
+            red = lsqvce.engine.ReducedContribution(Ncc_red, ncc_red, ltl_red, dof_red, ...
+                                                    [], ltl);   % WP-151 (S2): + the mass
 
             keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, ...
                           'ltl', ltl, 'mObs', mObs, ...
@@ -1870,11 +1958,15 @@ classdef BlockAccumulator < handle
         %   the weak but determined direction of a t^2 local together with the
         %   null one, and counted dof = mObs - nl: x 23-30 formal sd off for one
         %   duplicated local column (dev/validation/wp130_pinv_fallback_mirror.py).
-            [U, Sg, V] = svd(full(R11));   % WP-133: a sparse B leaves R11 sparse; svd takes full only
+            % WP-151 (S1): the SVD of the column-equilibrated factor R11 Dc, so
+            % the rank does not depend on the local columns' units; the kept
+            % basis is Dc V1 (R11 = U S V' Dc^-1)
+            dc = lsqvce.engine.BlockAccumulator.columnScale(R11);
+            [U, Sg, V] = svd(full(R11) .* dc.');   % WP-133: a sparse B leaves R11 sparse; svd takes full only
             sv = diag(Sg);  ns = numel(sv);
             kp = sv > lsqvce.engine.QRSystem.RankTol * max(sv);
             Us = U(:, 1:ns);  U2 = [Us(:, ~kp), U(:, ns+1:end)];  U1 = Us(:, kp);
-            V1 = V(:, 1:ns);  V1 = V1(:, kp);  k = nnz(kp);
+            V1 = V(:, 1:ns);  V1 = dc .* V1(:, kp);  k = nnz(kp);
             red = lsqvce.engine.ReducedContribution([], [], [], mObs - k, [U2.' * [R12, r1]; rows]);
             keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, 'ltl', ltl, 'mObs', mObs, ...
                           's0sq_hint', max(red.ltl, 0)/max(mObs - k, 1), ...

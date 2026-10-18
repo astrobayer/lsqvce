@@ -51,7 +51,10 @@ METHODS (opt.Reg)
   &#x27;tikhonov&#x27;  Nr = Nll + lambda*L&#x27;*L        lambda by GCV if not supplied
   &#x27;tsvd&#x27;      truncation (pinv): LSQVCE.ENGINE.BLOCKACCUMULATOR solves on
               the eigenvectors of the UNFLOORED Nll above TruncTol*lambda_max
-              and counts that rank in dof (WP-133). The Nr returned here is
+              and counts that rank in dof (WP-133) -- of the Jacobi-
+              equilibrated Nll since WP-151, so the cut does not depend on
+              the local parameters&#x27; units (y is minimum-norm in that
+              metric; x and v&#x27;Pv do not depend on it). The Nr returned here is
               Nll floored at TruncTol*lambda_max -- an invertible
               placeholder no reader inverts (dg.lambdaUsed is the floor)
   &#x27;lm&#x27;        Nr = Nll + lambda*diag(Nll)   Levenberg-Marquardt scaling
@@ -132,6 +135,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.LOCALDIAGNOSTICS, LSQVCE.ENGINE.GCVLAMBDA, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84, S1): &#x27;tsvd&#x27; is described as the
+accumulator now cuts it, on the Jacobi-equilibrated Nll; &#x27;auto&#x27; reads the
+equilibrated status of LSQVCE.ENGINE.LOCALDIAGNOSTICS.
+With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-140: &#x27;tsvd&#x27; is described as what
 it is, the accumulator&#x27;s truncation of the unfloored Nll (WP-133); the
 floored Nr returned here is a placeholder no reader inverts. With

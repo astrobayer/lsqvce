@@ -666,6 +666,51 @@ function testLocalBlockSizeRefusesACoupledBlock(tc)
     end
 end
 
+function testRankDecisionIsUnitFree(tc)
+% categories: precision, metamorphic
+% WP-151 (review 12.84, S1). A local block in mixed units -- a bias and a
+% curvature in seconds squared, B = [1, t^2] -- is well determined, but the
+% raw rank tests read its scale as a defect: the normal backend's rcond(Nll)
+% from t ~ 2e4 s, the QR backend's pivots against the largest from 2e7 s.
+% Both cut the t^2 direction (pinvFallback): x 10.7 formal sd off the
+% least-squares solution, dof m - 5 instead of m - 6, sigma0 1.97. The tests
+% now read the Jacobi-equilibrated block. THE ORACLE: the column-equilibrated
+% least-squares solution, exact in any units. Silent, both backends, every
+% range; and the diagnostics (through fit) say 'ok' and close sum(r).
+    m = 2000;
+    rs = RandStream('mt19937ar', 'Seed', 11);
+    A = randn(rs, m, 4) + 0.5;  e = randn(rs, m, 1);
+    for tmax = [2e4 2e8]
+        t = linspace(0, tmax, m).';
+        B = [ones(m, 1), t.^2];
+        l = A * [1; -2; 0.5; 3] + B * [3; 4 / tmax^2] + e;
+        M = [A B];  c = sqrt(sum(M.^2));  ref = ((M ./ c) \ l) ./ c.';
+        for be = {'normal', 'qr'}
+            acc = lsqvce.engine.BlockAccumulator(4, 'Backend', be{1}, 'Verbose', false);
+            L = rowsLoader(A, B, l);
+            tc.verifyWarningFree(@() acc.addSystem(1, 2, L.closure, 1), ...
+                sprintf('%s, t to %g s: no pinvFallback, no nearlySingular', be{1}, tmax));
+            sol = tc.verifyWarningFree(@() acc.solve());
+            z = (sol.x - ref(1:4)) ./ sqrt(diag(sol.Cxx));
+            % tol: 1e-8 formal sd -- measured 1.6e-13 to 3.5e-13; was 10.7
+            tc.verifyLessThan(max(abs(z)), 1e-8, sprintf('%s, t to %g s: x is the least-squares x', be{1}, tmax));
+            tc.verifyEqual(sol.dof, m - 6, sprintf('%s, t to %g s: both locals estimated', be{1}, tmax));
+        end
+    end
+    dg = lsqvce.engine.localDiagnostics(B.' * B, struct());
+    tc.verifyEqual(dg.status, 'ok', 'the equilibrated block is well conditioned');
+    % tol: the equilibrated condition of [1, t^2] on a uniform grid is ~ 7
+    tc.verifyLessThan(dg.condNll, 100);
+    data = struct('commonParams', {[repmat({'common'}, 4, 1), {'c1'; 'c2'; 'c3'; 'c4'}]}, 'days', 1);
+    data.systems = struct('buildDay', @(day, ot) struct('A', {{A}}, 'B', {{B}}, 'l', {{l}}, 't', {{t}}), ...
+        'covariance', struct('o', struct('type', 'diag', 'sigma', 1)), 'arcs', 1, 'id', 1, ...
+        'name', 'one', 'localParams', {{'arc', 'b1'; 'arc', 'b2'}});
+    R = tc.verifyWarningFree(@() lsqvce.fit(data, lsqvce.Options(Backend="normal", Verbose=0)));
+    % tol: the verdict's own sum(r) integrity line is 1e-6; the cofactor
+    % reads the same equilibrated block (BlockCofactor)
+    tc.verifyLessThan(R.diag.sumRRelErr, 1e-9, 'the cofactor counts both locals');
+end
+
 function testPriorWithoutRedundancyIsRefused(tc)
 % categories: contract, robustness
 % WP-133 (review 3): with a prior the dof is m + nk - nc; at 0 the backends

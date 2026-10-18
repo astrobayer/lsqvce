@@ -54,18 +54,22 @@ block: pre-elimination forms
 so any junk in inv(Nll) propagates straight into the parameters you care
 about. Diagnose before eliminating, never after.</pre>
 <h3>Input</h3>
-<pre class="example">Nll  nl x nl  local normal matrix (symmetric)
-opt  struct   .TruncTol   rank tolerance, relative to lambda_max
-              .CondWarn   condition number -&gt; &#x27;ill-conditioned&#x27;
-              .CondAbort  condition number -&gt; &#x27;rank-deficient&#x27;</pre>
-<h3>Output</h3>
-<pre class="example">  dg.eig         nl x 1  eigenvalues, descending
-  dg.V           nl x nl eigenvectors, matching the sorted eigenvalues
-  dg.condNll     spectral condition number lambda_max / lambda_min
+<pre class="example">  Nll  nl x nl  local normal matrix (symmetric)
+  opt  struct   .TruncTol   rank tolerance, relative to lambda_max
+                .CondWarn   condition number -&gt; &#x27;ill-conditioned&#x27;
+                .CondAbort  condition number -&gt; &#x27;rank-deficient&#x27;
+
+OUTPUT  (WP-151: the spectrum is that of the JACOBI-EQUILIBRATED block
+        D Nll D, D = diag(Nll)^-1/2 -- the conditioning of the parameters
+        themselves, not of their units; the solve decides its rank on the
+        same matrix, LSQVCE.ENGINE.BLOCKACCUMULATOR)
+  dg.eig         nl x 1  eigenvalues of D Nll D, descending
+  dg.V           nl x nl its eigenvectors, matching the sorted eigenvalues
+  dg.condNll     spectral condition number lambda_max / lambda_min of D Nll D
   dg.rankDef     number of eigenvalues below TruncTol*lambda_max
   dg.spd         true if all eigenvalues are positive
   dg.diagDom     min|diag| / max|diag|, a cheap scaling check
-  dg.nullDir     eigenvector of the smallest eigenvalue -- the direction
+  dg.nullDir     the weakest direction D v_min, unit norm -- the direction
                  in local-parameter space that the data does not constrain
   dg.status      &#x27;ok&#x27; | &#x27;ill-conditioned&#x27; | &#x27;rank-deficient&#x27;
   dg.regUsed     &#x27;none&#x27; (filled in later by LSQVCE.ENGINE.APPLYREGULARISATION)
@@ -81,9 +85,10 @@ READING THE RESULT
 
   dg.diagDom &lt;&lt; 1 means the local parameters are badly scaled relative to
   each other (e.g. bias in m/s^2 alongside a dimensionless scale factor).
-  Rescale the columns of B; a large condNll caused purely by scaling is an
-  artefact and Tikhonov with L = I would penalise the two parameters
-  unequally.
+  A large condNll caused purely by scaling is an artefact -- condNll reads
+  the equilibrated block, so it no longer shows one (WP-151) -- but
+  Tikhonov with L = I penalises the two parameters unequally: rescale the
+  columns of B, or give RegMatrix the scales.
 
 TYPICAL THRESHOLDS
   CondWarn  = 1e8   double precision starts to bite past this
@@ -97,7 +102,9 @@ if ~strcmp(dg.status,&#x27;ok&#x27;)
 end</pre>
 <h3>Accuracy</h3>
 <pre class="example">No reference value is pinned: the spectral outputs come from one
-symmetric eig of (Nll + Nll&#x27;)/2 and serve as a classification. Pinned
+symmetric eig of D (Nll + Nll&#x27;)/2 D and serve as a classification. A
+local column in seconds squared (B = [1, t^2], t to 2e4 s, raw cond
+~1e17) reads &#x27;ok&#x27; (test_lsqAccum (testRankDecisionIsUnitFree)). Pinned
 by behaviour: near-collinear local columns (collinearEps 1e-9) read
 condNll &gt; 1e8 and a status other than &#x27;ok&#x27;; at 1e-12 nullDir sits on
 the two collinear columns with opposite signs; a zero 3 x 3 block
@@ -109,6 +116,10 @@ testAZeroLocalBlockIsWhollyRankDeficient)). WP-139.</pre>
 
 See also LSQVCE.ENGINE.APPLYREGULARISATION, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84, S1): the spectrum, condNll, rankDef,
+status and nullDir read the Jacobi-equilibrated block, so a block in mixed
+units is not classified ill-conditioned (and &#x27;auto&#x27; does not regularise it).
+With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 accuracy, every number traced to the test that pins it. With assistance
 from Claude (Anthropic), model Claude Opus 5.5.
