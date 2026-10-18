@@ -70,6 +70,9 @@ lsqvce:adjustVCEjoint:notConverged,engine.adjustVCEjoint,warning,v4.0
 lsqvce:adjustVCEjoint:arcFactorsDiverging,engine.adjustVCEjoint,warning,v5.3
 lsqvce:adjustVCEjoint:notPD,engine.adjustVCEjoint,error,v4.0
 lsqvce:adjustVCEjoint:skipThreshold,engine.adjustVCEjoint,error,v4.0
+lsqvce:adjustVCEjoint:levelVaries,engine.adjustVCEjoint,warning,v6.32.0
+lsqvce:adjustVCEjoint:memoryVsArc,engine.adjustVCEjoint,warning,v6.32.0
+lsqvce:adjustVCEjoint:poolNotWhite,engine.adjustVCEjoint,warning,v6.32.0
 lsqvce:applyReg:badLambda,engine.applyRegularisation,error,v4.0
 lsqvce:applyReg:badRegMatrix,engine.applyRegularisation,error,v4.0
 lsqvce:applyReg:notPD,engine.applyRegularisation,error,v4.0

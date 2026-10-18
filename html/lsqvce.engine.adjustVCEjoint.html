@@ -256,6 +256,15 @@ OPTIONS (Name/Value)
   .Sgroups   containers.Map  pool group -&gt; its S; .Cgroups -&gt; its C
   .sigma2    M x 1      the converged arc variance factors, ALIGNED TO
                         .arcKeys (the pass-1 enumeration order; WP-34)
+  .checks    struct     the model checks of the last pass (WP-154):
+                        .stream / .group / .whitePval / .dispersion /
+                        .dispersionBound per
+                        stream (the Ljung-Box p under its law; the
+                        scatter of its arcs&#x27; levels in units of their
+                        sampling variance, ~1 when one level fits), and
+                        .lawGroup / .corrTime / .arcMedian per law (the
+                        correlation time -1/log(rho_1) and the median arc,
+                        in epochs); the warnings below read them
   .seed      1x1        the probe seed used (the given Seed, or the one
                         pinned for an unseeded run -- R7-37; passing it
                         back as &#x27;Seed&#x27; replays the run)
@@ -337,7 +346,14 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
                                              the epochs (once per run; R7 WP-115)
   lsqvce:adjustVCEjoint:localNotPD           System X
   lsqvce:adjustVCEjoint:notConverged         [warning] The joint stochastic model did not settle in X outer iterations (last...
-  lsqvce:adjustVCEjoint:arcFactorsDiverging  [warning] arc-factor spread grew (F-01)</pre>
+  lsqvce:adjustVCEjoint:arcFactorsDiverging  [warning] arc-factor spread grew (F-01)
+  lsqvce:adjustVCEjoint:poolNotWhite         [warning] a pool group of &gt;= 2 streams with a
+                                             member not white under its law (WP-154, M2)
+  lsqvce:adjustVCEjoint:levelVaries          [warning] a stream without arc factors whose
+                                             arcs&#x27; levels scatter beyond their sampling
+                                             error (WP-154, M3)
+  lsqvce:adjustVCEjoint:memoryVsArc          [warning] a law&#x27;s correlation time above
+                                             half its median arc (WP-154, M4)</pre>
 <h3>WHAT eq. 6.5.28 MULTIPLIES, AND WHY IT MATTERS (R6 WP-98, finding F-01)</h3>
 <pre class="example">  gamma2_m = alpha2_m * sigma2_m is correct only when sigma2_m is the factor
   the WEIGHTING used. Since 6.1.6 (R7-13) that IS the per-arc factor for a
@@ -361,6 +377,12 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-154 (review 12.84, M2-M4): out.checks
+and three warnings for the assumptions the data can contradict -- one law
+for a pool group&#x27;s spectra, one level for a stream&#x27;s arcs, a memory short
+against the arcs (modelChecks); the sweep keeps the arcs&#x27; raw lag
+statistics (projectLags). With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
 Updated 2026-10-18 (CEST, UTC+02:00), WP-152 (review 12.84, N1/N2/N4): the
 bins&#x27; stop test reads the change of shape (a robust run&#x27;s every bin
 settles at tau, so IGG3 never converged on clean data); a held arc is not

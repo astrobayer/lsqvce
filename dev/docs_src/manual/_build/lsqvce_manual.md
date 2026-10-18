@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.31.0 — User Manual"
+title: "lsqvce 6.32.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -449,7 +449,7 @@ The choices that matter:
 |---|---|
 | `Pool` | streams of the same physics may share a shape (`"obsType"`: both satellites' range-rate); never pool streams of different physics or units — positions with range-rate drives the normal matrix towards singularity |
 | `ArcFactors` | on when arcs are numerous and long enough to carry their own variance; off for few or short arcs |
-| `Noise.Grid` | the spectral resolution of the estimated law; finer grids resolve narrow spectral features but give each bin less redundancy per pass |
+| `Noise.Grid` | the spectral resolution of the estimated law; finer grids resolve narrow spectral features but give each bin less redundancy per pass. Keep 60 with the default `Smooth = 1`. Fewer bins cut the estimator's variance too, but bias the level low when the spectrum has a sharp low-frequency peak (16 bins: −12 % at AR(0.98)) |
 | `Noise.Whitener` | how every `psd` law — the estimated one and any you declare — whitens an arc: `"ar"` for long arcs (cost O(m·p) instead of O(m³) in the solve); `"toeplitz"` (the default, exact) when the spectrum has narrow features a low-order filter cannot follow. Under `Estimate = "noise"` `"ar"` saves the solve only — the sweep forms each arc's covariance densely (above) — and the estimated spectrum is then whitened by an AR(30) that approximates it: exact enough for short-memory noise (an AR(1) law to about 1 %), biased where AR(30) cannot follow the shape (a 1/f floor: tens of percent per bin, and the loop need not settle) |
 | `Probes`, `Seed` | the redundancies are estimated with random probes: 100 probes are the standard; a fixed `Seed` makes the run reproducible |
 
@@ -478,6 +478,19 @@ is in `R.summary()` and `R.history.white` (it is not a stop criterion). It detec
 correlation, periodic terms and excess low-frequency noise; a correlation that exists only
 at one long lag (an echo, a repeat-track pattern) is invisible to it — test for that with
 `R.systematic('Lags', L)`.
+
+Three assumptions of the model can be contradicted by the data, and the loop checks them
+after convergence (`R.noise.checks`, one warning each):
+
+| warning | what the data say | what to do |
+|---|---|---|
+| `lsqvce:adjustVCEjoint:poolNotWhite` | a stream of a pool group is not white under the group's shared law. Either the group mixes spectra, which biases both levels and the formal errors, or the stream has something unmodelled in it (an event, a drift) | compare `Pool = "stream"`; regroup, or find the event |
+| `lsqvce:adjustVCEjoint:levelVaries` | a stream's arcs scatter far beyond their sampling error around one level: the level changes from arc to arc or day to day | arc factors for that stream |
+| `lsqvce:adjustVCEjoint:memoryVsArc` | the estimated correlation time exceeds half the median arc: the arcs' local parameters absorb the long memory, and the level comes out low (−12 % at a correlation time of 200 against 256-epoch arcs) | longer arcs, or a law that models the low frequencies |
+
+The formal errors of an estimated noise model are *plug-in*: `R.sol.Cxx` treats the
+estimated covariance as known. On short or few arcs they are 3–13 % optimistic in σ; on long
+records the optimism is negligible.
 
 Arcs can be skipped in a pass: `gap` (no data) or `nonPD` (the arc's covariance is not
 positive definite — a mis-scaled `Cep` produces exactly this). A skipped arc keeps its

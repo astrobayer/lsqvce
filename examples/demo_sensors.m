@@ -47,6 +47,9 @@ function demo_sensors()
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-154: the bad-day run (the event in
+%   the data on purpose) switches the poolNotWhite check off for that run only.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-17 (CEST, UTC+02:00), WP-147: the level run settles in
 %   6 passes under the new stop rule (ACCURACY). With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -178,8 +181,14 @@ fprintf('  -> far from 1, so at least one sensor is mis-weighted.\n');
 fprintf('\n%s\n', repmat('=', 1, 72));
 fprintf('  IS THERE A BAD DAY?  (one variance factor per sensor-day)\n');
 fprintf('%s\n', repmat('=', 1, 72));
+% The event is IN the data on purpose here: it makes C|KBR non-white under
+% the KBR group's shared law, which the model check poolNotWhite reports
+% (WP-154). That is this step's finding, read below from the arc factors; the
+% check is off for this one run and back on for STEP 5, which removes the event.
+wCheck = warning('off', 'lsqvce:adjustVCEjoint:poolNotWhite');
 Rh = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=true, ...
         MaxPasses=20, Noise=struct('Grid', 8), Verbose=false));
+warning(wCheck);
 factor = containers.Map(Rh.noise.arcKeys, num2cell(Rh.noise.sigma2(:)));
 flagged = {};
 fprintf('  %-9s %-6s %s\n', 'system', 'sensor', 'factor / stream median, days 1..10');
