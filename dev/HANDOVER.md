@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-154 and WP-157 DONE (PR #202, merge d8584ca; PR #203, merge ace8166; CI GREEN in the first round on 1f068d3 and 5f1254d: ci_gate 772/772 and 773/773, inventory lsqvce:internal:testProbe only; main's push CI on ace8166 GREEN): the closures in §12.89 and §12.90, one HANDOVER-only PR; version 6.33.0. Open: WP-156 (robust variance redesign), WP-155 (speed).
+Last substantive update: 2026-10-18 — WP-156 OPEN, the design study (tier A; model Claude Opus 5.5; user: "Go ahead with WP-156"): N3 diagnosed -- the robust pass rejects on the raw residual while a deletion removes Baarda's w for correlated observations, so the kept epochs are truncated in the wrong direction (and a red stream's blunders go undetected: 2 % x 2 sigma at phi 0.98 read the level 3.6 x); candidates measured with the law known and in an engine prototype; proposed design F (w, data snooping, the per-lag truncation deficit in the redundancy, a 2-cycle frozen) -- clean levels within 0.25 % of a non-robust run where today's rule reads +1.4 %, x unchanged; awaiting the user's decision; no source change; §12.91.
+Preceding entry: Last substantive update: 2026-10-18 — WP-154 and WP-157 DONE (PR #202, merge d8584ca; PR #203, merge ace8166; CI GREEN in the first round on 1f068d3 and 5f1254d: ci_gate 772/772 and 773/773, inventory lsqvce:internal:testProbe only; main's push CI on ace8166 GREEN): the closures in §12.89 and §12.90, one HANDOVER-only PR; version 6.33.0. Open: WP-156 (robust variance redesign), WP-155 (speed).
 Preceding entry: Last substantive update: 2026-10-18 — WP-157 OPEN (tier A; model Claude Opus 5.5; user: "Open a separate WP to change the default Pool to "stream", measured first"): measured -- pooling identical spectra gains nothing in x, pooling different ones fails (eff 37 / 132) -- and Pool defaults to "stream"; version 6.33.0; stacked on WP-154; §12.90.
 Preceding entry: Last substantive update: 2026-10-18 — WP-154 OPEN (tier A; model Claude Opus 5.5; user: "Please continue"): the closed-loop findings of §12.84 reproduced and acted on -- Noise.Smooth defaults to 1 (measured better in x, formal errors and passes; the review's arc-length grid was measured and withdrawn: it biased the level low at high phi), three model checks warn (pooled spectra, a level varying by arc, long memory against short arcs; R.noise.checks), the plug-in formal errors documented; version 6.32.0; §12.89.
 Preceding entry: Last substantive update: 2026-10-18 — WP-153 DONE (PR #200, merge a81ab87; CI GREEN on ed6c53c in the first round: ci_gate 768/768, inventory lsqvce:internal:testProbe only): the closure in §12.88; version 6.31.0. Next: WP-154.
@@ -12324,3 +12325,183 @@ d3bc7ed was superseded by the next merge and cancelled).
 merge: the ledger row, this note; no code change -- 6.33.0 stays, 785 declared / 773 run). Both
 WP-154 and WP-157 close in this one HANDOVER-only PR. Open: WP-156 (the robust variance redesign,
 option 4 of N3 -- not yet scoped in the ledger) and WP-155 (speed, §12.84), in that order as agreed.
+
+### 12.91 WP-156 — the robust variance estimator redesigned: the design study (2026-10-18, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 156 | The robust variance estimator redesigned (review 12.84 N3, option 4, user decision 2026-10-18): a design study before any code -- why the level of a robust noise run reads high on a coloured stream, the candidates measured (a controlled study with the law known, an engine prototype in the full loop), and one design proposed for the user's decision; no source change in this PR (one measurement script, dev/validation/wp156_selection_measure.m) | 152, 153, 154 | OPEN (2026-10-18): design note below, awaiting the user's decision |
+
+**The user's request (2026-10-18):** "Go ahead with WP-156" -- option 4 of N3 ("redesign the robust
+variance estimator"), third in the agreed order 153 -> 154 -> 156 -> 155, starting with a design
+phase and a note for the user's decision before any code.
+
+**The diagnosis -- why N3 exists (derivation, then measured).** The sweep deletes a rejected epoch
+by a nugget (R7 WP-115 part 3b). Deleting epoch i from an adjustment with residual v removes from
+Omega = v'Pv EXACTLY w_i^2, where w_i = (R v)_i / sqrt(R_ii), R = P Qvv P -- Baarda's w-test
+statistic for correlated observations (the leave-one-out, or interpolation, residual standardised).
+robustSweep rejects on a different quantity, the raw residual v_i / sigma_i. The two coincide for a
+white stream only: on a correlated one they correlate by rho_i = sqrt(c_i / sigma_ii), c_i the
+conditional variance of epoch i given the others (AR(1) interior: (1 - phi^2) / (1 + phi^2), 0.6 /
+0.105 / 0.020 at phi 0.5 / 0.9 / 0.98). The kept epochs are then truncated in the raw direction while
+the deletion removes the w direction, and E[Omega] loses less than the white factor tau assumes --
+the level reads high, 1-2.5 %, exactly N3. Two consequences follow from the same algebra:
+- if the rule rejects on w instead, the quantity it truncates is the quantity the deletion removes,
+  and the white tau is exact for the TOTAL Omega (hence sigma0) under any law, to first order in
+  the rejection rate;
+- the raw rule also has almost no POWER on a red stream: a blunder of b marginal sigma is
+  b / sqrt(c_i / sigma_ii) in w -- 2 sigma at phi 0.98 is a 14-sigma w -- but a 2-sigma raw residual.
+  The measurements below show what that costs.
+But w-rejection truncates each kept epoch in its own w direction, and those directions are not
+isotropic in frequency: the expected loss of E[et et'] (et = P e, what the per-lag Omega reads) is
+(1 - tau) R D^-1 R, D = diag(R) over the kept epochs, whose spectrum is (1 - tau) H / S(f) relative
+to the untruncated one (H the harmonic mean of S). The total is exact; a red stream's low-frequency
+bins lose almost nothing and its high-frequency bins lose up to 2 (1 - tau). Dividing the level by
+tau then over-corrects the marginal variance r(0), which the low frequencies dominate, by up to 1 /
+tau - 1 = 2.7 %. The deficit is known exactly, lag by lag, so it can be taken into the redundancy
+instead: s_n - (1 - tau) [lag-n sum of R D^-1 R], and the whole law's Helmert pair likewise. That
+makes every lag -- the law, its level and sigma0 -- consistent to first order, by construction.
+
+**Candidates.**
+
+| | statistic | rejection | correction | status |
+|---|---|---|---|---|
+| A | raw residual (today) | simultaneous | level / white tau | N3: 1-2.5 % high, no power on red streams |
+| B | raw residual | simultaneous | level / analytic coloured tau (option 2 of N3) | measured: 0.2 % low; power unchanged |
+| C | w (Baarda, correlated) | simultaneous | level / white tau | total exact; residual +0.2 %; 2-cycles in the loop |
+| D | w | iterative data snooping per arc, rebuilt every pass | level / white tau | |
+| E | w | snooping, the MAD re-estimated from the final system until it settles | level / white tau | total unbiased to 0.15 %; marginal variance of a red stream +2.4-2.6 % |
+| F | w | as E; a period-2 cycle of the rejected set frozen at its union | per-lag truncation deficit in the redundancy, no level division | **proposed** |
+
+Not carried further: partial weights inside the component update with a consistency factor (Huber's
+proposal 2). R7-12 measured the uncorrected form 14-19 % low on clean data; a consistency factor
+under colour needs every lag's E[psi(w_i) psi(w_j)] -- a Hermite series in the correlation, not one
+scalar -- and none of the influences here gives it in closed form. F keeps the user's decision of
+2026-10-11 (the sweep sees only the rejected epochs; partial factors weight the solution) and
+changes what selects them and how their truncation is accounted for.
+
+**Measured -- the controlled study** (the law KNOWN, so only the selection is under test;
+dev/validation/wp156_selection_measure.m; 40 arcs x 256 epochs per rep, a local bias + trend per
+arc, kReject 3; level / truth, clean 400 reps (+-0.0008), contaminated 150 reps (+-0.0013)).
+
+| phi | A raw | B raw, coloured tau | C w | D w, snooped | E w, snooped, MAD settled |
+|---|---|---|---|---|---|
+| 0 | 0.9992 | 0.9992 | 0.9995 | 0.9995 | 0.9995 |
+| 0.5 | 1.0087 | 0.9978 | 0.9996 | 0.9994 | 0.9986 |
+| 0.9 | 1.0222 | 0.9977 | 1.0021 | 1.0011 | 1.0001 |
+| 0.98 | 1.0247 | 0.9980 | 1.0026 | 1.0017 | 1.0007 |
+
+A reproduces N3 (the mirror's true factors 0.983 / 0.9955 / 0.998 over 0.9733 predict 1.010 /
+1.023 / 1.025). At
+bisquare's rejection point 4.685 every rule reads 0.9988-1.0005: it rejects ~3e-6 of clean epochs.
+With 2 % blunders of b marginal sigma (level / truth, share of the blunders rejected):
+
+| phi, b | A raw | C w | D | E |
+|---|---|---|---|---|
+| 0, 2 sigma | 1.050 / 14 % | 1.051 / 14 % | 1.051 / 14 % | -- |
+| 0, 8 sigma | 1.0038 / 100 % | 1.0043 / 100 % | 1.0054 / 100 % | 1.0044 / 100 % |
+| 0.9, 2 sigma | **1.643 / 18 %** | 1.024 / 99 % | 1.015 / 98.5 % | 1.0065 / 98.8 % |
+| 0.9, 4 sigma | 1.341 / 89 % | 1.0055 / 100 % | 1.013 / 99.9 % | -- |
+| 0.9, 8 sigma | 1.0227 / 100 % | 1.0055 / 100 % | 1.0127 / 100 % | 1.0048 / 100 % |
+| 0.98, 2 sigma | **3.622 / 35 %** | 1.0049 / 100 % | 1.0124 / 99.9 % | 1.0045 / 99.9 % |
+| 0.98, 4 sigma | 1.264 / 98 % | 1.0049 / 100 % | 1.0121 / 100 % | -- |
+| 0.98, 8 sigma | 1.0240 / 100 % | 1.0049 / 100 % | 1.0120 / 100 % | 1.0043 / 100 % |
+
+Nothing detects a 2-sigma blunder in white noise (row 1, every rule alike). On a red stream the raw
+rule misses most of them and the level runs away; w rejects them all. D's +1.2 % under contamination
+is its scale: the MAD of the undeleted system is inflated by the blunders' imprint on their
+neighbours' w, so too few clean epochs are truncated (0.14 % instead of 0.27 %); E re-estimates it.
+
+**Measured -- the engine prototype** (the full loop: lsqvce.fit, Estimate "noise", the law
+estimated; 3 days x 4 arcs x 256 epochs, stream a white sigma 0.5, stream b AR(1) phi sigma 1.2;
+the prototype -- a scratch copy of adjustVCEjoint, not in this PR -- computes w per epoch from the
+arc's law, snoops, settles the MAD, adds the per-lag deficit and freezes a 2-cycle). Clean, IGG3,
+paired against Robust "none" on the same data, 20 seeds, ratio - 1 in %:
+
+| phi_b | var_b A | var_b E | var_b F | var_a A / F | sigma0^2 A / F |
+|---|---|---|---|---|---|
+| 0.5 | +0.34 +- 0.22 | +0.90 +- 0.18 | -0.24 +- 0.18 | +0.07 / +0.05 (+- 0.35) | -0.06 / -0.08 |
+| 0.9 | +1.38 +- 0.16 | +2.43 +- 0.06 | -0.10 +- 0.04 | +0.16 / +0.07 | -0.07 / -0.08 |
+| 0.98 | +1.04 +- 0.59 | +2.61 +- 0.13 | -0.11 +- 0.11 | +0.14 / +0.06 | -0.03 / -0.07 |
+
+E is the over-correction the derivation predicts (1 / tau - 1 = 2.7 % on a red stream's marginal
+variance); F removes it. Bisquare at phi 0.9: A and F within 0.12 % on every number. With 2 %
+blunders (12 seeds; phi_b estimated, truth 0.90 / 0.98; Robust none / A / F):
+
+| phi, b | phi_b | var_b / truth (A / F) |
+|---|---|---|
+| 0.9, 2 sigma | 0.836 / 0.843 / **0.900** | 1.067 / 1.008 |
+| 0.9, 4 sigma | 0.690 / 0.853 / **0.900** | 1.037 / 1.008 |
+| 0.9, 8 sigma | 0.408 / 0.900 / 0.900 | 1.022 / 1.007 |
+| 0.98, 2 sigma | 0.901 / 0.908 / **0.977** | |
+| 0.98, 4 sigma | 0.730 / 0.918 / **0.977** | |
+| 0.98, 8 sigma | 0.416 / 0.976 / 0.977 | |
+
+The raw rule lets the undetected blunders into the LAW (phi_b 0.84-0.92: the estimator explains them
+as a white floor); F keeps the law. (At phi 0.98 every rule, Robust "none" included, reads var_b
+~7 % low on these 256-epoch arcs -- the short-arc limit WP-154's memoryVsArc names, not robustness;
+so no var_b column there.) Precision of x, 60 paired seeds, pooled MSE F / A with a 90 % bootstrap
+interval: clean phi 0.5 0.993 [0.969-1.018]; 2 % x 8 sigma at phi 0.9 1.020 [0.973-1.071] -- no
+measurable difference. Formal sigma calibration (mean z^2 with the run's own Cxx): clean 0.92-1.01
+under F against 0.88-1.00 under A; with 4-8 sigma blunders 0.82-0.90 against 0.77-0.84 (both
+formal sigmas too large there; with 2 sigma blunders 1.01-1.09, alike). Convergence: F in every run (60 clean, 36 contaminated, 120 in the x campaign); without the
+freeze (E) 16 / 18 / 15 of 20 clean seeds converged at phi 0.5 / 0.9 / 0.98 -- period-2 cycles of
+one or two epochs at the threshold, driven by the law's feedback on w (the raw rule barely depends
+on the law). A first prototype that started from the previous pass's set cycled harder (nZero 30 /
+33 / 30 ...); snooping rebuilt every pass removed that.
+
+**Cost (measured, this machine).** At m = 1000 / 2000 / 4000 epochs a dense Cholesky of the arc law
+costs 0.00 / 0.01 / 0.05 s; the dense form of the deficit (an explicit inverse and R D^-1 R) 0.03 /
+0.14 / 0.78 s -- 10-15 x the factor, too much per arc per pass. It need not be dense: the law is
+Toeplitz (every covModel ACF / ARMA / PSD) up to the deleted epochs, so diag(P) comes from
+Gohberg-Semencul in O(m), the lag sums of P D^-1 P from the same generators by FFT in O(m log m)
+(~1 ms at m = 4000), and the deletions are a rank-n_del correction (Woodbury, O(m n_del)). Snooping
+adds one rank-one update per deleted epoch. That is far below the sweep's existing O(m^3 / 3) factor,
+so WP-155 does NOT have to come first; redundancyLags already carries the Levinson / GS machinery
+(sigmaInvSubdiagSums). A non-Toeplitz arc law (none today: Cep acts per epoch on a Toeplitz temporal
+law) would take the dense path at the measured cost.
+
+**The proposed design (F), for the user's decision.**
+1. *Statistic:* per epoch Baarda's w for correlated observations, w_i = (R v)_i / sqrt(R_ii),
+   computed in the noise sweep from what oneArc already holds (et = P ebar, the local block K
+   exactly; the commons' leverage left out -- n_c / n of the redundancy); a d-axis epoch the block
+   statistic r_e' R_ee^-1 r_e ~ chi2_d, chi-calibrated as since R7-08. On a deleted epoch the
+   predictive form (what deleting it removes). Pass 0 computes it under the start law.
+2. *Rejection:* iterative data snooping per arc -- the largest |w| / s > kReject deleted, the arc's
+   w recomputed, until none is left -- rebuilt from scratch every pass, never inherited (inheriting
+   the set made it cycle: deleted epochs stay "excluded" through the loader, WP-133). s the
+   stream's centred MAD of the final system's w (snooped epochs +-Inf), iterated until it settles.
+3. *Consistency:* the expected truncation of the kept epochs enters the redundancy lag by lag,
+   s_n -> s_n - (1 - tau) [lag-n sum of R D^-1 R], and the whole law's pair likewise (tw -> tw -
+   (1 - tau) tr(R D^-1 R T)); the level is no longer divided by tau. The hard solution's sigma0 keeps
+   its correction (Omega / r / tau: the total is exact under w), sol.truncation and the verdict's
+   residual pass unchanged.
+4. *Convergence:* a period-2 cycle of the rejected set (pass k's set equals pass k - 2's and differs
+   from k - 1's) is frozen at the union of the two, and the loop settles the law under it; reported
+   (history and log), never silent. Without it 2-5 of 20 seeds per scenario cycled (prototype E).
+5. *Influences:* IGG3 and bisquare as today (their rejection point is kReject); Huber rejects
+   nothing and is untouched. The partial factors are computed from w as well.
+6. *Retires:* N3 (help, ACCURACY, Manual), out.robust.truncation keeps tau (the hard sigma0's
+   factor) with a changed meaning stated, a new history field for the freeze.
+
+**Decisions for the user.**
+- (1) Adopt F as the design of WP-156's implementation? The alternative with the least change is
+  B (keep the raw rule, divide by an analytic coloured tau): 0.2 % low, nearly free -- but it keeps
+  the raw rule's blindness on red streams (the 2 % x 2 sigma rows).
+- (2) The 2-cycle rule: freeze at the union (proposed: it deletes the one or two borderline epochs),
+  or at the intersection, or a hysteresis band.
+- (3) The acceptance bar the implementation's tests pin, proposed: paired against Robust "none" on
+  clean data over 20 seeds, every stream's variance and sigma0^2 within 0.5 % for phi <= 0.98, IGG3
+  and bisquare; with 2 % blunders of 2 sigma at phi 0.9 the level within 2 % and >= 95 % of the
+  blunders rejected; convergence in every seed.
+
+**Residual limits (measured, common to every rule).** The MAD under 2 % contamination is itself
+~2 % high (the rejected epochs push the median up), so the threshold sits a little higher, fewer
+clean epochs are truncated than tau assumes and the level reads +0.4-0.5 % -- the same for A on white
+data (lean: 1.0038 raw, 1.0044 F-statistic). Second-order interactions between deletions: <= 0.1 %
+(lean ws2). The commons' leverage left out of R_ii: n_c / n of the redundancy.
+
+**Recorded, not done here:** the implementation (after the decision), its tests against the bar,
+the structured deficit, the docs. The prototype lives in the session's scratch tree only; the
+measurement script that stays is dev/validation/wp156_selection_measure.m (the controlled study,
+every lean number above, ~1 h at the default R).
