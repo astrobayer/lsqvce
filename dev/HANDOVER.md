@@ -8,7 +8,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-156 OPEN, the design study (tier A; model Claude Opus 5.5; user: "Go ahead with WP-156"): N3 diagnosed -- the robust pass rejects on the raw residual while a deletion removes Baarda's w for correlated observations, so the kept epochs are truncated in the wrong direction (and a red stream's blunders go undetected: 2 % x 2 sigma at phi 0.98 read the level 3.6 x); candidates measured with the law known and in an engine prototype; proposed design F (w, data snooping, the per-lag truncation deficit in the redundancy, a 2-cycle frozen) -- clean levels within 0.25 % of a non-robust run where today's rule reads +1.4 %, x unchanged; awaiting the user's decision; no source change; §12.91.
+Last substantive update: 2026-10-18 — WP-156 OPEN, the design study (tier A; model Claude Opus 5.5; user: "Go ahead with WP-156"): N3 diagnosed -- the robust pass rejects on the raw residual while a deletion removes Baarda's w for correlated observations, so the kept epochs are truncated in the wrong direction (and a red stream's blunders go undetected: 2 % x 2 sigma at phi 0.98 read the level 3.6 x); candidates measured with the law known and in an engine prototype; proposed design F (w, data snooping, the per-lag truncation deficit in the redundancy, a 2-cycle frozen) -- clean levels within 0.25 % of a non-robust run where today's rule reads +1.4 %, x unchanged; design F adopted by the user (union freeze, the bar as proposed), the implementation is round 2 after this PR merges; no source change; §12.91.
 Preceding entry: Last substantive update: 2026-10-18 — WP-154 and WP-157 DONE (PR #202, merge d8584ca; PR #203, merge ace8166; CI GREEN in the first round on 1f068d3 and 5f1254d: ci_gate 772/772 and 773/773, inventory lsqvce:internal:testProbe only; main's push CI on ace8166 GREEN): the closures in §12.89 and §12.90, one HANDOVER-only PR; version 6.33.0. Open: WP-156 (robust variance redesign), WP-155 (speed).
 Preceding entry: Last substantive update: 2026-10-18 — WP-157 OPEN (tier A; model Claude Opus 5.5; user: "Open a separate WP to change the default Pool to "stream", measured first"): measured -- pooling identical spectra gains nothing in x, pooling different ones fails (eff 37 / 132) -- and Pool defaults to "stream"; version 6.33.0; stacked on WP-154; §12.90.
 Preceding entry: Last substantive update: 2026-10-18 — WP-154 OPEN (tier A; model Claude Opus 5.5; user: "Please continue"): the closed-loop findings of §12.84 reproduced and acted on -- Noise.Smooth defaults to 1 (measured better in x, formal errors and passes; the review's arc-length grid was measured and withdrawn: it biased the level low at high phi), three model checks warn (pooled spectra, a level varying by arc, long memory against short arcs; R.noise.checks), the plug-in formal errors documented; version 6.32.0; §12.89.
@@ -12330,7 +12330,7 @@ option 4 of N3 -- not yet scoped in the ledger) and WP-155 (speed, §12.84), in 
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 156 | The robust variance estimator redesigned (review 12.84 N3, option 4, user decision 2026-10-18): a design study before any code -- why the level of a robust noise run reads high on a coloured stream, the candidates measured (a controlled study with the law known, an engine prototype in the full loop), and one design proposed for the user's decision; no source change in this PR (one measurement script, dev/validation/wp156_selection_measure.m) | 152, 153, 154 | OPEN (2026-10-18): design note below, awaiting the user's decision |
+| 156 | The robust variance estimator redesigned (review 12.84 N3, option 4, user decision 2026-10-18): a design study before any code -- why the level of a robust noise run reads high on a coloured stream, the candidates measured (a controlled study with the law known, an engine prototype in the full loop), and one design proposed for the user's decision; no source change in this PR (one measurement script, dev/validation/wp156_selection_measure.m) | 152, 153, 154 | OPEN (2026-10-18): design F adopted by the user (2026-10-18; union freeze, the acceptance bar as proposed); the implementation follows as round 2 of this WP after this PR merges |
 
 **The user's request (2026-10-18):** "Go ahead with WP-156" -- option 4 of N3 ("redesign the robust
 variance estimator"), third in the agreed order 153 -> 154 -> 156 -> 155, starting with a design
@@ -12494,6 +12494,12 @@ law) would take the dense path at the measured cost.
   clean data over 20 seeds, every stream's variance and sigma0^2 within 0.5 % for phi <= 0.98, IGG3
   and bisquare; with 2 % blunders of 2 sigma at phi 0.9 the level within 2 % and >= 95 % of the
   blunders rejected; convergence in every seed.
+
+**The user's decision (2026-10-18):** "Adopt design F as proposed: union freeze for the 2-cycle and
+the acceptance bar from §12.91. Go ahead with the implementation once #205 is merged." So: (1) F,
+(2) the union freeze, (3) the bar above, pinned by the implementation's tests. The implementation is
+round 2 of WP-156 (its own PR, on claude/wp-156 cut fresh from main after this PR merges), as WP-33
+and WP-40 ran in rounds.
 
 **Residual limits (measured, common to every rule).** The MAD under 2 % contamination is itself
 ~2 % high (the rejected epochs push the median up), so the threshold sits a little higher, fewer
