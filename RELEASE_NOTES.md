@@ -1,5 +1,29 @@
 # lsqvce release notes
 
+## 6.31.0 — 2026-10-18 (WP-153: covariance and whitening)
+
+Corrections to the covariance layer found by the review of the core calculation (HANDOVER §12.84).
+
+- A `psd` spectrum whose frequency grid starts above f = 0, where the band left out carries more
+  than 10⁻⁶ of the variance, is refused (new error
+  `lsqvce:psd2acv:noZeroFrequency`). The band below the first grid point was silently left
+  out: an AR(0.99) law on 512 bins lost 34 % of its variance. Prepend f = 0 with the
+  spectrum's value there.
+- Rows that `buildDay` marks `excluded` are now deleted exactly in two more cases: every
+  excluded row of a `var` law, and an epoch excluded on only some of its axes (under a
+  correlated law, or a full `Cep`). Before, they stayed in the covariance as zero rows and
+  conditioned their neighbours. One excluded axis put x 0.35 formal sigma off; one excluded
+  `var` epoch put the normals 1 % off. Results now equal the exact deletion to 1e-14.
+- `maxDenseArc` now also bounds an MA part's exact start-up block, and the whitener of an
+  arc with many robust nuggets or deleted rows. Before, these could request tens of
+  gigabytes without a check. The nugget whitener reads the law's variance epoch by epoch,
+  and its refusal now names the nugget rather than the noise estimator. The PSD → ACV
+  integral is computed in blocks (memory O(n), where 1e5 lags of 512 bins took 4 GB).
+- Documented: a scalar stream's `Cep` is always standard deviations (MATLAB cannot tell an
+  n × 1 × 1 variance array from n × 1 sigmas). A full `Cep` is composed through its
+  Cholesky factor, so when it varies along the arc the result depends on the frame and the
+  axis order (user decision: kept, documented).
+
 ## 6.30.0 — 2026-10-18 (WP-151: the solve core's rank decisions and its cancellation guard)
 
 Corrections to the solve core found by the review of the core calculation (HANDOVER §12.84).

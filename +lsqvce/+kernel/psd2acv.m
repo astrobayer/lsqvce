@@ -19,7 +19,12 @@ function r = psd2acv(f, S, dt, n)
 %   positive semi-definite Toeplitz(r) of every size.
 %
 %   INPUT
-%     f    nf x 1  frequency grid [Hz], strictly increasing, f >= 0
+%     f    nf x 1  frequency grid [Hz], strictly increasing, from 0 (WP-153:
+%                  the band [0, f(1)] is not in the integral -- an AR(0.99) law
+%                  on 512 bins from its first bin lost 34 % of its variance. A
+%                  grid whose omitted band, estimated flat as f(1) S(1), exceeds
+%                  1e-6 of r(0) is refused; a negligible one -- a habitual start
+%                  at 1e-9 Hz -- passes unchanged)
 %     S    nf x 1  one-sided PSD [unit^2/Hz], S >= 0
 %     dt   scalar  lag spacing [s], > 0 (the sampling interval of the data)
 %     n    scalar  number of lags to return, >= 1
@@ -35,7 +40,9 @@ function r = psd2acv(f, S, dt, n)
 %
 %   ACCURACY
 %     Exact for the piecewise-linear S (1e-11 against a 2e6-point quadrature of
-%     the same interpolant, at any lag); r(1) == trapz(f, S). What remains is
+%     the same interpolant, at any lag); r(1) == trapz(f, S). The lags are
+%     formed in blocks of at most 4e6 lag-segment products (WP-153): memory
+%     O(n + nf), where one n x nf product was 4 GB at 1e5 lags of 512 bins. What remains is
 %     how well the linear interpolant represents YOUR spectrum: a grid too
 %     coarse near a peak biases r(0) low -- resolve the narrowest feature of S.
 %
@@ -55,6 +62,8 @@ function r = psd2acv(f, S, dt, n)
 %
 %   ERRORS
 %     lsqvce:psd2acv:tooFewPoints         the PSD has too few ordinates to invert
+%     lsqvce:psd2acv:noZeroFrequency      the grid starts above 0 and the band below
+%                                   it is not negligible: f(1) S(1) > 1e-6 r(0) (WP-153)
 %     lsqvce:psd2acv:nonPositiveVariance  the implied variance is not positive,
 %                                   so the PSD is not a valid spectrum
 %
@@ -63,6 +72,11 @@ function r = psd2acv(f, S, dt, n)
 %
 %   See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.ARMAACV, LSQVCE.ENGINE.CHECKPSD
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-153 (review 12.84, C1, C5): a grid
+%   that starts above 0 with a band below it that is not negligible is refused
+%   (noZeroFrequency); the lags are
+%   formed in blocks, memory O(n + nf). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 2 (R7-01): the exact
 %   integral of the piecewise-linear spectrum replaces trapezoidal quadrature
 %   (no lag period, no circulant). With assistance from Claude (Anthropic),
@@ -99,20 +113,38 @@ function r = psd2acv(f, S, dt, n)
              'process. Truncate the PSD at Nyquist.'], f(end), fNy, dt);
     end
 
-    w  = 2*pi * (0:double(n)-1).' * dt;         % n x 1 angular lags
     h  = (f(2:end) - f(1:end-1)) / 2;           % 1 x nseg half-widths
     c  = (f(2:end) + f(1:end-1)) / 2;           % 1 x nseg centres
     Sa = S(1:end-1);  Sb = S(2:end);
-    x  = w .* h;                                % n x nseg
-    sx = ones(size(x));
-    nz = x ~= 0;  sx(nz) = sin(x(nz)) ./ x(nz);
-    g  = x / 3 - x.^3 / 30;                     % (sin x - x cos x)/x^2, small x
-    bg = abs(x) >= 1e-2;
-    g(bg) = (sin(x(bg)) - x(bg) .* cos(x(bg))) ./ x(bg).^2;
-    r  = sum((Sa + Sb) .* h .* cos(w .* c) .* sx - (Sb - Sa) .* h .* sin(w .* c) .* g, 2);
+    % WP-153 (C5): the lags in blocks, at most 4e6 products at a time -- one
+    % n x nseg block was 4 GB at 1e5 lags of 512 bins, allocated before any
+    % guard on the arc's length could refuse it
+    r  = zeros(double(n), 1);
+    nb = max(1, floor(4e6 / numel(h)));
+    for i0 = 1:nb:double(n)
+        ii = (i0:min(double(n), i0 + nb - 1)).';
+        w  = 2*pi * (ii - 1) * dt;              % block x 1 angular lags
+        x  = w .* h;                            % block x nseg
+        sx = ones(size(x));
+        nz = x ~= 0;  sx(nz) = sin(x(nz)) ./ x(nz);
+        g  = x / 3 - x.^3 / 30;                 % (sin x - x cos x)/x^2, small x
+        bg = abs(x) >= 1e-2;
+        g(bg) = (sin(x(bg)) - x(bg) .* cos(x(bg))) ./ x(bg).^2;
+        r(ii) = sum((Sa + Sb) .* h .* cos(w .* c) .* sx - (Sb - Sa) .* h .* sin(w .* c) .* g, 2);
+    end
 
     if r(1) <= 0
         error('lsqvce:psd2acv:nonPositiveVariance', ...
               'r(0) = %g is not positive. The PSD integrates to zero.', r(1));
+    end
+    % WP-153 (C1): the band [0, f(1)] is not in the integral; estimated flat it
+    % carries f(1) S(1) -- refused when that is not negligible against r(0)
+    if f(1) > 0 && f(1) * S(1) > 1e-6 * r(1)
+        error('lsqvce:psd2acv:noZeroFrequency', ...
+              ['The frequency grid starts at %g Hz, and the band [0, %g] Hz below it -- ' ...
+               'about %.3g of the variance, estimated flat -- is not in the autocovariance ' ...
+               '(an AR(0.99) law on 512 bins from its first bin lost 34 %% this way). Start ' ...
+               'the grid at f = 0 with the spectrum''s value there: [0; f] and [S(1); S] ' ...
+               'extend it flat.'], f(1), f(1), f(1) * S(1) / r(1));
     end
 end

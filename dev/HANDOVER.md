@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-152 and WP-151 DONE (PR #197, merge 918b818; PR #198, merge ec45b46; CI GREEN in the first round on 65c48a0 and 8bab1b4: ci_gate 762/762 and 764/764, inventory lsqvce:internal:testProbe only; main's push CI on ec45b46 GREEN): the closures in §12.86 and §12.87, one HANDOVER-only PR; version 6.30.0. Open: WP-153..155 PROPOSED (§12.84), WP-152 N3 a model decision for the user.
+Last substantive update: 2026-10-18 — WP-153 OPEN (tier A; model Claude Opus 5.5; user: "Go ahead"): the covariance findings of §12.84 reproduced and fixed -- a PSD grid with a non-negligible band below f(1) refused (r(0) was 34 % low, silently), excluded rows of 'var' laws and partly excluded epochs deleted exactly (x was 0.35 sd off), maxDenseArc bounds the MA start-up and the nugget, a d = 1 Cep is sigmas (stated), the Cholesky composition kept and documented (user decision); version 6.31.0; order after it: 154, 156 (the robust variance redesign, option 4), 155; §12.88.
+Preceding entry: Last substantive update: 2026-10-18 — WP-152 and WP-151 DONE (PR #197, merge 918b818; PR #198, merge ec45b46; CI GREEN in the first round on 65c48a0 and 8bab1b4: ci_gate 762/762 and 764/764, inventory lsqvce:internal:testProbe only; main's push CI on ec45b46 GREEN): the closures in §12.86 and §12.87, one HANDOVER-only PR; version 6.30.0. Open: WP-153..155 PROPOSED (§12.84), WP-152 N3 a model decision for the user.
 Preceding entry: Last substantive update: 2026-10-18 — WP-151 OPEN (tier A; model Claude Opus 5.5; user: "Continue with 152 and 151"): the solve-core findings of §12.84 reproduced and fixed -- local rank decisions and solves on the Jacobi-equilibrated block (a t^2 local in seconds was cut as rank-deficient on BOTH backends, x 10.7 sd off), the normal backend's cancellation guard counts against the l'Pl before the local elimination (v'Pv was 7.8 % / 1000 % off without a warning), the help's memory and datum claims; version 6.30.0; stacked on WP-152; §12.87.
 Preceding entry: Last substantive update: 2026-10-18 — WP-152 OPEN (tier A; model Claude Opus 5.5; user: "Continue with 152 and 151"): the noise-estimator findings of §12.84 reproduced and fixed -- the bins' stop test reads the change of shape (IGG3 never converged on clean data), a held bin keeps its share of the shape, a held arc is not divided by tau, a zero redundancy rounded positive is held (it took 1e8 times the weight), excluded rows are deleted from the sweep (excluded = removed to 6e-14); tau on coloured streams documented, not corrected; version 6.29.0; §12.86.
 Preceding entry: Last substantive update: 2026-10-18 — WP-150 DONE (PR #195, merge de7b2ab; CI GREEN on 0674da6 in the first round: ci_gate 757/757, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.85; no code change, no version (6.28.0 stays).
@@ -11643,7 +11644,7 @@ observation 1). No package is open; the next step is the user's.
 | 150 | Wrong verdicts at the front door (findings F1-F6 below): `R.compare` after estimated weights, the IRLS stop rule, a "scale" prior outside the noise loop, zero-weight rows in the robust scale, `snoop` on a Gauss-Newton fit, the diagnostics' sigma0 after a refused v'Pv, demo_gravity's double sigma0 | 146 | OPENED 2026-10-17 -- its row and status live in §12.85 |
 | 151 | The solve core (S1-S3): the local rank tests on the equilibrated block, a guard for the Schur step's cancellation of l'Pl, the help's memory claims | 146 | OPENED 2026-10-18 -- its row and status live in §12.87 |
 | 152 | The noise estimator (N1-N4): the robust stop rule and the truncation factor tau (white value on coloured streams), held arcs under IGG3, excluded rows in the sweep | 146 | OPENED 2026-10-18 -- its row and status live in §12.86 |
-| 153 | Covariance and whitening (C1-C6): a PSD grid without f = 0, the d = 1 Cep shape, the frame-dependent Cholesky composition of a full Cep, WP-148's exact deletion for 'var' and partly excluded epochs, the unbounded memory paths | 146 | PROPOSED |
+| 153 | Covariance and whitening (C1-C6): a PSD grid without f = 0, the d = 1 Cep shape, the frame-dependent Cholesky composition of a full Cep, WP-148's exact deletion for 'var' and partly excluded epochs, the unbounded memory paths | 146 | OPENED 2026-10-18 -- its row and status live in §12.88 |
 | 154 | Defaults and guards from the Monte Carlo study (M1-M5): a Noise.Grid default tied to the arc length, a warning when one pool group mixes spectra, a hint for a drifting level, a near-unit-root warning, the formal errors' plug-in optimism documented | 146 | PROPOSED |
 | 155 | Speed without loss of precision (P1-P3): the Toeplitz law whitened through its structure (Levinson / Gohberg-Semencul) instead of a dense factor and an explicit inverse per arc, the O(N^2) lag loop by FFT, the per-axis repeats | 146 | PROPOSED |
 
@@ -12080,3 +12081,78 @@ merge: the ledger row, this note; no code change -- 6.30.0 stays, 776 declared /
 packages close in this one HANDOVER-only PR, because they were merged together. Open from §12.84:
 WP-153, WP-154 and WP-155 PROPOSED (the user chooses which opens); the residuals of these two:
 WP-152 N3 (a coloured tau, a model decision) and WP-151's datumPart fallback (no reproduction).
+
+### 12.88 WP-153 — covariance and whitening (2026-10-18, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 153 | The covariance findings C1-C5 of §12.84, each reproduced before its fix: (C1) a PSD grid that starts above f = 0 with a band below it that is not negligible (f(1) S(1) > 1e-6 r(0)) is refused (lsqvce:psd2acv:noZeroFrequency, new); (C2) the Cholesky composition of a full Cep kept and its frame dependence documented (user decision 2026-10-18); (C3) a d = 1 Cep is standard deviations -- the contract stated and pinned (MATLAB cannot tell n x 1 x 1 variances from n x 1 sigmas); (C4) the excluded rows the epoch nugget does not reach -- every row of a 'var' law, an epoch excluded on some of its axes under a correlated law or a full Cep -- are deleted exactly (covModel deleteRows, lsqvce:covModel:badDeleteRows new); (C5) maxDenseArc bounds an MA part's start-up block and the nugget / deletion work arrays, the nugget reads the law's variance epoch by epoch (its refusal named the noise sweep), psd2acv forms its lags in blocks; version 6.31.0 (two new identifiers: a minor) | 146 | OPEN (2026-10-18) |
+
+**The user's request (2026-10-18):** "Go ahead" -- after the order proposed for the open packages
+(153, 154, the robust variance redesign as WP-156, 155); C2 asked and answered: "Keep Cholesky,
+document". N3 of WP-152: option 4 chosen (the redesign), WP-156, not yet opened.
+
+**Reproductions (tier A, main 107a1a4, before any fix).**
+- **C1 -- reproduced, larger than reviewed.** AR(0.99), dt 5 s, 513 bins from 0: r(0) 50.2547
+  (closed form 50.2513); the same grid from its second point: 33.3750 (-33.6 %; the review's
+  -4.84 % was another grid). Silent.
+- **C3 -- reproduced.** covModel 'diag' with Cep = 4 * ones(5, 1, 1): size [5 1], 1 whitens to 0.25
+  (the variance reading would give 0.5).
+- **C4 -- reproduced.** A VAR(1) (ar [0.9 0.05; 0 0.8]) with epoch 30 excluded: normals 1.12e-2 off
+  A_o' C_oo^-1 A_o, x 0.097 formal sd off; arma phi 0.9 + Cep d = 2 with ONE axis of epoch 30
+  excluded: normals 3.6e-3 off, x 0.35 formal sd off (one realisation; 0.035 in another).
+- **C5 -- read, then pinned by the tests.** The nugget whitener built Ct(z) dense over its k epochs
+  for the diagonal, through the noise sweep's guard: at maxDenseArc 10 a robust nugget arc was
+  refused with "the joint noise estimator ... forms it per arc" (the test records that message);
+  three m x k arrays uncapped (k ~ m under bisquare); an MA part's start-up block min(filter
+  memory, m)^2 uncapped (up to 65 536^2); psd2acv's n x nseg product (4 GB at 1e5 lags of 512
+  bins) before any guard.
+
+**The fixes (tier A).**
+- **C1** psd2acv refuses a grid from f(1) > 0 whose omitted band, estimated flat as f(1) S(1),
+  exceeds 1e-6 of r(0) (`lsqvce:psd2acv:noZeroFrequency`, new); the message gives the share and how
+  to extend ([0; f], [S(1); S]); covModel's psd law inherits it. A first version refused every
+  f(1) > 0 and the gate went RED in six places: four tests, demo_noisePolicy and its example run
+  start AR spectra at 1e-9 Hz out of habit (a band of ~1e-7 of r(0)) -- the threshold lets a
+  negligible band pass unchanged (bitwise as before) and still refuses the reviewed case (34 %) and
+  a truncated 1/f spectrum, whose low end only the user can choose.
+- **C2** not changed (the user's decision): covModel's help (THE PER-EPOCH ERROR INFORMATION) and the
+  API reference (buildDay, Cep) state that a full Cep varying along the arc makes C depend on the
+  frame and the axis order.
+- **C3** stated in covModel and the API reference; pinned by test_streamUtils
+  `test_cep_of_one_axis_is_standard_deviations` (a contract pin: it passes before and after).
+- **C4** covModel `.deleteRows` (set by the loader): the arc's whitener -- law, composition and
+  nugget -- followed by the projection out of span(F e_r) and the WP-133 rotation of each deleted
+  direction onto its own row (`deletedRows`). The projection is the c -> inf limit of a nugget:
+  F'(I - Q Q')F = inv(C_oo) on the kept rows, no size of c needed. The loader sets deleteRows for
+  every excluded row of a 'var' law and for the excluded rows of partly excluded epochs (a 'diag'
+  law without a full Cep needs nothing: independent rows); a law without a whitener of its own
+  deletes through a unit Cep, as the nugget does. Measured through fit: x 6.4e-15 / 2.5e-14 / 1.8e-14
+  formal sd off the dense deletion (var / arma + Cep / diag + full Cep), dof and sigma0 exact. Test:
+  test_streamUtils `test_excluded_rows_the_nugget_misses_are_deleted_exactly` (the three cases, the
+  normals to 1e-8, the deleted rows ~0 in place, fit's x to 1e-9 sd, the dof, sum(r) to 1e-9;
+  badDeleteRows by name). The joint sweep (WP-152 N4) deletes per axis in the descaled domain --
+  exact for a diagonal Cep, not for a full Cep's partly excluded epoch (recorded, not changed).
+- **C5** denseArcGuard purpose 'maStartup' (arma with an MA part: min(fm, m) <= maxDenseArc);
+  `nuggetMemoryGuard` (m k <= maxDenseArc^2) before any m x k array, in the nugget and the
+  deletion; the nugget reads Ct(e) epoch by epoch; psd2acv forms at most 4e6 lag-segment products
+  at a time. Tests: test_streamUtils `test_nugget_and_ma_startup_respect_max_dense_arc` (both
+  refusals by name, the benign cases pass), test_reliability `testPSD2ACVRefusesAGridWithoutZero`
+  (with the blocked lags equal to the unblocked, exactly).
+
+Every new test except the C3 pin fails on the unfixed source (run with the fixes stashed).
+covModel's body stays under its length ceiling: the composition and the deletion moved into
+`composedAndDeleted`. A category exemption (covModel / reference) is covered now and deleted.
+
+**A session note:** the shared bridge has `lsqvce:psd2acv:aboveNyquist` switched off globally as
+well (test_reliability's Nyquist test fails there, passes with the identifier on).
+
+**Docs:** covModel (deleteRows, maxDenseArc's reach, the two Cep conventions, ERRORS), psd2acv
+(f from 0, the blocks, ERRORS), makeLoader (excluded), the API reference (covariance: psd from 0,
+the MA and nugget limits; buildDay: Cep d = 1 and the Cholesky composition, excluded), the Manual
+(05: deletion of single axes), the catalogue (two identifiers), RELEASE_NOTES; version 6.31.0.
+
+**Gates (tier A):** `ci_gate` GREEN 768 / 768, 27 / 27, inventory `lsqvce:internal:testProbe` only
+(after the RED first run of C1's first version, above); Linux audit CLEAN, selftest every fault
+caught. Tests 780 declared / 768 run.
+

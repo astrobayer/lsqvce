@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.30.0 — API Reference"
+title: "lsqvce 6.31.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -283,7 +283,7 @@ a day without data returns empty cells.
 | `t` | m_a × 1 | epoch of each row in **seconds** (the whitener needs the lags) |
 | `Cep` | n_a×1, n_a×d or n_a×d×d | *optional* — the per-epoch accuracy of the arc (below) |
 | `nAxis` | scalar | *optional* — the axis count of a multi-axis stream without `Cep` |
-| `excluded` | m_a × 1 logical | *optional* — rows of **weight 0**: zero in `A`, `B` and `l`, kept for their index (residuals, diagnostics) but not observations — out of the degrees of freedom, `rejected` in the verdict. Under a correlated law (every type but `diag` and `var`) an epoch whose rows are all excluded is deleted from the law's covariance, so it does not condition its neighbours: keep a rejected epoch on the grid this way rather than removing it |
+| `excluded` | m_a × 1 logical | *optional* — rows of **weight 0**: zero in `A`, `B` and `l`, kept for their index (residuals, diagnostics) but not observations — out of the degrees of freedom, `rejected` in the verdict. Excluded rows are deleted from the law's covariance exactly, so they do not condition their neighbours: whole epochs, single axes of an epoch, and every row of a `var` law. Only independent rows (a `diag` law without a full `Cep`) need nothing. Keep a rejected epoch on the grid this way rather than removing it |
 
 Arc lengths may differ freely. An arc whose cells have 0 rows is a **data gap** and is
 skipped. Return **raw, unwhitened** matrices: the toolbox whitens every arc from the
@@ -296,7 +296,13 @@ allowed (`lsqvce:makeLoader:badDay`).
 |---|---|---|
 | n_a × 1 | scalar stream with per-epoch accuracy | standard deviations |
 | n_a × d | multi-axis stream, axes uncorrelated within an epoch | standard deviations per axis |
-| n_a × d × d | multi-axis stream, full per-epoch covariance | covariance matrices |
+| n_a × d × d | multi-axis stream, full per-epoch covariance (d ≥ 2) | covariance matrices |
+
+A scalar stream's `Cep` is always **standard deviations**. MATLAB stores an n_a × 1 × 1
+array as n_a × 1, so a per-epoch *variance* array would be read as sigmas: pass the
+square root. A full `Cep` is composed through its Cholesky factor in the given axis order.
+When it varies along the arc, the composed covariance therefore depends on the frame and
+the axis order (XYZ against NEU: about 2 % of C). A constant or diagonal `Cep` does not.
 
 The axis count d is `size(Cep, 2)`, the same for the whole day; n_a·d must equal the
 arc's row count. Rows of a multi-axis stream are **epoch-major** (x₁ y₁ z₁ x₂ …) and
@@ -355,12 +361,19 @@ as C = D (R_t ⊗ I_d) D. Full reference: `doc lsqvce.engine.covModel`.
 |---|---|---|---|
 | `'diag'` | `sigma` (scalar, or a vector of per-row standard deviations) | white noise | O(b) |
 | `'arma'` | `ar` = `[1 a₁ … a_p]`, `ma` (default 1), `sigma` (innovation std) | a known whitening filter | O(b·p) |
-| `'psd'` | `f` (n_f×1, Hz, one-sided), `S` (n_f×1, unit²/Hz) | a measured noise spectrum | O(m³) per arc (Toeplitz) or O(b·p) (AR filter) |
+| `'psd'` | `f` (n_f×1, Hz, one-sided, **from 0**), `S` (n_f×1, unit²/Hz) | a measured noise spectrum | O(m³) per arc (Toeplitz) or O(b·p) (AR filter) |
 | `'acf'` | `acf = @(dt, opt)`, `sigma` | correlation as a function of the lag | O(m³) per arc |
 | `'var'` | `ar` (d×d×p), `sigma` (d×d) | vector AR: cross-axis temporal correlation (no `Cep`) | O(b·p·d²) |
 | `'custom'` | `fcn = @(t, opt)` | any dense covariance | O(m³) per arc |
 
 `sigma` is always a **standard deviation**, never a variance.
+
+A `psd` grid starts at f = 0. The autocovariance integrates the piecewise-linear spectrum
+over the grid only, so a grid that starts higher leaves out the band below its first point.
+On 512 bins starting at the first nonzero bin, an AR(0.99) law lost 34 % of its variance
+that way. A grid whose missing band, estimated as f(1)·S(1), exceeds 10⁻⁶ of the variance is
+refused (`lsqvce:psd2acv:noZeroFrequency`). The toolbox does not guess the spectrum there:
+prepend f = 0 with its value, for example `[0; f]` and `[S(1); S]` for a flat extension.
 
 ## Policy fields
 
@@ -391,7 +404,11 @@ keeps its own level.
   (`lsqvce:covModel:denseArcTooLong`): give a `psd` law a filter (`Whitener = "ar"`), cut
   the arcs shorter, or raise `maxDenseArc` when the memory is there.
 - An `arma` law whose MA polynomial has a root on or outside the unit circle is refused
-  (`lsqvce:covModel:maNotInvertible`).
+  (`lsqvce:covModel:maNotInvertible`). Its exact start-up is a dense block as long as the
+  impulse response of 1/B(z), so `maxDenseArc` bounds that too: an MA root close to the
+  unit circle on a long arc is refused (`lsqvce:covModel:denseArcTooLong`). The same limit
+  bounds the whitener of an arc with many robust nuggets or deleted rows (m·k epoch
+  products for k corrected epochs).
 - `Whitener = "arma"` reduces the AR fit of the spectrum to an ARMA (Durbin's method,
   `lsqvce.kernel.ar2arma`). A reduction that comes back non-stationary or with a
   non-invertible MA part falls back to the AR fit, with the warning
@@ -1413,6 +1430,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:covComponent:badLag` | engine.covComponent | error | v4.0 |
 | `lsqvce:covComponent:lagTooLarge` | engine.covComponent | error | v4.0 |
 | `lsqvce:covModel:badCep` | engine.covModel | error | v4.0 |
+| `lsqvce:covModel:badDeleteRows` | engine.covModel | error | v6.31.0 |
 | `lsqvce:covModel:badPsdMode` | engine.covModel | error | v4.0 |
 | `lsqvce:covModel:badSigma` | engine.covModel | error | v4.0 |
 | `lsqvce:covModel:badWhitenMode` | engine.covModel | error | v4.0 |
@@ -1533,6 +1551,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:probeMatrix:badDist` | engine.private.probeMatrix | error | v4.0 |
 | `lsqvce:psd2acv:aboveNyquist` | kernel.psd2acv | warning | v4.0 |
 | `lsqvce:psd2acv:nonPositiveVariance` | kernel.psd2acv | error | v4.0 |
+| `lsqvce:psd2acv:noZeroFrequency` | kernel.psd2acv | error | v6.31.0 |
 | `lsqvce:psd2acv:tooFewPoints` | kernel.psd2acv | error | v4.0 |
 | `lsqvce:psdVCE:arcMismatch` | engine.psdVCE | error | v4.0 |
 | `lsqvce:psdVCE:shapeMismatch` | engine.psdVCE | error | v4.0 |

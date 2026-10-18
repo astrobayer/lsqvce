@@ -49,6 +49,34 @@ function testPSD2ACVRejectsBadInput(tc)
                    'MATLAB:psd2acv:expectedIncreasing');
 end
 
+function testPSD2ACVRefusesAGridWithoutZero(tc)
+% categories: contract, precision
+% WP-153 (review 12.84, C1). The integral runs over [f(1), f(end)]: a grid
+% that starts above 0 left the band [0, f(1)] out of r -- an AR(0.99) law on
+% 512 bins read r(0) 33.4 instead of 50.25 (-34 %), silently. It is refused
+% when the band, estimated flat as f(1) S(1), exceeds 1e-6 of r(0); the
+% habitual start just above 0 passes when its band is negligible. The
+% lags are formed in blocks (memory O(n + nf)): a long call returns the same
+% leading lags as a short one.
+    dt = 5;  phi = 0.99;
+    f = linspace(0, 0.5/dt, 513).';
+    S = dt * 2 ./ abs(1 - phi * exp(-1i*2*pi*f*dt)).^2;
+    tc.verifyError(@() lsqvce.kernel.psd2acv(f(2:end), S(2:end), dt, 4), 'lsqvce:psd2acv:noZeroFrequency');
+    tc.verifyError(@() lsqvce.engine.covModel(struct('type', 'psd', 'f', f(2:end), 'S', S(2:end)), ...
+                   (0:99).' * dt, struct('psdMode', 'toeplitz')), 'lsqvce:psd2acv:noZeroFrequency');
+    f9 = [1e-12; f(2:end)];                         % a negligible band below the grid
+    % tol: the omitted band is 1e-12 Hz x S(0) = 2e-9 of r(0) at phi 0.99 -- r(0) to 1e-5
+    tc.verifyEqual(lsqvce.kernel.psd2acv(f9, S, dt, 1), lsqvce.kernel.psd2acv(f, S, dt, 1), 'RelTol', 1e-5, ...
+        'a negligible band below the grid passes');
+    r = lsqvce.kernel.psd2acv(f, S, dt, 2e4);       % 2e4 x 512 products: five blocks
+    % tol: 1e-3 relative -- the piecewise-linear interpolant of the AR(0.99)
+    % spectrum on 513 bins against the closed form 1 / (1 - phi^2)
+    tc.verifyEqual(r(1), 1 / (1 - phi^2), 'RelTol', 1e-3);
+    % tol: exact -- the same products in the same order, blocked or not
+    tc.verifyEqual(r(1:100), lsqvce.kernel.psd2acv(f, S, dt, 100), 'AbsTol', 0, ...
+        'the blocked lags equal the unblocked ones');
+end
+
 function testPSD2ACVWarnsAboveNyquist(tc)
 % categories: contract
 % Power above Nyquist is aliased in the data but not in the integral, so the

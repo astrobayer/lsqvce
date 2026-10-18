@@ -42,7 +42,12 @@ function L = makeLoader(buildDay, opt)
 %                            'diag' and 'var') an epoch whose d rows are all
 %                            excluded is DELETED from the law's covariance -- the
 %                            nugget of an epoch weight 0 (WP-148): the zero rows
-%                            alone would condition their neighbours. Keep a
+%                            alone would condition their neighbours. WP-153: so
+%                            is every excluded row of a 'var' law, and an epoch
+%                            excluded on SOME of its axes under a correlated law
+%                            or a full Cep -- exactly, row by row (covModel's
+%                            deleteRows); a 'diag' law with a diagonal Cep needs
+%                            nothing, its rows are independent. Keep a
 %                            rejected epoch on the grid this way; removing it
 %                            leaves a gap a 'psd' / 'arma' law takes for one step.
 %       An EMPTY cell (0 rows in A, B, l, t) is a DATA GAP: that arc of the
@@ -292,6 +297,12 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-153 (review 12.84, C4): the excluded
+%   rows the epoch nugget does not reach -- every one under a 'var' law, those
+%   of an epoch excluded on some of its axes under a correlated law or a full
+%   Cep -- are deleted exactly (covModel's deleteRows); they stayed zero rows
+%   in the covariance and conditioned their neighbours (x 0.35 formal sd off).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-142 (code review of WP-141): the
 %   hook's result is kept for the current day only, a hook that declares no
 %   argument gets none, and one helper (callDeclared) calls and wraps both
@@ -1556,6 +1567,31 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
         cm.nugget = 1 ./ epochW(:) - 1;               % R7 WP-115 part 3b: the additive nugget
         % the arc is whitened WHOLE, so a dense law must reach over all of it
         optC.BatchSize = max(lsqvce.util.getfielddef(opt, 'BatchSize', 20000), numel(out.l));
+    end
+    % WP-153 (C4): the excluded rows the epoch nugget does not reach are
+    % deleted row by row (covModel's deleteRows) -- every one under a 'var'
+    % law (no nugget there), and those of an epoch excluded on SOME of its
+    % axes; a 'diag' law with a diagonal Cep has independent rows, where a
+    % zero row is already a deletion. The zero rows alone stayed in the
+    % covariance and conditioned their neighbours: normals 1.1e-2 off for one
+    % excluded VAR(1) epoch, x 0.35 formal sd off for one excluded axis.
+    if isfield(out, 'excluded') && any(out.excluded)
+        exM  = reshape(out.excluded(:), d, []);
+        part = any(exM, 1) & ~all(exM, 1);
+        hasC = isfield(cm, 'Cep') && ~isempty(cm.Cep);
+        full = hasC && ndims(cm.Cep) == 3 && size(cm.Cep, 2) > 1;
+        if isVar
+            delRows = out.excluded(:);
+        elseif strcmpi(lsqvce.util.getfielddef(cm, 'type', ''), 'diag') && ~full
+            delRows = false(numel(out.l), 1);
+        else
+            delRows = out.excluded(:) & reshape(repmat(part, d, 1), [], 1);
+        end
+        if any(delRows)
+            cm.deleteRows = delRows;
+            if ~isVar && ~hasC, cm.Cep = ones(numel(out.l) / d, d); end   % deletes through the composition
+            optC.BatchSize = max(lsqvce.util.getfielddef(opt, 'BatchSize', 20000), numel(out.l));
+        end
     end
     [out.Cfcn, out.Wfcn, info] = lsqvce.engine.covModel(cm, out.t, optC);
     out.filterMemory = info.filterMemory;

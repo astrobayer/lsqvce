@@ -443,6 +443,125 @@ function test_excluded_epoch_is_deleted_from_a_correlated_law(tc)
     tc.verifyFalse(lsqvce.util.getfielddef(arcD, 'wholeArc', false), 'a diag law keeps its batches');
 end
 
+function test_excluded_rows_the_nugget_misses_are_deleted_exactly(tc)
+% categories: reference, precision
+    % WP-153 (review 12.84, C4). WP-148 deletes an epoch whose d rows are all
+    % excluded, through the epoch nugget; the rest stayed zero rows in the
+    % covariance and conditioned their neighbours -- every excluded row of a
+    % 'var' law (no nugget there; normals 1.1e-2 off for one epoch of a
+    % VAR(1)) and an epoch excluded on SOME of its axes (x 0.35 formal sd off
+    % for one axis at phi 0.9; a 'diag' law with a FULL Cep too, through the
+    % epoch's own covariance). covModel's deleteRows deletes them exactly.
+    % THE ORACLE: A_o' C_oo^-1 A_o, C_oo the covariance of the kept rows; and
+    % through fit, x and the dof of that solve, the verdict's sum(r) closing.
+    rs = RandStream('mt19937ar', 'Seed', 153);
+    dt = 5;  nE = 40;  d = 2;  m = nE * d;
+    t = reshape(repmat((0:nE-1) * dt, d, 1), [], 1);
+    cases = struct('name', {}, 'spec', {}, 'Cep', {}, 'C', {}, 'ex', {});
+    cmv = struct('type', 'var', 'ar', [0.9 0.05; 0 0.8], 'sigma', eye(2));
+    Cv = lsqvce.engine.covModel(cmv, t, struct('nAxis', d));
+    ex = false(m, 1);  ex([19 20 41]) = true;        % epoch 10 whole, epoch 21 axis 1
+    cases(end+1) = struct('name', 'var', 'spec', cmv, 'Cep', [], 'C', Cv(1:m, struct('nAxis', d)), 'ex', ex);
+    cma = struct('type', 'arma', 'ar', [1 -0.9], 'sigma', 0.8);
+    Ct = lsqvce.engine.covModel(cma, t(1:d:end), struct());
+    Cep = zeros(nE, d, d);  Db = zeros(m);
+    for k = 1:nE
+        Q = 0.2 * randn(rs, d, d) + diag([1 2]);  Ck = Q * Q.';
+        Cep(k, :, :) = Ck;  ib = (k-1)*d + (1:d);  Db(ib, ib) = chol(Ck, 'lower');
+    end
+    ex = false(m, 1);  ex([20 41]) = true;           % one axis of epochs 10 and 21
+    cases(end+1) = struct('name', 'arma + full Cep', 'spec', cma, 'Cep', Cep, ...
+                          'C', Db * kron(Ct(1:nE, struct()), eye(d)) * Db.', 'ex', ex);
+    cases(end+1) = struct('name', 'diag + full Cep', 'spec', struct('type', 'diag', 'sigma', 1), ...
+                          'Cep', Cep, 'C', Db * Db.', 'ex', ex);
+    for c = cases
+        A = randn(rs, m, 3);  l = chol(c.C, 'lower') * randn(rs, m, 1) + A * [1; 2; 3];
+        A(c.ex, :) = 0;  l(c.ex) = 0;                % weight 0: zero rows
+        D = struct('A', {{A}}, 'B', {{zeros(m, 0)}}, 'l', {{l}}, 't', {{t}}, 'excluded', {{c.ex}});
+        if isempty(c.Cep), D.nAxis = d; else, D.Cep = {c.Cep}; end
+        L = lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'o'}, ...
+                'Covariance', struct('o', c.spec), 'Arcs', 1, 'SystemId', 1, 'NumLocal', 0, 'NumCommon', 3);
+        arc = L.closure(1, 'o', 1, struct('sysID', 1));
+        tc.verifyTrue(arc.wholeArc, [c.name ': a deletion whitens the arc whole']);
+        [Aw, ~, lw] = arc.Wfcn(1:m, arc.A, arc.B, arc.l, struct());
+        k = ~c.ex;  Co = c.C(k, k);
+        % tol: 1e-8 relative -- the nugget tests' bound (two square roots of
+        % the same inverse; measured 1e-14 through fit)
+        tc.verifyEqual(Aw.'*Aw, A(k,:).' / Co * A(k,:), 'RelTol', 1e-8, [c.name ': A_o'' C_oo^-1 A_o']);
+        tc.verifyEqual(Aw.'*lw, A(k,:).' / Co * l(k), 'RelTol', 1e-8);     % tol: same source
+        % tol: 1e-12 of the row scale -- a deleted row whitens to ~0 in place (WP-133)
+        tc.verifyLessThan(max(abs(lw(c.ex))), 1e-12 * max(abs(lw)), [c.name ': the deleted rows are ~0 in place']);
+        data = struct('commonParams', {{'common','c1';'common','c2';'common','c3'}}, 'days', 1);
+        data.systems = struct('buildDay', @(day, ot) D, 'covariance', struct('o', c.spec), ...
+                              'arcs', 1, 'id', 1, 'name', 'c4');
+        R = lsqvce.fit(data, lsqvce.Options(Verbose=0));
+        Ne = A(k,:).' / Co * A(k,:);  xe = Ne \ (A(k,:).' / Co * l(k));
+        % tol: 1e-9 formal sd -- measured 6e-15 to 3e-14; the zero rows put
+        % x 0.035-0.35 sd off
+        tc.verifyLessThan(max(abs(R.x - xe) ./ sqrt(diag(inv(Ne)))), 1e-9, [c.name ': fit''s x is the deletion''s']);
+        tc.verifyEqual(R.sol.dof, nnz(k) - 3, [c.name ': the excluded rows leave the dof']);
+        % tol: the verdict's own sum(r) integrity line is 1e-6
+        tc.verifyLessThan(R.diag.sumRRelErr, 1e-9, [c.name ': sum(r) counts the live rows']);
+    end
+    % the loader's field, refused by name when it does not fit the arc
+    tc.verifyError(@() lsqvce.engine.covModel(struct('type', 'diag', 'sigma', 1, 'deleteRows', true(3, 1)), ...
+                   (1:5).' * dt, struct()), 'lsqvce:covModel:badDeleteRows');
+end
+
+function test_cep_of_one_axis_is_standard_deviations(tc)
+% categories: contract
+    % WP-153 (review 12.84, C3): MATLAB stores an nEpoch x 1 x 1 array as
+    % nEpoch x 1, so a d = 1 per-epoch VARIANCE array cannot be told from the
+    % documented nEpoch x 1 SIGMAS -- a variance of 4 whitens 1 to 0.25. The
+    % contract is stated (covModel, the API reference): a d = 1 Cep is
+    % standard deviations; this pins it.
+    Cv = 4 * ones(5, 1, 1);
+    tc.verifyEqual(size(Cv), [5 1], 'MATLAB drops the trailing singletons');
+    [~, W] = lsqvce.engine.covModel(struct('type', 'diag', 'sigma', 1, 'Cep', Cv), (1:5).', struct());
+    [~, ~, lw] = W(1:5, zeros(5, 0), zeros(5, 0), ones(5, 1));
+    % tol: one division
+    tc.verifyEqual(lw, 0.25 * ones(5, 1), 'AbsTol', 1e-15, 'read as sigma 4');
+end
+
+function test_nugget_and_ma_startup_respect_max_dense_arc(tc)
+% categories: robustness, contract
+    % WP-153 (review 12.84, C5). Two allocations the maxDenseArc limit did not
+    % reach: (1) a nugget whitener holds three m x k arrays, k ~ m under a
+    % redescending influence's partial weights (180 GB at 86 400 epochs), and
+    % it read the law's variances through a dense k x k Ct(z), whose guard
+    % then blamed the noise sweep; (2) an MA part's exact start-up is a dense
+    % min(filter memory, m)^2 block -- an MA root near the unit circle asked
+    % for up to 65 536^2 doubles. Both are refused above the limit, by name.
+    t = (0:29).' * 5;
+    cm = struct('type', 'arma', 'ar', [1 -0.5], 'sigma', 1, 'Cep', ones(30, 1), ...
+                'nugget', 0.5 * ones(30, 1), 'maxDenseArc', 10);
+    [~, W] = lsqvce.engine.covModel(cm, t, struct());
+    err = caught(@() W(1:30, ones(30, 1), zeros(30, 0), ones(30, 1), struct()));
+    tc.verifyEqual(err.identifier, 'lsqvce:covModel:denseArcTooLong');
+    tc.verifySubstring(err.message, 'robust nuggets', 'the message names the nugget, not the sweep');
+    cm.maxDenseArc = 30;                              % 30 x 30 epoch products fit
+    [~, W] = lsqvce.engine.covModel(cm, t, struct());
+    [Aw, ~, ~] = W(1:30, ones(30, 1), zeros(30, 0), ones(30, 1), struct());
+    tc.verifyTrue(all(isfinite(Aw)), 'within the limit the nugget whitens');
+    t = (0:99).' * 5;
+    ma = struct('type', 'arma', 'ar', [1 -0.5], 'ma', [1 0.95], 'sigma', 1, 'maxDenseArc', 50);
+    err = caught(@() lsqvce.engine.covModel(ma, t, struct()));
+    tc.verifyEqual(err.identifier, 'lsqvce:covModel:denseArcTooLong');
+    tc.verifySubstring(err.message, 'MA part', 'the message names the MA start-up');
+    ma.ma = [1 0.1];                                  % decays within 17 samples
+    tc.verifyWarningFree(@() lsqvce.engine.covModel(ma, t, struct()), 'a benign MA part is not refused');
+end
+
+function err = caught(fh)
+%CAUGHT  The exception fh() throws (identifier '' and message '' when none).
+    err = struct('identifier', '', 'message', '');
+    try
+        fh();
+    catch e
+        err = struct('identifier', e.identifier, 'message', e.message);
+    end
+end
+
 function test_nugget_refusals_by_name(tc)
 % categories: contract
     % covModel's cm.nugget composes with the per-epoch Cep only, one finite
