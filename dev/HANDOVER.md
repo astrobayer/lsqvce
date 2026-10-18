@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-151 OPEN (tier A; model Claude Opus 5.5; user: "Continue with 152 and 151"): the solve-core findings of §12.84 reproduced and fixed -- local rank decisions and solves on the Jacobi-equilibrated block (a t^2 local in seconds was cut as rank-deficient on BOTH backends, x 10.7 sd off), the normal backend's cancellation guard counts against the l'Pl before the local elimination (v'Pv was 7.8 % / 1000 % off without a warning), the help's memory and datum claims; version 6.30.0; stacked on WP-152; §12.87.
+Last substantive update: 2026-10-18 — WP-152 and WP-151 DONE (PR #197, merge 918b818; PR #198, merge ec45b46; CI GREEN in the first round on 65c48a0 and 8bab1b4: ci_gate 762/762 and 764/764, inventory lsqvce:internal:testProbe only; main's push CI on ec45b46 GREEN): the closures in §12.86 and §12.87, one HANDOVER-only PR; version 6.30.0. Open: WP-153..155 PROPOSED (§12.84), WP-152 N3 a model decision for the user.
+Preceding entry: Last substantive update: 2026-10-18 — WP-151 OPEN (tier A; model Claude Opus 5.5; user: "Continue with 152 and 151"): the solve-core findings of §12.84 reproduced and fixed -- local rank decisions and solves on the Jacobi-equilibrated block (a t^2 local in seconds was cut as rank-deficient on BOTH backends, x 10.7 sd off), the normal backend's cancellation guard counts against the l'Pl before the local elimination (v'Pv was 7.8 % / 1000 % off without a warning), the help's memory and datum claims; version 6.30.0; stacked on WP-152; §12.87.
 Preceding entry: Last substantive update: 2026-10-18 — WP-152 OPEN (tier A; model Claude Opus 5.5; user: "Continue with 152 and 151"): the noise-estimator findings of §12.84 reproduced and fixed -- the bins' stop test reads the change of shape (IGG3 never converged on clean data), a held bin keeps its share of the shape, a held arc is not divided by tau, a zero redundancy rounded positive is held (it took 1e8 times the weight), excluded rows are deleted from the sweep (excluded = removed to 6e-14); tau on coloured streams documented, not corrected; version 6.29.0; §12.86.
 Preceding entry: Last substantive update: 2026-10-18 — WP-150 DONE (PR #195, merge de7b2ab; CI GREEN on 0674da6 in the first round: ci_gate 757/757, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.85; no code change, no version (6.28.0 stays).
 Preceding entry: Last substantive update: 2026-10-17 — WP-150 OPEN (tier A; model Claude Opus 5.5; user: "Go ahead with WP-150"): the front-door findings F1-F7 of §12.84 reproduced and fixed -- compare refuses estimated weights, IRLS stops per parameter in its own sigma (or its rounding), excluded rows out of the MAD (robust rejections stay live: a first version oscillated), a held "scale" prior warns, snoop on Gauss-Newton returns estimates, a refused v'Pv is re-diagnosed with its own sigma0, demo_gravity's double sigma0; version 6.28.0; ci_gate GREEN 757/757; §12.85.
@@ -11930,7 +11931,7 @@ run). Next, user (2026-10-18): "Continue with 152 and 151" -- WP-152 (§12.86) a
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 152 | The noise-estimator findings N1-N4 of §12.84, each reproduced before its fix, each with a test that fails without it: (N1) the bins' stop test reads the change of the law's SHAPE, alpha2 / abar -- under a robust influence every bin settles at the truncation factor tau, and max abs(alpha2 - 1) never met the rule (IGG3 did not converge on clean data); a bin held by FreezeRedundancy takes abar and keeps its share of the shape (holding 1, it moved by 1 / abar per pass); (N2) a held arc is not divided by tau (it grew 2.7 % per pass); (N2b, found by N2's reproduction) an arc whose denominator is at rounding level -- a zero redundancy rounded positive -- is held, not clamped to 1e-8; (N4) the sweep deletes an arc's excluded rows by the nugget it deletes rejected epochs with, per axis; (N3) tau stays the white-noise value -- not corrected, documented (a model decision); version 6.29.0 (a changed stop rule: a minor) | 146 | OPEN (2026-10-18) |
+| 152 | The noise-estimator findings N1-N4 of §12.84, each reproduced before its fix, each with a test that fails without it: (N1) the bins' stop test reads the change of the law's SHAPE, alpha2 / abar -- under a robust influence every bin settles at the truncation factor tau, and max abs(alpha2 - 1) never met the rule (IGG3 did not converge on clean data); a bin held by FreezeRedundancy takes abar and keeps its share of the shape (holding 1, it moved by 1 / abar per pass); (N2) a held arc is not divided by tau (it grew 2.7 % per pass); (N2b, found by N2's reproduction) an arc whose denominator is at rounding level -- a zero redundancy rounded positive -- is held, not clamped to 1e-8; (N4) the sweep deletes an arc's excluded rows by the nugget it deletes rejected epochs with, per axis; (N3) tau stays the white-noise value -- not corrected, documented (a model decision); version 6.29.0 (a changed stop rule: a minor) | 146 | DONE (2026-10-18, PR #197, merge 918b818; CI GREEN on 65c48a0 in the first round: ci_gate 762/762, warning inventory lsqvce:internal:testProbe only; local postflight on 65c48a0 GREEN 762/762) |
 
 **The user's request (2026-10-18):** "Continue with 152 and 151. Do the closure for 150 at the same time".
 
@@ -11989,11 +11990,20 @@ long_functions.csv follows (the audit asks for it).
 **Gates (tier A):** `ci_gate` GREEN 762 / 762, 27 / 27, inventory `lsqvce:internal:testProbe` only;
 Linux audit CLEAN, selftest every fault caught. Tests 774 declared / 762 run.
 
+**CI round 1 (65c48a0): GREEN** -- `ci_gate` 762 / 762, 27 / 27 suites, the warning inventory
+`lsqvce:internal:testProbe` only; the audit job green. The local postflight on the same commit:
+GREEN 762 / 762. The PR stacked on #196 (the WP-150 closure), merged first.
+
+**Closure (2026-10-18).** WP-152 DONE: PR #197 merged as 918b818, after #196 (3bf5730) and before
+#198 (the loop's record step after the merge: the ledger row, this note; no code change -- 6.29.0
+stays, 774 declared / 762 run). N3 (tau on coloured streams) stays open as a model decision for the
+user. Next: WP-151 (§12.87), merged right after.
+
 ### 12.87 WP-151 — the solve core's rank decisions and its cancellation guard (2026-10-18, model Claude Opus 5.5, tier A)
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 151 | The solve-core findings S1-S3 of §12.84, each reproduced before its fix: (S1) every rank decision and solve of a local block on its Jacobi-equilibrated form -- the QR pivots relative to their column norm, the normal form's rcond, pinv cut, block path and tsvd cut on D Nll D, BlockCofactor's switch and solves likewise, localDiagnostics' condition, rank and status (so Reg "auto" no longer regularises a block for its units), factor solves through the column-equilibrated factor; (S2) a reduced contribution carries the unreduced l'Pl (ReducedContribution.ltlMass) and the normal backend's cancellation guard counts the digits lost against it; (S3) the help's memory claim and datum's "REFUSED" corrected; version 6.30.0 (changed rank rules: a minor). Stacked on WP-152 (#197) | 146 | OPEN (2026-10-18) |
+| 151 | The solve-core findings S1-S3 of §12.84, each reproduced before its fix: (S1) every rank decision and solve of a local block on its Jacobi-equilibrated form -- the QR pivots relative to their column norm, the normal form's rcond, pinv cut, block path and tsvd cut on D Nll D, BlockCofactor's switch and solves likewise, localDiagnostics' condition, rank and status (so Reg "auto" no longer regularises a block for its units), factor solves through the column-equilibrated factor; (S2) a reduced contribution carries the unreduced l'Pl (ReducedContribution.ltlMass) and the normal backend's cancellation guard counts the digits lost against it; (S3) the help's memory claim and datum's "REFUSED" corrected; version 6.30.0 (changed rank rules: a minor). Stacked on WP-152 (#197) | 146 | DONE (2026-10-18, PR #198, merge ec45b46; CI GREEN on 8bab1b4 in the first round: ci_gate 764/764, warning inventory lsqvce:internal:testProbe only; local postflight on 8bab1b4 GREEN 764/764; main's push CI on ec45b46 GREEN) |
 
 **The user's request (2026-10-18):** "Continue with 152 and 151. Do the closure for 150 at the same time".
 
@@ -12060,3 +12070,13 @@ NormalEqSystem (ltlMass, the guard's scale), datum (the example), RELEASE_NOTES;
 Linux audit CLEAN (two category exemptions of localDiagnostics -- metamorphic, precision -- are
 covered now and deleted), selftest every fault caught. Tests 776 declared / 764 run.
 
+**CI round 1 (8bab1b4): GREEN** -- `ci_gate` 764 / 764, 27 / 27 suites, the warning inventory
+`lsqvce:internal:testProbe` only; the audit and release jobs green. The local postflight on the
+same commit: GREEN 764 / 764. After the merges, main's push CI on ec45b46 GREEN (the runs on
+3bf5730 and 918b818 were superseded by the next merge and cancelled).
+
+**Closure (2026-10-18).** WP-151 DONE: PR #198 merged as ec45b46 (the loop's record step after the
+merge: the ledger row, this note; no code change -- 6.30.0 stays, 776 declared / 764 run). Both
+packages close in this one HANDOVER-only PR, because they were merged together. Open from §12.84:
+WP-153, WP-154 and WP-155 PROPOSED (the user chooses which opens); the residuals of these two:
+WP-152 N3 (a coloured tau, a model decision) and WP-151's datumPart fallback (no reproduction).
