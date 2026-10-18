@@ -66,8 +66,10 @@ function [B, info] = datum(N, opt)
 %       R = lsqvce.fit(data);
 %
 %       % B must span null(N) -- an INNER constraint. "Fix station 3"
-%       % (B = e_3) is a HARD constraint and is REFUSED: that is a
-%       % reparameterisation (drop the column), not a datum.
+%       % (B = e_3) is NOT one: the data see that direction, so fit takes
+%       % it as an ordinary weighted prior (its sigma enters x and the
+%       % covariance) -- nothing refuses it. For a hard fix, drop the
+%       % column (a reparameterisation, not a datum).
 %
 %   ACCURACY
 %     Against the closed form of a levelling net, whose null space is the
@@ -90,6 +92,10 @@ function [B, info] = datum(N, opt)
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTBLOCK.
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84, S3): the
+%   example said a "fix station 3" prior is REFUSED; nothing refuses it -- it
+%   is an ordinary weighted prior. With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the 2026-08-19 stamp that
 %   sat between the error list and the identifiers also raised moved after See
 %   also. With assistance from Claude (Anthropic), model Claude Opus 5.5.

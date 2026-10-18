@@ -53,6 +53,13 @@ PROPERTIES
   n     nc x 1   nc  - Nlc&#x27;*inv(Nll)*nl       reduced right-hand side
   ltl   scalar   l&#x27;l - nl&#x27;*inv(Nll)*nl        reduced residual mass
   dof   scalar   m - nl                       observations minus locals
+  ltlMass scalar l&#x27;l BEFORE the reduction (WP-151, S2): the mass the
+                 reduced ltl was subtracted from -- what a cancellation
+                 guard downstream must compare the final v&#x27;Pv with. The
+                 Schur step&#x27;s l&#x27;l - nl&#x27; inv(Nll) nl loses the digits when
+                 the locals absorb a large signal, and ltl alone cannot
+                 show it (v&#x27;Pv -7.8 % at 1e7 sigma, +1000 % at 1e8, no
+                 warning). Defaults to ltl (a contribution not reduced)
   Rows  k x (nc+1) | []  the SAME contribution as square-root rows
                  [R22 r2; 0 rho] (LSQVCE.ENGINE.QRSYSTEM.reducedRows):
                  Rows&#x27;Rows = [N n; n&#x27; ltl]. Given, QRSystem.merge stacks
@@ -61,6 +68,7 @@ PROPERTIES
                  the diagnostics.
 
 c = LSQVCE.ENGINE.REDUCEDCONTRIBUTION(N, n, ltl, dof)
+c = LSQVCE.ENGINE.REDUCEDCONTRIBUTION(N, n, ltl, dof, [], ltlMass)
 c = LSQVCE.ENGINE.REDUCEDCONTRIBUTION([], [], [], dof, Rows)
 
 ltl IS NOT OPTIONAL
@@ -88,6 +96,9 @@ WP-139, WP-140.</pre>
 
 See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.QRSYSTEM, LSQVCE.ENGINE.NORMALEQSYSTEM
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84, S2): property
+ltlMass, the unreduced l&#x27;l, for the normal backend&#x27;s cancellation guard.
+With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the accuracy statement names
 the traced path (the QR backend builds this from Rows) and the pin of the
 normal backend&#x27;s form. With assistance from Claude (Anthropic), model

@@ -896,6 +896,39 @@ function testResidualPassSupersedesPoisonedSigma0(tc)
     end
 end
 
+function testSchurCancellationIsGuarded(tc)
+% categories: precision, robustness | tags: diagnostics
+% WP-151 (review 12.84, S2). The Schur step forms the reduced l'Pl as
+% l'Pl - nl' inv(Nll) nl, and the normal backend's guard compared the final
+% v'Pv only with that REDUCED mass. When the locals absorb a large signal the
+% subtraction happens there: v'Pv -7.8 % at 1e7 sigma, +1000 % at 1e8, no
+% warning (QR exact). The reduced contribution now carries the unreduced
+% mass, the guard refuses (NaN, lsqvce:normalEq:cancellation) and the
+% residual pass supersedes it with the honest value.
+    rs = RandStream('mt19937ar', 'Seed', 11);
+    m = 2000;  t = linspace(0, 2e4, m).';
+    A = randn(rs, m, 4) + 0.5;  e = randn(rs, m, 1);
+    B = [ones(m, 1), t / 2e4];
+    l = A * [1; -2; 0.5; 3] + B * [1e7; 3e6] + e;      % the locals absorb 1e7 sigma
+    r = l - [A B] * ([A B] \ l);  vtvTrue = r.' * r;
+    build = @(d, ot) struct('A', {{A}}, 'B', {{B}}, 'l', {{l}}, 't', {{t}});
+    L = lsqvce.engine.makeLoader(build, 'ObservationTypes', {'x'}, ...
+            'Covariance', struct('x', struct('type', 'diag', 'sigma', 1)), 'NumLocal', 2, 'NumCommon', 4);
+    accN = lsqvce.engine.BlockAccumulator(4, 'Backend', 'normal', 'KeepLocal', true, 'Verbose', false);
+    accN.addSystem(1, 2, L.closure, 1);
+    solN = tc.verifyWarning(@() accN.solve(), 'lsqvce:normalEq:cancellation');
+    tc.verifyTrue(isnan(solN.vtv), 'refused, not 7.8 % off');
+    res = tc.verifyWarning(@() accN.residuals(solN, 'verbose', false), 'lsqvce:residuals:supersedesSol');
+    % tol: 1e-6 relative -- the residual pass sums the residuals themselves
+    % (measured 1.8e-11)
+    tc.verifyEqual(res.vtv, vtvTrue, 'RelTol', 1e-6, 'the superseding v''Pv is the true one');
+    accQ = lsqvce.engine.BlockAccumulator(4, 'Backend', 'qr', 'Verbose', false);
+    accQ.addSystem(1, 2, L.closure, 1);
+    solQ = tc.verifyWarningFree(@() accQ.solve(), 'QR loses nothing here');
+    % tol: 1e-6 relative -- QR's residual row (measured 8e-11)
+    tc.verifyEqual(solQ.vtv, vtvTrue, 'RelTol', 1e-6);
+end
+
 %% ================================================== WP-50: honest vtv, QR
 function testQrMergeFoldKeepsTheResidualMass(tc)
 % categories: contract, robustness | tags: diagnostics

@@ -1,5 +1,27 @@
 # lsqvce release notes
 
+## 6.30.0 — 2026-10-18 (WP-151: the solve core's rank decisions and its cancellation guard)
+
+Corrections to the solve core found by the review of the core calculation (HANDOVER §12.84).
+
+- The rank of a local-parameter block is now decided independently of the parameters' units. A
+  well-determined block in mixed units, such as a bias with a curvature in seconds squared
+  (`B = [1, t²]`), was read as rank-deficient: by the normal backend from t ≈ 2·10⁴ s, and by the
+  default QR backend from t ≈ 2·10⁷ s. Its weak direction was then cut (`pinvFallback`), leaving x
+  10.7 formal sigma off the least-squares solution and one degree of freedom too many. Rank tests
+  and solves now use the Jacobi-equilibrated block. The results are exact to 3·10⁻¹³ sigma in every
+  range tried, and no warning is raised. `localDiagnostics` reports the equilibrated condition, so
+  `Reg = "auto"` no longer regularises such a block. `Reg = "tsvd"` cuts on the equilibrated block.
+- Normal backend: when the local parameters absorb a large signal, v'Pv is now refused as NaN
+  instead of returning a wrong value (the existing warning `lsqvce:normalEq:cancellation`); the residual pass
+  then supplies the correct value. Before, it came out 7.8 % wrong at 10⁷ sigma and 1000 % wrong at
+  10⁸, with no warning. The digits are now counted against the l'Pl before the local elimination.
+  The QR backend was not affected.
+- The help no longer claims that memory stays at one arc. Each system holds a dense
+  (nc + nl) × (nc + nl) normal matrix until its last day, where nl counts all of that system's local
+  parameters. It also no longer says a "fix station 3" prior is refused: it is used as an ordinary
+  weighted prior.
+
 ## 6.29.0 — 2026-10-18 (WP-152: the noise estimator under a robust influence and with excluded rows)
 
 Corrections to the joint noise estimator (`Estimate = "noise"`) found by the review of the core

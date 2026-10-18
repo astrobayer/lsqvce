@@ -85,11 +85,9 @@ engine.gcvLambda,vectorisation,the data loop lives in the accumulator / kernels 
 engine.gcvLambda,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.jointModelOpt,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.jointModelOpt,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.localDiagnostics,precision,the numbers it produces are pinned at the fit level against dense closed forms (test_fit, test_lsqvce*, test_physOracle); the driver adds plumbing, not arithmetic
 engine.localDiagnostics,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.localDiagnostics,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.localDiagnostics,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.localDiagnostics,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.mapreduce,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.mapreduce,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.mapreduce,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count

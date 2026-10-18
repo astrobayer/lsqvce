@@ -105,6 +105,11 @@ classdef BlockCofactor
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84, S1): a local
+%   block's switch to the pseudo-inverse and its solves on the Jacobi-
+%   equilibrated block, its factor solves on the column-equilibrated factor --
+%   the accumulator's own rule. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -201,7 +206,8 @@ classdef BlockCofactor
                     if isfield(b, 'Rll') && ~isempty(b.Rll)
                         sg = sign(diag(b.Rll));  sg(sg == 0) = 1;
                         Rl = full(sg .* b.Rll);
-                        H = Rl.' \ eye(size(Rl, 1));  G = Rl \ full(sg .* b.Rlc);
+                        H = lsqvce.engine.BlockAccumulator.factorSolve(Rl, eye(size(Rl, 1)), true);   % WP-151
+                        G = lsqvce.engine.BlockAccumulator.factorSolve(Rl, full(sg .* b.Rlc));
                     end
                     if size(Vb, 1) > 0
                         % WP-130: a rank-deficient block reduced by the solve's
@@ -404,10 +410,12 @@ classdef BlockCofactor
                 elseif isempty(S.Rll)                    % the block's own cut (WP-130)
                     S.H = lsqvce.engine.BlockCofactor.localBlock(S.Nll, zeros(nlb, 0), S.tol);
                 elseif size(S.Vll, 1) == 0
-                    S.Rll = Rl2;  S.H = Rl2.' \ eye(nlb);         % WP-129: on the factor
+                    S.Rll = Rl2;                                  % WP-129: on the factor
+                    S.H = lsqvce.engine.BlockAccumulator.factorSolve(Rl2, eye(nlb), true);
                 else
                     S.Rll = Rl2;  k = size(Rl2, 1);
-                    S.H = [(Rl2.' \ eye(k)) * S.Vll.'; zeros(nlb - k, nlb)];
+                    Hk  = lsqvce.engine.BlockAccumulator.factorSolve(Rl2, eye(k), true);
+                    S.H = [Hk * S.Vll.'; zeros(nlb - k, nlb)];
                 end
                 S.G = S.G - pt * (c * Z.');
                 Q.sys(hit) = S;
@@ -488,13 +496,17 @@ classdef BlockCofactor
         %   when rcond < eps -- the accumulator's own switch to its pinv
         %   fallback, keeping eigenvalues above tol*max ([] = pinv's default
         %   cut nl*eps(max)).
-            S = (Nll + Nll.') / 2;
+            % WP-151 (S1): on the Jacobi-equilibrated block D S D, the solve's
+            % own switch -- the raw rcond read a t^2 local (t in seconds) as
+            % singular; H = L^-1 D, so H'H = D inv(D S D) D = inv(S)
+            d = lsqvce.engine.BlockAccumulator.jacobiScale(Nll);
+            S = (Nll + Nll.') / 2 .* (d * d.');
             nl = size(S, 1);
             if rcond(S) >= eps
                 [L, f] = chol(S, 'lower');
                 if f == 0
-                    H = L \ eye(nl);
-                    G = L.' \ (L \ Nlc);
+                    H = (L \ eye(nl)) .* d.';
+                    G = d .* (L.' \ (L \ (d .* Nlc)));
                     return
                 end
             end
@@ -507,7 +519,7 @@ classdef BlockCofactor
             end
             keep = dv > cut & dv > 0;
             H = zeros(nl);
-            H(1:nnz(keep), :) = (V(:, keep) ./ sqrt(dv(keep)).').';
+            H(1:nnz(keep), :) = (V(:, keep) ./ sqrt(dv(keep)).').' .* d.';
             G = H.' * (H * Nlc);
         end
     end

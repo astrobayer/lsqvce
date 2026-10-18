@@ -104,8 +104,10 @@ data.priors = struct(&#x27;L&#x27;, B.&#x27;, &#x27;x0&#x27;, 0, &#x27;sigma&#x2
 R = lsqvce.fit(data);
 
 % B must span null(N) -- an INNER constraint. &quot;Fix station 3&quot;
-% (B = e_3) is a HARD constraint and is REFUSED: that is a
-% reparameterisation (drop the column), not a datum.</pre>
+% (B = e_3) is NOT one: the data see that direction, so fit takes
+% it as an ordinary weighted prior (its sigma enters x and the
+% covariance) -- nothing refuses it. For a hard fix, drop the
+% column (a reparameterisation, not a datum).</pre>
 <h3>Accuracy</h3>
 <pre class="example">Against the closed form of a levelling net, whose null space is the
 constant shift e = ones(u,1)/sqrt(u): the detected defect is exactly 1,
@@ -126,6 +128,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTBLOCK.
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84, S3): the
+example said a &quot;fix station 3&quot; prior is REFUSED; nothing refuses it -- it
+is an ordinary weighted prior. With assistance from Claude (Anthropic),
+model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the 2026-08-19 stamp that
 sat between the error list and the identifiers also raised moved after See
 also. With assistance from Claude (Anthropic), model Claude Opus 5.5.

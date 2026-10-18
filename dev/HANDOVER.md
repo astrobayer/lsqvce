@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-152 OPEN (tier A; model Claude Opus 5.5; user: "Continue with 152 and 151"): the noise-estimator findings of §12.84 reproduced and fixed -- the bins' stop test reads the change of shape (IGG3 never converged on clean data), a held bin keeps its share of the shape, a held arc is not divided by tau, a zero redundancy rounded positive is held (it took 1e8 times the weight), excluded rows are deleted from the sweep (excluded = removed to 6e-14); tau on coloured streams documented, not corrected; version 6.29.0; §12.86.
+Last substantive update: 2026-10-18 — WP-151 OPEN (tier A; model Claude Opus 5.5; user: "Continue with 152 and 151"): the solve-core findings of §12.84 reproduced and fixed -- local rank decisions and solves on the Jacobi-equilibrated block (a t^2 local in seconds was cut as rank-deficient on BOTH backends, x 10.7 sd off), the normal backend's cancellation guard counts against the l'Pl before the local elimination (v'Pv was 7.8 % / 1000 % off without a warning), the help's memory and datum claims; version 6.30.0; stacked on WP-152; §12.87.
+Preceding entry: Last substantive update: 2026-10-18 — WP-152 OPEN (tier A; model Claude Opus 5.5; user: "Continue with 152 and 151"): the noise-estimator findings of §12.84 reproduced and fixed -- the bins' stop test reads the change of shape (IGG3 never converged on clean data), a held bin keeps its share of the shape, a held arc is not divided by tau, a zero redundancy rounded positive is held (it took 1e8 times the weight), excluded rows are deleted from the sweep (excluded = removed to 6e-14); tau on coloured streams documented, not corrected; version 6.29.0; §12.86.
 Preceding entry: Last substantive update: 2026-10-18 — WP-150 DONE (PR #195, merge de7b2ab; CI GREEN on 0674da6 in the first round: ci_gate 757/757, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.85; no code change, no version (6.28.0 stays).
 Preceding entry: Last substantive update: 2026-10-17 — WP-150 OPEN (tier A; model Claude Opus 5.5; user: "Go ahead with WP-150"): the front-door findings F1-F7 of §12.84 reproduced and fixed -- compare refuses estimated weights, IRLS stops per parameter in its own sigma (or its rounding), excluded rows out of the MAD (robust rejections stay live: a first version oscillated), a held "scale" prior warns, snoop on Gauss-Newton returns estimates, a refused v'Pv is re-diagnosed with its own sigma0, demo_gravity's double sigma0; version 6.28.0; ci_gate GREEN 757/757; §12.85.
 Preceding entry: Last substantive update: 2026-10-17 — review of the core calculation behind fit (tier A; model Claude Opus 5.5; user: "Review the core calculation routines needed by fit ... closed loop simulation ... limits"): four static lanes, every material finding reproduced in MATLAB, a 425-run closed-loop Monte Carlo against a true-covariance oracle; the estimator closes (levels 1-2 %, colour to phi 0.98, all runs converged) with 8-16 % variance loss and 5-7 % optimistic formal errors on short arcs under the default Grid 60; 2 high front-door findings (compare after estimated weights F = 1; IRLS stops 22.6 sd off), the normal backend's unit-dependent rank cut (10.7 sd) and Schur cancellation (v'Pv +1000 %), robust noise runs that cannot converge, excluded rows in the sweep; WP-150 to WP-155 PROPOSED; no code change; §12.84.
@@ -11639,7 +11640,7 @@ observation 1). No package is open; the next step is the user's.
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 150 | Wrong verdicts at the front door (findings F1-F6 below): `R.compare` after estimated weights, the IRLS stop rule, a "scale" prior outside the noise loop, zero-weight rows in the robust scale, `snoop` on a Gauss-Newton fit, the diagnostics' sigma0 after a refused v'Pv, demo_gravity's double sigma0 | 146 | OPENED 2026-10-17 -- its row and status live in §12.85 |
-| 151 | The solve core (S1-S3): the local rank tests on the equilibrated block, a guard for the Schur step's cancellation of l'Pl, the help's memory claims | 146 | PROPOSED |
+| 151 | The solve core (S1-S3): the local rank tests on the equilibrated block, a guard for the Schur step's cancellation of l'Pl, the help's memory claims | 146 | OPENED 2026-10-18 -- its row and status live in §12.87 |
 | 152 | The noise estimator (N1-N4): the robust stop rule and the truncation factor tau (white value on coloured streams), held arcs under IGG3, excluded rows in the sweep | 146 | OPENED 2026-10-18 -- its row and status live in §12.86 |
 | 153 | Covariance and whitening (C1-C6): a PSD grid without f = 0, the d = 1 Cep shape, the frame-dependent Cholesky composition of a full Cep, WP-148's exact deletion for 'var' and partly excluded epochs, the unbounded memory paths | 146 | PROPOSED |
 | 154 | Defaults and guards from the Monte Carlo study (M1-M5): a Noise.Grid default tied to the arc length, a warning when one pool group mixes spectra, a hint for a drifting level, a near-unit-root warning, the formal errors' plug-in optimism documented | 146 | PROPOSED |
@@ -11987,4 +11988,75 @@ long_functions.csv follows (the audit asks for it).
 
 **Gates (tier A):** `ci_gate` GREEN 762 / 762, 27 / 27, inventory `lsqvce:internal:testProbe` only;
 Linux audit CLEAN, selftest every fault caught. Tests 774 declared / 762 run.
+
+### 12.87 WP-151 — the solve core's rank decisions and its cancellation guard (2026-10-18, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 151 | The solve-core findings S1-S3 of §12.84, each reproduced before its fix: (S1) every rank decision and solve of a local block on its Jacobi-equilibrated form -- the QR pivots relative to their column norm, the normal form's rcond, pinv cut, block path and tsvd cut on D Nll D, BlockCofactor's switch and solves likewise, localDiagnostics' condition, rank and status (so Reg "auto" no longer regularises a block for its units), factor solves through the column-equilibrated factor; (S2) a reduced contribution carries the unreduced l'Pl (ReducedContribution.ltlMass) and the normal backend's cancellation guard counts the digits lost against it; (S3) the help's memory claim and datum's "REFUSED" corrected; version 6.30.0 (changed rank rules: a minor). Stacked on WP-152 (#197) | 146 | OPEN (2026-10-18) |
+
+**The user's request (2026-10-18):** "Continue with 152 and 151. Do the closure for 150 at the same time".
+
+**Reproductions (tier A, on WP-152's tip, before any fix).**
+- **S1 -- reproduced, and on QR too.** One system, 2000 rows, 4 commons, locals B = [1, t^2]: Backend
+  "normal" from t to 2e4 s, Backend "qr" from t to 2e7 s: x 10.7 formal sd off the
+  column-equilibrated least-squares solution, dof 1995 (true 1994), sigma0 1.97, `pinvFallback`.
+  The review measured only the normal backend (QR exact at 2e4); QR's pivot test against the largest
+  pivot fails one decade of t later. The column rescaled: exact on both.
+  The commons' analogue (one common column x 1e6 / 1e9 / 1e12, no locals) is exact on both backends
+  (max |z| <= 3.7e-13) -- S1 is the local block's alone.
+- **S2 -- reproduced.** The locals absorb a signal of 1e5 / 1e7 / 1e8 sigma: Backend "normal" v'Pv
+  +0.00028 % / -7.8 % / +1000 % off the true value, no warning; QR exact (-3e-7 % at 1e8).
+- **S3 -- read.** The class help's "peak memory is one arc" / "stays nc x nc" (a system's dense
+  (nc + nl_s) block lives until its last day, BlockAccumulator processSystem); datum.m's "fix
+  station 3 ... is REFUSED" (nothing refuses it: datumRows takes a direction the data see as an
+  ordinary weighted prior).
+
+**The fixes (tier A).**
+- **S1** BlockAccumulator: `jacobiScale` (d = diag(N)^-1/2, 1 on a zero or non-finite diagonal),
+  `columnScale` (1 / column norms), `factorSolve` (R \ B and R' \ B through R Dc -- the same
+  numbers, a triangular solve is column-scaling invariant, but MATLAB's rcond test reads the
+  unit-free factor: before it, the fixed QR path still raised MATLAB:nearlySingularMatrix on an
+  exact solve at t to 2e8 s). Used by: the QR exact path's pivot test (|r_kk| / ||R11(:,k)||),
+  rankReduced (SVD of R11 Dc, kept basis Dc V1), the dense normal path (rcond, solve and the pinv /
+  tsvd cut on D Nll D, kept basis D V1), the block path (each block, and the off-block coupling
+  test), localCovariance, localSolveOf; BlockCofactor.localBlock and its factor solves;
+  localDiagnostics (spectrum, condNll, rankDef, status, nullDir back in the parameters' units).
+  A scaled kept basis is not orthonormal: every reader takes it as V (.) V' or V' b (localSolveOf,
+  localCovariance, BlockCofactor's build and downdate), which holds for any basis of the kept range
+  -- checked reader by reader. Measured after: max |z| 1.6e-13 to 3.5e-13, dof 1994, silent, both
+  backends, t to 2e4 / 2e7 / 2e8 / 2e10 s. Test: test_lsqAccum `testRankDecisionIsUnitFree` (both
+  backends at 2e4 and 2e8 s, warning-free; localDiagnostics 'ok', condNll < 100 -- it read 7e32;
+  through fit on the normal backend, sum(r) closes to 1e-9).
+- **S2** ReducedContribution gains `ltlMass` (the l'Pl the reduced ltl was subtracted from; = ltl
+  for a contribution not reduced); NormalEqSystem accumulates it (add, merge, mergeRaw) and the WP-49
+  guard counts digits against max(ltl, ltlMass); the prior-folded normal solve likewise. The Schur
+  step now warns `lsqvce:normalEq:cancellation` and returns NaN, and the residual pass supersedes it
+  with the honest v'Pv (1993.84 against 1993.84, 1e-9 % at 1e7 and 1e8). The 1e5-sigma case also
+  refuses now (10 digits lost against the unreduced mass, the house rule's 8) -- correct by the
+  rule, and its v'Pv comes from the residual pass. QR's normal-form fold (only reached under a
+  regularised or rank-deficient local block) keeps its 15-digit guard on the reduced mass -- not
+  changed: its anchors were measured against that mass (WP-50), and the QR route of S2 is exact.
+  Test: test_precision `testSchurCancellationIsGuarded` (warns, NaN, the superseding v'Pv to 1e-6 of
+  the true one; QR silent and exact).
+- **S3** the class help states the per-system memory ((nc + nl_s)^2 until the system's last day; one
+  per day and worker under day-parallel accumulation); datum.m says a "fix station 3" prior is an
+  ordinary weighted prior. The normal backend's `datumPart` returning [] on a failed chol (the
+  review's other S3 point) is NOT changed: that chol fails only by rounding after the solve's own
+  chol of the same matrix succeeded, and no case reproduced it -- no fix without a reproduction.
+
+Both new tests fail on the unfixed source (run with the fixes stashed): x 10.7 sd, dof 1995, the
+block 'rank-deficient' at cond 7e32; no cancellation warning.
+
+**A session note (not the code):** the shared MATLAB bridge had `lsqvce:normalEq:cancellation`
+switched OFF globally (another session's state), so test_precision's WP-49 tests failed there as
+well; with the identifier on for the call they pass, and the detached `ci_gate` is unaffected.
+
+**Docs:** BlockAccumulator (memory, TruncTol), BlockCofactor, localDiagnostics (output on the
+equilibrated block, ACCURACY), applyRegularisation ('tsvd'), ReducedContribution (ltlMass),
+NormalEqSystem (ltlMass, the guard's scale), datum (the example), RELEASE_NOTES; version 6.30.0.
+
+**Gates (tier A):** `ci_gate` GREEN 764 / 764, 27 / 27, inventory `lsqvce:internal:testProbe` only;
+Linux audit CLEAN (two category exemptions of localDiagnostics -- metamorphic, precision -- are
+covered now and deleted), selftest every fault caught. Tests 776 declared / 764 run.
 
