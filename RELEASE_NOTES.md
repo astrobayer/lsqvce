@@ -1,5 +1,17 @@
 # lsqvce release notes
 
+## 6.34.1 — 2026-10-18 (WP-155: speed without loss of precision)
+
+- A dense law (a `psd` law in Toeplitz mode, `acf`, `custom`) is whitened by forward substitutions
+  with its Cholesky factor; the explicit inverse it formed before was two thirds of the work at
+  2048 epochs. The inverse law's lag sums in the noise sweep come from FFT correlations instead of
+  a loop over the lags, the robust pass's data snooping projects the snooped epochs out instead of
+  updating the inverse law, and the dense Toeplitz form is built faster.
+- One noise pass at the same 24 576 observations: 1.15 → 1.01 s at 256-epoch arcs, 2.33 → 1.17 s
+  at 1024, 9.76 → 4.66 s at 4096 (with `Robust = "igg3"`: 2.42 → 2.01, 6.44 → 3.80, 31.7 → 17.3 s).
+- Results are unchanged to rounding: x within 1.1e-14 and σ0 within 9e-16 relative of 6.34.0 on
+  every case measured.
+
 ## 6.34.0 — 2026-10-18 (WP-156: the robust variance estimator redesigned)
 
 - A robust noise run (`Robust = "igg3"` or `"bisquare"` with `Estimate = "noise"`) now rejects

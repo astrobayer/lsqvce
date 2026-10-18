@@ -169,6 +169,9 @@ both ways and check the normals agree (they do, to ~1e-11).</pre>
   psd/ar    filter     O(b*p)       O(p)      overlap p
   psd/toep  chol       O(m^3)       O(m^2)    whole arc, m &lt;= maxDenseArc
   acf       chol       O(m^3)       O(m^2)    whole arc, m &lt;= maxDenseArc
+            (the factor; WP-155: the batch is whitened by forward
+            substitutions, O(m^2 K), no explicit inverse -- the inverse
+            was two thirds of a dense whitening at m = 2048)
   var       filter     O(b*p*d^2)   O(p*d^2)  epoch-aligned, overlap p*d
   custom    chol       O(m^3)       O(m^2)    whole arc, m &lt;= maxDenseArc
 
@@ -280,6 +283,11 @@ at phi 0.99 and 1:100 anisotropy); a constant or diagonal Cep does not.</pre>
 See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
          LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-155 (review 12.84 P1): a dense law
+is whitened by forward substitutions with its Cholesky factor
+(denseLawWhiten), no explicit inverse; the dense Toeplitz forms are built
+by column copies (symToeplitz, bitwise toeplitz). With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-18 (CEST, UTC+02:00), WP-153 (review 12.84): (C4) .deleteRows
 deletes rows exactly where the epoch nugget does not reach (a &#x27;var&#x27; law, an
 epoch excluded on some axes); (C5) maxDenseArc bounds an MA part&#x27;s start-up

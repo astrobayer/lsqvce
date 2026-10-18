@@ -21,6 +21,9 @@ function tests = test_speedBudget
 %
 %   See also TIMEPAIR, TEST_INSTRUMENTS, dev/DEVELOPMENT.md (WP-79 table)
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-155: a dense law's whitener
+%   solves instead of inverting. With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-156: lawInverse's structured path
 %   against the dense inverse. With assistance from Claude (Anthropic), model
 %   Claude Opus 5.5.
@@ -264,4 +267,24 @@ function d = lagSumsLoop(X, nL)
         idx = 1:(N-n);
         d(n+1) = sum(sum(X(idx+n, :) .* X(idx, :), 2));
     end
+end
+
+function testDenseLawWhiteningSkipsTheInverse(tc)
+% categories: speed
+    % WP-155 (review 12.84 P1): a dense law's whitener solves with its
+    % Cholesky factor instead of forming L^-1 (O(n^3)) and multiplying. The
+    % reference is the old route on the same Cfcn. tol: ratio < 0.7 at n =
+    % 2048 (measured: the factor 0.011 s, the inverse 0.037 s, a solve 0.003 s
+    % -- 0.5 with the Toeplitz build both sides include)
+    n = 2048;  t = 5 * (0:n-1).';
+    f = linspace(0, 0.1, 61).';  S = 1 ./ (1 + (f / 0.004).^2);
+    cm = struct('type', 'custom', 'Cep', ones(n, 1));
+    [Cfcn, ~] = lsqvce.engine.covModel(struct('type', 'psd', 'f', f, 'S', S), t, struct('psdMode', 'toeplitz'));
+    cm.fcn = @(tt, o) Cfcn(1:n, o);
+    [~, Wfcn] = lsqvce.engine.covModel(cm, t, struct());
+    X = randn(RandStream('mt19937ar', 'Seed', 2), n, 8);  z = zeros(n, 0);
+    solve = @() Wfcn(1:n, X, z, X(:, 1), struct());
+    inverse = @() lsqvce.kernel.decorrFactor(Cfcn(1:n, struct())) * X;
+    rec = timePair(solve, inverse, 'Inner', 1, 'Label', 'dense whitening: solve/inverse');
+    tc.verifyLessThan(rec.ratio, 0.7, sprintf('solve/inverse = %.3f [%.3f %.3f]', rec.ratio, rec.band));
 end

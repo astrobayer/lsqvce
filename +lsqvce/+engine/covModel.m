@@ -130,6 +130,9 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %     psd/ar    filter     O(b*p)       O(p)      overlap p
 %     psd/toep  chol       O(m^3)       O(m^2)    whole arc, m <= maxDenseArc
 %     acf       chol       O(m^3)       O(m^2)    whole arc, m <= maxDenseArc
+%               (the factor; WP-155: the batch is whitened by forward
+%               substitutions, O(m^2 K), no explicit inverse -- the inverse
+%               was two thirds of a dense whitening at m = 2048)
 %     var       filter     O(b*p*d^2)   O(p*d^2)  epoch-aligned, overlap p*d
 %     custom    chol       O(m^3)       O(m^2)    whole arc, m <= maxDenseArc
 %
@@ -245,6 +248,11 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
 %            LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-155 (review 12.84 P1): a dense law
+%   is whitened by forward substitutions with its Cholesky factor
+%   (denseLawWhiten), no explicit inverse; the dense Toeplitz forms are built
+%   by column copies (symToeplitz, bitwise toeplitz). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-153 (review 12.84): (C4) .deleteRows
 %   deletes rows exactly where the epoch nugget does not reach (a 'var' law, an
 %   epoch excluded on some axes); (C5) maxDenseArc bounds an MA part's start-up
@@ -414,7 +422,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
         r  = s^2 * lsqvce.kernel.armaACV(a, b, max(fm, 2));    % WP-127: the exact startup spans fm
 
         Wfcn = @(idx,A,B,l,o) lsqvce.kernel.armaWhiten(a, b, s, r, A, B, l, idx(1)==1);
-        Cfcn = @(idx,o) s^2 * toeplitz(lsqvce.kernel.armaACV(a, b, numel(idx)));
+        Cfcn = @(idx,o) s^2 * symToeplitz(lsqvce.kernel.armaACV(a, b, numel(idx)));
 
         info.filterMemory = fm;
         info.arOrder      = p;
@@ -763,10 +771,23 @@ function [A, B, l] = composeRows(Wep, Cep, d, idx, A, B, l)
     end
 end
 
+function T = symToeplitz(c)
+%SYMTOEPLITZ  toeplitz(c) for a column c, bitwise, built by column copies of
+%   one reflected vector (WP-155: 0.048 s against toeplitz's 0.068 s at n =
+%   4096; the dense law is built for every whitening and every sweep).
+    c = c(:);  n = numel(c);
+    rr = [c(n:-1:2); c];
+    T = zeros(n);
+    for j = 1:n
+        T(:, j) = rr(n - j + 1:2 * n - j);
+    end
+end
+
 function [A, B, l] = denseWhiten(C, A, B, l)
-%DENSEWHITEN  Whiten one axis series with the dense factor of its temporal covariance.
-    W = lsqvce.kernel.decorrFactor(C);
-    A = W * A;  B = W * B;  l = W * l;
+%DENSEWHITEN  Whiten one axis series with the dense factor of its temporal
+%   covariance: forward substitutions, no explicit inverse (WP-155,
+%   denseLawWhiten).
+    [A, B, l] = denseLawWhiten(C, A, B, l);
 end
 
 %==========================================================================
@@ -875,7 +896,7 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
         r    = lsqvce.kernel.psd2acv(f, S, dt, nmax);      % once per arc, reused per batch
         rg   = lsqvce.util.getfielddef(opt, 'psdRidge', 1e-8);
         if rg > 0 && ~isempty(r), r(1) = r(1) * (1 + rg); end
-        Cfcn = @(idx,o) toeplitz(r(1:numel(idx)));
+        Cfcn = @(idx,o) symToeplitz(r(1:numel(idx)));
         info.filterMemory = 0;
         info.acv          = r;
         info.cost         = 'O(m^3)';
@@ -902,7 +923,7 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
         end
 
         Wfcn = @(idx,A,B,l,o) lsqvce.kernel.armaWhiten(a, b, s, rr, A, B, l, idx(1)==1);
-        Cfcn = @(idx,o) s2 * toeplitz(lsqvce.kernel.armaACV(a, b, numel(idx)));
+        Cfcn = @(idx,o) s2 * symToeplitz(lsqvce.kernel.armaACV(a, b, numel(idx)));
 
         info.filterMemory = fm;
         info.arOrder      = pEf;

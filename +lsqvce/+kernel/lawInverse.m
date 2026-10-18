@@ -22,8 +22,9 @@ function P = lawInverse(Sig)
 %     P    N x N double  inv(Sig), symmetric
 %
 %   STRUCTURE TEST AND GUARD
-%     Sig is taken as Toeplitz when every diagonal is constant to 1e-12 of
-%     Sig(1,1). The structured result is then checked on three columns
+%     Sig is taken as Toeplitz when two of its columns are its first one
+%     shifted (to 1e-12 of Sig(1,1)) and a deterministic probe agrees with
+%     the Toeplitz product (to 1e-12). The structured result is then checked on three columns
 %     (first, middle, last): if max |Sig * P(:, j) - e_j| exceeds 1e-8 --
 %     a law so ill-conditioned that the recursion lost digits -- the
 %     Cholesky path is taken instead, so the fast path never returns a worse
@@ -54,6 +55,9 @@ function P = lawInverse(Sig)
 %   See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.WSNOOP,
 %            LSQVCE.KERNEL.TRUNCATIONDEFICIT, LSQVCE.KERNEL.REDUNDANCYLAGS
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-155: the Toeplitz test by two
+%   columns and a probe, O(N) memory (it compared every diagonal). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-10-18 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5.5 -- WP-156 round 2, design F.
 
@@ -85,8 +89,22 @@ function P = lawInverse(Sig)
 end
 
 function tf = isToeplitz(Sig)
-%ISTOEPLITZ  Every diagonal constant to 1e-12 of the variance.
-    tf = max(max(abs(Sig(2:end, 2:end) - Sig(1:end-1, 1:end-1)))) <= 1e-12 * abs(Sig(1, 1));
+%ISTOEPLITZ  Sig is the Toeplitz matrix of its first column: two columns
+%   compared shifted, then one deterministic probe, Sig y against the
+%   Toeplitz product by circulant embedding (redundancyLags' test since
+%   WP-131: a change of structure that misses the columns -- a per-row
+%   variance after N/2 -- shows in the probe). O(N^2) time, O(N) memory
+%   (WP-155: comparing every diagonal held two (N-1)^2 temporaries, 0.17 s
+%   per 2048-epoch arc).
+    N = size(Sig, 1);  c = Sig(:, 1);  tol = 1e-12 * abs(Sig(1, 1));
+    jm = ceil(N / 2);
+    tf = max(abs(Sig(2:N, 2) - c(1:N-1))) <= tol && max(abs(Sig(jm:N, jm) - c(1:N-jm+1))) <= tol ...
+         && max(abs(Sig(1:jm, jm) - c(jm:-1:1))) <= tol;
+    if ~tf, return, end
+    y = sin(sqrt(2) * (1:N).'.^1.5);
+    e = [c; 0; c(N:-1:2)];
+    Ty = ifft(fft(e) .* fft([y; zeros(N, 1)]), 'symmetric');
+    tf = norm(Sig * y - Ty(1:N)) <= 1e-12 * norm(abs(Sig) * abs(y));
 end
 
 function P = trenchInverse(c)

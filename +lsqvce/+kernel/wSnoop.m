@@ -43,8 +43,10 @@ function [z, q, del] = wSnoop(P, E, X, excl, thr, scale)
 %     q    m x 1  the epoch's sum of w^2 over its live axes (unscaled; NaN as z)
 %     del  m x 1  logical, the snooped epochs
 %
-%   COST. One rank-one update of P per snooped epoch (O(m^2)) and per axis a
-%   matrix-vector product; the parameter part is O(m n_k^2).
+%   COST. One block update for the excluded epochs and one product P E per
+%   call (O(m^2)); each snooping step projects the snooped epochs out with the
+%   parameters, O(m r^2) for r projected columns (WP-155: a rank-one update
+%   of P per deletion was O(m^2)).
 %
 %   EXAMPLE
 %     Sig = toeplitz(0.9 .^ (0:255));  P = lsqvce.kernel.lawInverse(Sig);
@@ -69,6 +71,11 @@ function [z, q, del] = wSnoop(P, E, X, excl, thr, scale)
 %   See also LSQVCE.KERNEL.LAWINVERSE, LSQVCE.KERNEL.TRUNCATIONDEFICIT,
 %            LSQVCE.KERNEL.ROBUSTWEIGHTS, LSQVCE.ENGINE.OUTLIERS
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-155: the snooped epochs are
+%   projected out with the parameters (a deletion is a free parameter for
+%   the observation) instead of updating the inverse law per deletion; the
+%   same w to 1e-10 (test_precision testSnoopingByProjectionIsTheReducedSystem).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-10-18 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5.5 -- WP-156 round 2, design F.
 
@@ -81,57 +88,62 @@ function [z, q, del] = wSnoop(P, E, X, excl, thr, scale)
     excl = logical(excl);
     del = false(m, 1);
     gone = all(excl, 2);                              % excluded on every axis
-    PD = P;
-    for j = find(gone).'
-        PD = deleteEpoch(PD, j);
-    end
-    W = axisW(PD, E, X, excl, del);
+    PD = deleteRows(P, gone);                         % once, BLAS-3
+    PE = PD * E;                                      % once per call: every axis' P e
+    PX = cellfun(@(Xk) PD * Xk, X, 'UniformOutput', false);
+    W = axisW(PD, PE, PX, E, X, excl, del);
     [z, q] = epochStat(W, excl, del, scale);
     while true
         a = abs(z);  a(del | ~isfinite(a)) = 0;
         [mx, j] = max(a);
         if isempty(j) || ~(mx > thr), break, end
         del(j) = true;
-        PD = deleteEpoch(PD, j);
-        W = axisW(PD, E, X, excl, del);
+        W = axisW(PD, PE, PX, E, X, excl, del);
         [z, q] = epochStat(W, excl, del, scale);
     end
     s = sign(sum(E(del, :) .* ~excl(del, :), 2));  s(s == 0) = 1;
     z(del) = s * Inf;
 end
 
-function PD = deleteEpoch(PD, j)
-%DELETEEPOCH  Epoch j out of the inverse law, exactly: the inverse of the law
-%   restricted to the other epochs, row and column j zero.
-    pj = PD(:, j);
-    if pj(j) > 0
-        PD = PD - (pj * pj.') / pj(j);
-    end
-    PD(:, j) = 0;  PD(j, :) = 0;
+function PD = deleteRows(P, gone)
+%DELETEROWS  The epochs GONE out of the inverse law, exactly (the inverse of
+%   the law restricted to the others: P - P_:g P_gg^-1 P_g:), their rows and
+%   columns zero -- one block update.
+    PD = P;
+    g = find(gone);
+    if isempty(g), return, end
+    Pg = P(:, g);
+    PD = P - Pg * (P(g, g) \ Pg.');
+    PD(:, g) = 0;  PD(g, :) = 0;
 end
 
-function W = axisW(PD, E, X, excl, del)
-%AXISW  w of every live row, per axis: R = PD - PD Xk (Xk' PD Xk)^-1 Xk' PD,
-%   Xk = [unit columns of the rows excluded on this axis only, X{k}].
+function W = axisW(PD, PE, PX, E, X, excl, del)
+%AXISW  w of every live row, per axis: R = PD - PD Z (Z' PD Z)^+ Z' PD, Z =
+%   [unit columns of the snooped epochs and of the rows excluded on this axis
+%   only, X{k}]. WP-155: deleting an observation is projecting out its unit
+%   vector (it gains a free parameter), so the snooped epochs join the
+%   projection instead of updating PD -- O(m r^2) per step for r projected
+%   columns, where the rank-one update of PD cost O(m^2) per deletion. The
+%   same R to rounding.
     [m, d] = size(E);
     W = nan(m, d);
     gone = all(excl, 2) | del;
     dP = diag(PD);
+    sn = find(del);
     for k = 1:d
         part = find(excl(:, k) & ~gone);
-        Xk = [full(sparse(part, 1:numel(part), 1, m, numel(part))), X{k}];
-        Xk(gone, :) = 0;
-        Xk = Xk(:, any(Xk ~= 0, 1));
-        Pe = PD * E(:, k);
+        u = [sn; part];                               % unit columns
+        G = [PD(:, u), PX{k}];
+        N = [G(u, :); X{k}.' * G];                    % Z' PD Z
+        Pe = PE(:, k);
         dR = dP;
-        if ~isempty(Xk)
-            G = PD * Xk;
-            % N = Xk' PD Xk by its eigenvectors: a column the live rows do not
-            % determine (an arc parameter seen only on deleted rows) drops out
-            [U, S] = eig((Xk.' * G + G.' * Xk) / 2);
-            s = diag(S);
-            keep = s > 1e3 * eps * max([s; 0]);
-            T = G * (U(:, keep) ./ sqrt(s(keep)).');  % T T' = PD Xk N^+ Xk' PD
+        if ~isempty(G)
+            % by its eigenvectors: a column the live rows do not determine (an
+            % arc parameter seen only on deleted rows) drops out
+            [U, S] = eig((N + N.') / 2);
+            sv = diag(S);
+            keep = sv > 1e3 * eps * max([sv; 0]);
+            T = G * (U(:, keep) ./ sqrt(sv(keep)).'); % T T' = PD Z N^+ Z' PD
             Pe = Pe - T * (T.' * E(:, k));
             dR = dR - sum(T.^2, 2);
         end

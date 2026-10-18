@@ -155,6 +155,10 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %   See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI,
 %            LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.STREAMCONTRIBUTION
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-155 (review 12.84 P1): the Toeplitz
+%   path's sub-diagonal sums of Sigma^-1 for every lag by FFT (weightedCorr),
+%   not a loop over the lags; equal to 4e-16. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -377,7 +381,9 @@ function dS = sigmaInvSubdiagSums(W, nL)
 %   x = Sigma^-1 e_1, then the Gohberg-Semencul split
 %       Sigma^-1 = (1/x_1) * (L(x) L(x)' - L(z) L(z)'),  z = [0; x(N:-1:2)],
 %   whose triangular-Toeplitz sub-diagonal sums are weighted correlations:
-%       S_n(u) = sum_j u(j+n) u(j) (N-n-j+1),   O(N) per lag.
+%       S_n(u) = sum_j u(j+n) u(j) (N-n-j+1),
+%   every lag at once by FFT (weightedCorr; WP-155: the O(N) per lag loop,
+%   O(N nL) in all, was 0.05 s per 2048-epoch arc; equal to 4e-16).
 %   (Validated against the dense inverse to 3e-16, WP-37 round note.)
 %   General W: columns of Sigma^-1 in blocks of 256, each column's entries on
 %   and below the diagonal added to the lag they sit on.
@@ -411,13 +417,7 @@ function dS = sigmaInvSubdiagSums(W, nL)
     if isToep
         x  = toeplitzInvFirstCol(c1);            % Sigma^-1 e_1, O(N^2)
         z  = [0; x(N:-1:2)];
-        x1 = x(1);
-        for n = 0:nL-1
-            j = (1:N-n).';
-            wgt = (N - n - j + 1);
-            dS(n+1) = (sum(x(j+n) .* x(j) .* wgt) - ...
-                       sum(z(j+n) .* z(j) .* wgt)) / x1;
-        end
+        dS = (weightedCorr(x, nL) - weightedCorr(z, nL)) / x(1);   % WP-155: all lags by FFT
         return
     end
 
@@ -455,6 +455,20 @@ function dS = nuggetSubdiagSums(WT, c, nL)
     K = diag(1 ./ c(z)) + Y.' * Y;
     LK = chol((K + K.') / 2, 'lower');
     dS = sigmaInvSubdiagSums(WT, nL) - columnLagSums(H / LK.', nL);
+end
+
+function s = weightedCorr(u, nL)
+%WEIGHTEDCORR  s(n+1) = sum_{j=1}^{N-n} u(j+n) u(j) (N-n-j+1), n = 0..nL-1:
+%   (N-n+1) sum_j u(j) u(j+n) - sum_j j u(j) u(j+n), both correlations by one
+%   zero-padded FFT (no circular wrap). WP-155 (review 12.84 P1): equal to
+%   the loop it replaces to 4e-16 of the trace (AR(1) phi 0.5-0.995,
+%   N 256-2048).
+    N = numel(u);  nf = 2^nextpow2(2 * N);
+    U = fft(u, nf);  J = fft((1:N).' .* u, nf);
+    c0 = ifft(conj(U) .* U, 'symmetric');
+    c1 = ifft(conj(J) .* U, 'symmetric');
+    n = (0:nL-1).';
+    s = (N - n + 1) .* c0(n + 1) - c1(n + 1);
 end
 
 function x = toeplitzInvFirstCol(c)
