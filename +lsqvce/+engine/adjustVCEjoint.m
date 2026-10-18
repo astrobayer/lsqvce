@@ -185,7 +185,7 @@ function out = adjustVCEjoint(accFcn, opt)
 %              late-pass drift -- keep it <= 4) and does nothing useful
 %              without it (mirror-measured). The iteration itself always
 %              runs on the raw S.
-%     'Pool'     "all" (default) | "obstype" | "stream": which streams SHARE
+%     'Pool'     "stream" (default; "all" until WP-157) | "obstype" | "all": which streams SHARE
 %                one estimated law (one psdVCE per pool group, out.Sgroups)
 %     'Estimate' [] | containers.Map 'satKey|obsType' -> "none" | "scale" |
 %                "law": the per-stream policy ([] = "law" for every stream)
@@ -342,6 +342,9 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-157: Pool defaults to "stream", as
+%   lsqvce.Options does. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-154 (review 12.84, M2-M4): out.checks
 %   and three warnings for the assumptions the data can contradict -- one law
 %   for a pool group's spectra, one level for a stream's arcs, a memory short
@@ -525,7 +528,7 @@ arguments
     opt.FreezeRedundancy (1,1) double {mustBeNonnegative} = 0             % R7-22: psdVCE's freeze
     % R5 M3 3d: per-stream policy (WP-83, decision R5-D4). Streams are keyed
     % 'satKey|obsType' (matlab.lang.makeValidName of the system id).
-    opt.Pool (1,1) string {mustBeMember(opt.Pool, ["all","obsType","stream"])} = "all"
+    opt.Pool (1,1) string {mustBeMember(opt.Pool, ["all","obsType","stream"])} = "stream"   % WP-157
     opt.Estimate = []            % containers.Map key -> "none"|"scale"|"law"; [] = "law" for all
     opt.ArcFactors = []          % containers.Map key -> logical;              [] = true for all
     % R6 WP-105: the ROBUST pass inside the loop. "none" = the plain estimator

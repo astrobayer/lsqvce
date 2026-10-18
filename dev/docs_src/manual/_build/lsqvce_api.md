@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.32.0 — API Reference"
+title: "lsqvce 6.33.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -437,7 +437,7 @@ R = lsqvce.fit(data, Estimate="noise", MaxPasses=6);     % name-value pairs stra
 | knob | values | default | meaning |
 |---|---|---|---|
 | `Estimate` | `"none"`, `"noise"` | `"none"` | `"none"`: one generalised least-squares solve under the declared laws. `"noise"`: the joint variance-component estimator — per pool group the spectral shape of the noise, per stream its level, per arc a factor (with `ArcFactors`), and the σ of every prior group with `estimate = "scale"`. |
-| `Pool` | `"all"`, `"obsType"`, `"stream"` | `"all"` | which streams share one estimated spectral shape: all streams of the run, the streams of one observation type across systems, or every (system, type) stream on its own. Every stream keeps its own level. |
+| `Pool` | `"stream"`, `"obsType"`, `"all"` | `"stream"` | which streams share one estimated spectral shape: every (system, type) stream on its own, the streams of one observation type across systems, or all streams of the run. Every stream keeps its own level. The default was `"all"` until v6.33. Measured: pooling identical spectra gained nothing in x, while pooling different ones failed badly (efficiency 37–132, levels 2–3× off). Pool streams of the same physics deliberately (`"obsType"`). |
 | `ArcFactors` | logical | `true` | one variance factor per arc on top of the stream's level; the factor weights the solve. `false`: one level per stream. Turn off when arcs are few or short. |
 | `Robust` | `"none"`, `"huber"`, `"igg3"`, `"bisquare"` | `"none"` | M-estimation. With `Estimate = "none"`: stand-alone IRLS on the law-whitened innovations with a MAD scale per pass (budget `RobustOpts`, factors in `R.history(end).factor`). With `Estimate = "noise"`: a robust weight per epoch inside the joint estimator, on the residuals descaled by the declared accuracy (budget `MaxPasses`, factors in `R.noise.robust.factor`). Prefer `"igg3"` or `"bisquare"` for gross blunders. |
 
@@ -846,9 +846,15 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT: 12 knobs and 5 groups.
                                   component estimator on every stream whose
                                   spec allows it (estimate ~= "none"), with
                                   the policy below
-    Pool       "all" | "obsType" | "stream"   which streams SHARE one estimated
+    Pool       "stream" | "obsType" | "all"   which streams SHARE one estimated
                                   spectral shape (every stream keeps its own
-                                  level regardless); default "all"
+                                  level regardless); default "stream" (WP-157,
+                                  it was "all"): MEASURED in the review's
+                                  closed loop, pooling identical spectra gained
+                                  nothing in x (eff 1.00-1.08 pooled, 0.90-1.08
+                                  per stream), pooling different ones failed
+                                  (eff 37 / 132, levels 2-3 x off); pool streams
+                                  of one physics deliberately with "obsType"
     ArcFactors logical            per-arc variance factors on (Ellmer 6.5.4),
                                   default true; false = one level per stream.
                                   The factor is the arc's ABSOLUTE Helmert

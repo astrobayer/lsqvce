@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-154 OPEN (tier A; model Claude Opus 5.5; user: "Please continue"): the closed-loop findings of §12.84 reproduced and acted on -- Noise.Smooth defaults to 1 (measured better in x, formal errors and passes; the review's arc-length grid was measured and withdrawn: it biased the level low at high phi), three model checks warn (pooled spectra, a level varying by arc, long memory against short arcs; R.noise.checks), the plug-in formal errors documented; version 6.32.0; §12.89.
+Last substantive update: 2026-10-18 — WP-157 OPEN (tier A; model Claude Opus 5.5; user: "Open a separate WP to change the default Pool to "stream", measured first"): measured -- pooling identical spectra gains nothing in x, pooling different ones fails (eff 37 / 132) -- and Pool defaults to "stream"; version 6.33.0; stacked on WP-154; §12.90.
+Preceding entry: Last substantive update: 2026-10-18 — WP-154 OPEN (tier A; model Claude Opus 5.5; user: "Please continue"): the closed-loop findings of §12.84 reproduced and acted on -- Noise.Smooth defaults to 1 (measured better in x, formal errors and passes; the review's arc-length grid was measured and withdrawn: it biased the level low at high phi), three model checks warn (pooled spectra, a level varying by arc, long memory against short arcs; R.noise.checks), the plug-in formal errors documented; version 6.32.0; §12.89.
 Preceding entry: Last substantive update: 2026-10-18 — WP-153 DONE (PR #200, merge a81ab87; CI GREEN on ed6c53c in the first round: ci_gate 768/768, inventory lsqvce:internal:testProbe only): the closure in §12.88; version 6.31.0. Next: WP-154.
 Preceding entry: Last substantive update: 2026-10-18 — WP-153 OPEN (tier A; model Claude Opus 5.5; user: "Go ahead"): the covariance findings of §12.84 reproduced and fixed -- a PSD grid with a non-negligible band below f(1) refused (r(0) was 34 % low, silently), excluded rows of 'var' laws and partly excluded epochs deleted exactly (x was 0.35 sd off), maxDenseArc bounds the MA start-up and the nugget, a d = 1 Cep is sigmas (stated), the Cholesky composition kept and documented (user decision); version 6.31.0; order after it: 154, 156 (the robust variance redesign, option 4), 155; §12.88.
 Preceding entry: Last substantive update: 2026-10-18 — WP-152 and WP-151 DONE (PR #197, merge 918b818; PR #198, merge ec45b46; CI GREEN in the first round on 65c48a0 and 8bab1b4: ci_gate 762/762 and 764/764, inventory lsqvce:internal:testProbe only; main's push CI on ec45b46 GREEN): the closures in §12.86 and §12.87, one HANDOVER-only PR; version 6.30.0. Open: WP-153..155 PROPOSED (§12.84), WP-152 N3 a model decision for the user.
@@ -12263,4 +12264,44 @@ the plug-in errors), the catalogue (three warnings), RELEASE_NOTES; version 6.32
 
 **Gates (tier A):** `ci_gate` GREEN 772 / 772, 27 / 27, inventory `lsqvce:internal:testProbe` only;
 Linux audit CLEAN, selftest every fault caught. Tests 784 declared / 772 run.
+
+### 12.90 WP-157 — Pool defaults to "stream" (2026-10-18, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 157 | Pool defaults to "stream" (lsqvce.Options and the engine), measured first: pooling identical spectra gains nothing in x, pooling different ones fails (eff 37 / 132); "all" put streams of different physics in one law, which the Manual says never to do and WP-154's poolNotWhite reported in most of the suite's fixtures; version 6.33.0 (a changed default: a minor). Stacked on WP-154 (#202) | 154 | OPEN (2026-10-18) |
+
+**The user's request (2026-10-18):** "Open a separate WP to change the default Pool to "stream",
+measured first." -- after WP-154's observation that the default pooled different physics.
+
+**The measurement (the review's closed loop; defaults otherwise: Grid 60, Smooth 1; 3 days x 4 arcs
+x 256 epochs unless said; 10 seeds; eff against the oracle that knows the true covariance).**
+
+| scenario | Pool "all": eff / sx/so / levels | Pool "stream" |
+|---|---|---|
+| 2 streams, one spectrum (AR 0.5) | 1.007 / 0.650 / 1.00 1.00 | 0.953 / 0.693 / 1.00 1.00 |
+| the same, 1 day x 2 arcs | 1.078 / 0.840 / 1.00 0.99 | 1.082 / 1.479 / 1.00 1.00 |
+| 4 streams, one spectrum | 0.997 / 0.964 / 1.00 1.00 | 0.897 / 0.978 / 1.00 1.00 |
+| 2 streams, AR 0 and 0.9 | **36.7** / 1.352 / 1.96 0.77 | 1.035 / 1.058 / 1.00 1.02 |
+| 4 streams, AR 0 / 0.5 / 0.9 / 0.98 | **132** / 3.091 / 3.25 2.37 | 1.009 / 1.002 / 1.00 1.00 |
+
+Pooling identical spectra bought nothing measurable in x; the one visible cost of "stream" is the
+short record's formal sigma (1.48 x the oracle's against 0.84 x pooled), with the actual errors
+still covered (z^2 0.89 against 0.94) -- "stream" errs on the cautious side there. Pooling different
+spectra is a failure the default should not invite. Decision: "stream" (Options and adjustVCEjoint,
+one default). Pooling stays a deliberate choice ("obsType", "all").
+
+**Changes.** Options.Pool and adjustVCEjoint's 'Pool' default "stream"; the help, the API reference
+(options) and the Manual (05) say why. The suite: WP-154's poolNotWhite mutes in tests that pooled
+only by the old default no longer fire and are removed (four in test_fit, two in test_errorDoctrine;
+the house rule mutes only what fires); the tests that MEAN a pooled run say Pool "all" now
+(test_vcePolicy's shared pooled run, test_fit's "pooled" half of testFitVceReproducesTheEngine --
+which keeps its mute, the warning fires there -- and test_ellmer's
+test_joint_avgtail_averages_every_pool_group, which reads group 'all'). New test: test_vcePolicy
+`testPoolDefaultsToStream` (the default reaches the engine; a default run has one law per stream).
+
+The new test fails on the old default (run with the change stashed). **Gates (tier A):** `ci_gate`
+GREEN 773 / 773, 27 / 27, inventory `lsqvce:internal:testProbe` only (one RED round first: the three
+tests that meant a pooled run, above); Linux audit CLEAN, selftest every fault caught. Tests 785
+declared / 773 run.
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.32.0 — API Reference</title>
+  <title>lsqvce 6.33.0 — API Reference</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.32.0 — API Reference</h1>
+<h1 class="title">lsqvce 6.33.0 — API Reference</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1348,12 +1348,16 @@ every prior group with <code>estimate = "scale"</code>.</td>
 </tr>
 <tr class="even">
 <td><code>Pool</code></td>
-<td><code>"all"</code>, <code>"obsType"</code>,
-<code>"stream"</code></td>
-<td><code>"all"</code></td>
-<td>which streams share one estimated spectral shape: all streams of the
-run, the streams of one observation type across systems, or every
-(system, type) stream on its own. Every stream keeps its own level.</td>
+<td><code>"stream"</code>, <code>"obsType"</code>,
+<code>"all"</code></td>
+<td><code>"stream"</code></td>
+<td>which streams share one estimated spectral shape: every (system,
+type) stream on its own, the streams of one observation type across
+systems, or all streams of the run. Every stream keeps its own level.
+The default was <code>"all"</code> until v6.33. Measured: pooling
+identical spectra gained nothing in x, while pooling different ones
+failed badly (efficiency 37–132, levels 2–3× off). Pool streams of the
+same physics deliberately (<code>"obsType"</code>).</td>
 </tr>
 <tr class="odd">
 <td><code>ArcFactors</code></td>
@@ -2255,9 +2259,15 @@ groups.</p>
                                   component estimator on every stream whose
                                   spec allows it (estimate ~= &quot;none&quot;), with
                                   the policy below
-    Pool       &quot;all&quot; | &quot;obsType&quot; | &quot;stream&quot;   which streams SHARE one estimated
+    Pool       &quot;stream&quot; | &quot;obsType&quot; | &quot;all&quot;   which streams SHARE one estimated
                                   spectral shape (every stream keeps its own
-                                  level regardless); default &quot;all&quot;
+                                  level regardless); default &quot;stream&quot; (WP-157,
+                                  it was &quot;all&quot;): MEASURED in the review&#39;s
+                                  closed loop, pooling identical spectra gained
+                                  nothing in x (eff 1.00-1.08 pooled, 0.90-1.08
+                                  per stream), pooling different ones failed
+                                  (eff 37 / 132, levels 2-3 x off); pool streams
+                                  of one physics deliberately with &quot;obsType&quot;
     ArcFactors logical            per-arc variance factors on (Ellmer 6.5.4),
                                   default true; false = one level per stream.
                                   The factor is the arc&#39;s ABSOLUTE Helmert

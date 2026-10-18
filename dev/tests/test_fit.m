@@ -111,7 +111,6 @@ end
 
 function testFitVceReproducesTheEngine(tc)
 % categories: reference, contract
-    muteWarn(tc, 'lsqvce:adjustVCEjoint:poolNotWhite');   % the fixture pools an ARMA position and a white KBR stream (Pool "all"): WP-154 says so
     % R5 M4 4b (decision R5-D4): Model "vce" is a POLICY of the one joint
     % estimator -- one law per stream (Pool "stream"), no arc factors -- and
     % Model "pooled" is Pool "all" without arc factors. Pinned as EXACT
@@ -142,8 +141,11 @@ function testFitVceReproducesTheEngine(tc)
     % the per-stream summary every model shares
     tc.verifyEqual(numel(Rv.noise.stream), numel(ots));
     tc.verifyTrue(all(cellfun(@(m) isfield(m, 'sigma') && m.sigma > 0, Rv.noise.model)));
-    % "pooled" = Pool "all" without arc factors
-    Rp = lsqvce.fit(data, lsqvce.Options(base{:}, Estimate="noise", ArcFactors=false));
+    % "pooled" = Pool "all" without arc factors (stated: the default is
+    % "stream" since WP-157); the fixture pools an ARMA position with a white
+    % KBR stream, which WP-154's check reports
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:poolNotWhite');
+    Rp = lsqvce.fit(data, lsqvce.Options(base{:}, Estimate="noise", Pool="all", ArcFactors=false));
     Rpe = lsqvce.fit(dataE, lsqvce.Options(base{:}, Estimate="noise", Pool="all"));
     % tol: exact -- as above
     tc.verifyEqual(Rp.x, Rpe.x);
@@ -1019,7 +1021,6 @@ end
 
 function testWhitenerIsCaseFreeOnTheNoisePath(tc)
 % categories: metamorphic, contract
-    muteWarn(tc, 'lsqvce:adjustVCEjoint:poolNotWhite');   % the fixture pools an ARMA position and a white KBR stream (Pool "all"): WP-154 says so
     % WP-137 (code review of WP-135, its lane-4 low "Noise.Whitener unvalidated
     % on the noise path"): Options checks the Whitener in any case and its
     % engineArgs lower it, but fit's joint path passed char(Noise.Whitener)
@@ -1038,7 +1039,6 @@ end
 
 function testNoiseEstimatesADeclaredPhysicalPsdLaw(tc)
 % categories: contract, robustness
-    muteWarn(tc, 'lsqvce:adjustVCEjoint:poolNotWhite');   % the fixture pools an ARMA position and a white KBR stream (Pool "all"): WP-154 says so
     % WP-131: under Estimate="noise" a declared 'psd' law with a physical
     % frequency axis f (covModel's own EXAMPLE form) takes policy "law"; the
     % estimator's override brings fNorm and a Grid-bin S, but the merge kept
@@ -1314,7 +1314,6 @@ end
 %% ================================================= WP-56c: Model "ellmer"
 function testEllmerThroughFitReproducesDirect(tc)
 % categories: reference, precision | tags: diagnostics, provenance
-    muteWarn(tc, 'lsqvce:adjustVCEjoint:poolNotWhite');   % the fixture pools an ARMA position and a white KBR stream (Pool "all"): WP-154 says so
     % R4 WP-56c: fit(Estimate="noise") is lsqvce.engine.adjustVCEjoint over an accFcn
     % that fit builds from the loaders (BlockAccumulator + jointModelOpt for
     % every 'satKey|obsType' stream), bridged into a Results. The direct route
@@ -1464,7 +1463,6 @@ end
 
 function testUnseededJointRunRecordsAReplayableSeed(tc)
 % categories: contract, reference
-    muteWarn(tc, 'lsqvce:adjustVCEjoint:poolNotWhite');   % the fixture pools an ARMA position and a white KBR stream (Pool "all"): WP-154 says so
     % R7-37: an unseeded joint run drew a fresh private seed every pass and
     % recorded none (R.meta.seeds.jointSeed was []), so it could not be
     % replayed -- against the "seeds in provenance" contract. The driver now

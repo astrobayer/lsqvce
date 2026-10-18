@@ -17,9 +17,15 @@ classdef Options
 %                                   component estimator on every stream whose
 %                                   spec allows it (estimate ~= "none"), with
 %                                   the policy below
-%     Pool       "all" | "obsType" | "stream"   which streams SHARE one estimated
+%     Pool       "stream" | "obsType" | "all"   which streams SHARE one estimated
 %                                   spectral shape (every stream keeps its own
-%                                   level regardless); default "all"
+%                                   level regardless); default "stream" (WP-157,
+%                                   it was "all"): MEASURED in the review's
+%                                   closed loop, pooling identical spectra gained
+%                                   nothing in x (eff 1.00-1.08 pooled, 0.90-1.08
+%                                   per stream), pooling different ones failed
+%                                   (eff 37 / 132, levels 2-3 x off); pool streams
+%                                   of one physics deliberately with "obsType"
 %     ArcFactors logical            per-arc variance factors on (Ellmer 6.5.4),
 %                                   default true; false = one level per stream.
 %                                   The factor is the arc's ABSOLUTE Helmert
@@ -156,6 +162,10 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the API reference, RELEASE_NOTES.md
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-157: Pool defaults to "stream" (it
+%   was "all", which put streams of different physics in one law -- measured:
+%   no gain from pooling identical spectra, eff 37-132 for different ones).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-154 (review 12.84, M1): Noise.Smooth
 %   defaults to 1 (it was 0): measured better in x, formal errors and passes,
 %   the levels as unbiased; a Grid tied to the arc length was measured too and
@@ -222,7 +232,7 @@ classdef Options
 
     properties
         Estimate   (1,1) string {mustBeMember(Estimate, ["none","noise"])} = "none"
-        Pool       (1,1) string {mustBeMember(Pool, ["all","obsType","stream"])} = "all"
+        Pool       (1,1) string {mustBeMember(Pool, ["all","obsType","stream"])} = "stream"   % WP-157
         ArcFactors (1,1) logical = true
         Robust     (1,1) string {mustBeMember(Robust, ["none","huber","igg3","bisquare"])} = "none"
         MaxPasses  (1,1) double {mustBeInteger, mustBePositive} = 10

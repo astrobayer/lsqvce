@@ -2015,7 +2015,8 @@ function test_joint_avgtail_averages_every_pool_group(tc)
     cfg = jointCfg();
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % Tol 1e-12: three passes by design
     out = lsqvce.engine.adjustVCEjoint(@(m) jointAcc(cfg, m), 'NumLags', 6, 'MaxIter', 3, ...
-              'Tol', 1e-12, 'AvgTail', 2, 'Probes', 40, 'Seed', 3, 'Verbose', false);
+              'Tol', 1e-12, 'AvgTail', 2, 'Probes', 40, 'Seed', 3, 'Verbose', false, ...
+              'Pool', "all");                        % stated: "stream" is the default since WP-157
     tc.verifyEqual(out.nIter, 3);
     % tol: 1e-12 relative -- the same average of the same two passes
     tc.verifyEqual(out.Sgroups('all'), out.S, 'RelTol', 1e-12);
