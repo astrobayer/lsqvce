@@ -73,7 +73,6 @@ engine.covComponent,robustness,its refusals are named identifiers pinned under c
 engine.covComponent,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.covComponent,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.covComponent,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
-engine.covModel,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.covModel,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.covModel,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.covModel,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path

@@ -64,6 +64,19 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %                  the deleted epoch's rows whiten to ~0 in place and a
 %                  row-wise consumer (redundancy, the verdict) counts the
 %                  rest exactly; the normals are unchanged (WP-133).
+%         .deleteRows  m x 1 logical over ROWS (WP-153; set by the loader) the
+%                  rows to DELETE exactly where the epoch nugget does not reach:
+%                  every excluded row of a 'var' law, and the excluded rows of
+%                  an epoch excluded on SOME of its axes (a correlated law, or
+%                  a full Cep coupling the axes). The whitener is the law's (the
+%                  composition and nugget included) followed by the projection
+%                  out of the deleted directions span(F e_r) -- the limit
+%                  c -> inf of a nugget, F'(I - Q Q')F = the kept rows'
+%                  inv(C_oo) -- and the rotation T of each onto its own row
+%                  (WP-133's convention). Whole arc (info.wholeArc). The zero
+%                  rows alone stayed in C and conditioned their neighbours:
+%                  normals 1.1e-2 off for one excluded epoch of a VAR(1), x 0.35
+%                  formal sd off for one excluded axis at phi 0.9.
 %         .maxDenseArc  1x1 epochs (default 20000; WP-126)  the longest arc a
 %                  law WITHOUT a filter form (acf, custom, psd 'toeplitz',
 %                  whitenMode 'chol') is factorised over: the factor is
@@ -72,7 +85,11 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %                  raise it deliberately when the memory is there. The dense
 %                  form Cfcn of a FILTER law is guarded by the same limit at
 %                  the size it is asked for (WP-134): only the joint noise
-%                  estimator builds it, per arc, whatever the whitener.
+%                  estimator builds it, per arc, whatever the whitener. WP-153:
+%                  the limit also bounds an MA part's exact start-up block
+%                  (min(filter memory, arc)^2 doubles: an MA root near the unit
+%                  circle) and a nugget or deletion whitener (24 m k bytes for
+%                  k corrected epochs: m k <= maxDenseArc^2).
 %
 %     t    m x 1  epochs of the current arc [s] (epoch-major with Cep: every
 %                 d-th value is one epoch). A 'psd' or 'arma' law counts its
@@ -158,6 +175,9 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %       lsqvce:covModel:noFilterForm   ... likewise for the whitening filter
 %
 %     A required field for the CHOSEN type is missing or malformed
+%       lsqvce:covModel:badDeleteRows  .deleteRows is not an m x 1 logical over the
+%                                      arc's rows, or the law has no whitener to
+%                                      delete through (WP-153)
 %       lsqvce:covModel:noSigma        .sigma missing        (most types)
 %       lsqvce:covModel:badSigma       .sigma not finite and positive ('arma',
 %                                      'psd': not ONE positive scalar)
@@ -203,6 +223,16 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %                                                whose largest step exceeds 1.5x
 %                                                the median (WP-134) -- once per run
 %
+%   THE PER-EPOCH ERROR INFORMATION, TWO CONVENTIONS (WP-153)
+%     A d = 1 Cep is always standard deviations: MATLAB stores an
+%     nEpoch x 1 x 1 array as nEpoch x 1, so a per-epoch VARIANCE array of a
+%     scalar stream is read as sigmas (variance 4 whitened 1 to 0.25, not 0.5)
+%     -- pass sqrt of the variances. A full Cep (nEpoch x d x d) is composed
+%     with its lower Cholesky factor in the given axis order (C2, user
+%     decision 2026-10-18): when Cep varies along the arc, C depends on the
+%     frame and the axis order (XYZ vs NEU, XYZ vs ZYX: 2 % of C measured, 5.7 %
+%     at phi 0.99 and 1:100 anisotropy); a constant or diagonal Cep does not.
+%
 %   ACCURACY
 %     The whiteners are exact factors of the covariance they are built from
 %     (the filter IS the Cholesky inverse factor, see above): diag / arma /
@@ -215,6 +245,13 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
 %            LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-153 (review 12.84): (C4) .deleteRows
+%   deletes rows exactly where the epoch nugget does not reach (a 'var' law, an
+%   epoch excluded on some axes); (C5) maxDenseArc bounds an MA part's start-up
+%   block and the nugget / deletion work arrays, and the nugget reads the law's
+%   variance epoch by epoch; (C2, C3) the help states the Cholesky composition's
+%   frame dependence and that a d = 1 Cep is sigmas. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: a deleted nugget epoch is
 %   rotated onto its own rows (the normals unchanged), so row-wise consumers
 %   count the live rows exactly. With assistance from Claude (Anthropic),
@@ -270,6 +307,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
     validateattributes(t, {'double'}, {'vector','finite','nonempty'}, mfilename, 't', 2);
 
     t = t(:);
+    nRows = numel(t);                                % the arc's rows (WP-153: deleteRows)
     % R6 WP-90: the per-epoch ERROR INFORMATION D (cm.Cep, set by the loader
     % from the day buildDay returned) composes with the TEMPORAL law that
     % cm.type declares: C = D (R_t kron I_d) D. The temporal law is built on
@@ -369,6 +407,10 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
         end
 
         p  = numel(a) - 1;  fm = filterMemoryOf(p, b);   % WP-125: an MA part makes it IIR
+        % WP-153 (C5): the exact start-up of an MA part is a dense
+        % min(fm, m)^2 block (armaWhiten) -- uncapped, an MA root near the unit
+        % circle asked for up to 65 536^2 doubles
+        if fm > p, denseArcGuard(cm, min(fm, numel(t)), 'arma', 'maStartup'); end
         r  = s^2 * lsqvce.kernel.armaACV(a, b, max(fm, 2));    % WP-127: the exact startup spans fm
 
         Wfcn = @(idx,A,B,l,o) lsqvce.kernel.armaWhiten(a, b, s, r, A, B, l, idx(1)==1);
@@ -469,9 +511,79 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
     % passes the same guard, at the epochs it is asked for (rows / d for 'var').
     if ~isempty(Wfcn) && ~isempty(Cfcn), Cfcn = guardedForm(Cfcn, cm, info); end
 
-    %------------------------------------------------ the composition (WP-90)
+    %------------------- the composition (WP-90) and exact row deletion (WP-153)
+    [Cfcn, Wfcn, info] = composedAndDeleted(Cfcn, Wfcn, info, cm, hasCep, Cep, d, nug, nRows);
+end
+
+function [Cfcn, Wfcn, info] = composedAndDeleted(Cfcn, Wfcn, info, cm, hasCep, Cep, d, nug, nRows)
+%COMPOSEDANDDELETED  The arc's operators, last step: the composition with the
+%   per-epoch Cep (and its nugget; R6 WP-90, R7 WP-115) and the exact deletion
+%   of cm.deleteRows through the result (WP-153, deletedRows). maxDenseArc
+%   bounds the nugget and deletion work arrays (nuggetMemoryGuard).
+%   ERRORS  lsqvce:covModel:badDeleteRows  deleteRows not a logical over the
+%           arc's nRows rows, or no whitener to delete through
+    mx = lsqvce.util.getfielddef(cm, 'maxDenseArc', 20000);
     if hasCep
-        [Cfcn, Wfcn, info] = composeWithCep(Cfcn, Wfcn, info, Cep, d, nug);
+        [Cfcn, Wfcn, info] = composeWithCep(Cfcn, Wfcn, info, Cep, d, nug, mx);
+    end
+    del = lsqvce.util.getfielddef(cm, 'deleteRows', []);
+    if isempty(del), return, end
+    if ~islogical(del) || numel(del) ~= nRows || isempty(Wfcn)
+        error('lsqvce:covModel:badDeleteRows', ...
+              ['cm.deleteRows must be a logical over the arc''s %d rows (got %d values), ' ...
+               'and the law must have a whitener to delete through.'], nRows, numel(del));
+    end
+    if any(del)
+        W0 = Wfcn;
+        Wfcn = @(idx, A, B, l, varargin) deletedRows(W0, del(:), mx, idx, A, B, l, varargin{:});
+        info.deleteRows = del(:);
+        info.wholeArc   = true;
+    end
+end
+
+function [A, B, l] = deletedRows(W0, del, mx, idx, A, B, l, varargin)
+%DELETEDROWS  Whiten a WHOLE arc with the rows DEL deleted exactly (WP-153).
+%   W0 is the arc's whitener F (law, composition, nugget). Deleting row r is
+%   the limit c -> inf of a nugget c e_r e_r': with Q R = qr(F U), U the unit
+%   columns of the deleted rows, inv(C + U diag(c) U') -> F'(I - Q Q')F, which
+%   is inv(C_oo) on the kept rows and 0 on the deleted ones -- the projection
+%   needs no size of c. T (deletionReflectors) then rotates each deleted
+%   direction onto its own row, so a row-wise consumer counts the rest (WP-133).
+%   INPUT  W0 the arc's whitener, del m x 1 logical, mx the maxDenseArc guard,
+%          idx 1:m (the whole arc), A/B/l the arc's rows
+    m = numel(del);
+    if numel(idx) ~= m || idx(1) ~= 1
+        error('lsqvce:covModel:nuggetNeedsWholeArc', ...
+              ['An arc with deleted rows is whitened whole (%d rows); this batch holds rows ' ...
+               '%d..%d. The batch iterator honours the arc''s wholeArc flag; a caller that ' ...
+               'batches by hand must pass the whole arc.'], m, idx(1), idx(end));
+    end
+    z = find(del);  k = numel(z);
+    nuggetMemoryGuard(m, k, mx, 'deleted rows');
+    [A, B, l] = W0(idx, A, B, l, varargin{:});
+    E = zeros(m, k);
+    E(sub2ind([m, k], z(:), (1:k).')) = 1;
+    FU = W0(idx, E, zeros(m, 0), zeros(m, 1), varargin{:});
+    [Q, ~] = qr(FU, 0);
+    Vh = deletionReflectors(Q, z);
+    A = reflectRows(Vh, A - Q * (Q.' * A));
+    B = reflectRows(Vh, B - Q * (Q.' * B));
+    l = reflectRows(Vh, l - Q * (Q.' * l));
+end
+
+function nuggetMemoryGuard(m, k, mx, what)
+%NUGGETMEMORYGUARD  Refuse a nugget / deletion whitener over m x k (WP-153, C5):
+%   its three m x k work arrays (E, F U, Q) cost 24 m k bytes, and k ~ m under
+%   a redescending influence's partial weights -- 180 GB at 86 400 epochs. The
+%   bound is the dense laws' own, m k <= maxDenseArc^2.
+%   ERRORS  lsqvce:covModel:denseArcTooLong  m k > mx^2
+    if m * k > mx^2
+        error('lsqvce:covModel:denseArcTooLong', ...
+              ['The %s of this arc are whitened through a rank-%d correction over %d ' ...
+               'epochs: %.3g GB of work arrays, above the limit of maxDenseArc^2 = %d^2 ' ...
+               'epoch products. Cut the arcs shorter, or raise ' ...
+               'covariance.<type>.maxDenseArc if the memory is there.'], what, k, m, ...
+               24 * m * k / 1e9, mx);
     end
 end
 
@@ -494,7 +606,7 @@ function [nEp, d] = cepShape(Cep)
 end
 
 %==========================================================================
-function [Cfcn, Wfcn, info] = composeWithCep(Ct, Wt, info, Cep, d, nug)
+function [Cfcn, Wfcn, info] = composeWithCep(Ct, Wt, info, Cep, d, nug, mx)
 %COMPOSEWITHCEP  C = D (R_t kron I_d) D from the temporal law and the per-epoch D.
 %   Ct / Wt are the temporal covariance / whitener over EPOCHS (built above
 %   on the epoch grid). The row whitener descales every epoch by D^-1/2 and
@@ -533,7 +645,7 @@ function [Cfcn, Wfcn, info] = composeWithCep(Ct, Wt, info, Cep, d, nug)
             Wlaw = @(ep, A, B, l, varargin) denseWhiten(Ct(ep, varargin{:}), A, B, l);
         end
         Wep0 = Wfcn;
-        Wfcn = @(idx, A, B, l, varargin) nuggetRows(Wep0, Wlaw, Ct, nug, d, idx, A, B, l, varargin{:});
+        Wfcn = @(idx, A, B, l, varargin) nuggetRows(Wep0, Wlaw, Ct, nug, d, mx, idx, A, B, l, varargin{:});
         info.nugget   = nug;
         info.wholeArc = true;
     end
@@ -552,7 +664,7 @@ function nug = nuggetOf(cm, hasCep, m)
     end
 end
 
-function [A, B, l] = nuggetRows(Wc, Wlaw, Ct, q, d, idx, A, B, l, varargin)
+function [A, B, l] = nuggetRows(Wc, Wlaw, Ct, q, d, mx, idx, A, B, l, varargin)
 %NUGGETROWS  Whiten a WHOLE arc under C = D ((R_t + diag(c)) kron I_d) D,
 %   c_e = q_e Sigma_ee (R7 WP-115 part 3b, mirrors/wp115/nugget.py).
 %   Wc is the composed whitener (descale by D, then the law's whitener F
@@ -572,10 +684,14 @@ function [A, B, l] = nuggetRows(Wc, Wlaw, Ct, q, d, idx, A, B, l, varargin)
                'The batch iterator honours the arc''s wholeArc flag; a caller that batches ' ...
                'by hand must pass the whole arc.'], mE * d, idx(1), idx(end));
     end
-    [A, B, l] = Wc(idx, A, B, l, varargin{:});
     z  = find(q > 0);  k = numel(z);
-    Cz = Ct(z, varargin{:});                          % the law over the nugget epochs
-    if isvector(Cz), cz = Cz(:); else, cz = diag(Cz); end
+    nuggetMemoryGuard(mE, k, mx, 'robust nuggets');    % WP-153 (C5): before any m x k array
+    [A, B, l] = Wc(idx, A, B, l, varargin{:});
+    % WP-153 (C5): the law's VARIANCE at each nugget epoch, one epoch at a time
+    % -- Ct(z) built the dense k x k law (k ~ m under bisquare) for its
+    % diagonal, through the guard of the noise sweep, whose message then
+    % blamed the joint estimator for a robust solve
+    cz = arrayfun(@(e) Ct(e, varargin{:}), z(:));
     c  = q(z) .* cz;
     E  = zeros(mE, k);
     E(sub2ind([mE, k], z(:), (1:k).')) = 1;
@@ -824,7 +940,14 @@ function denseArcGuard(cm, m, type, purpose)
         error('lsqvce:covModel:denseArcTooLong', ...
               'cm.maxDenseArc must be a positive number of epochs.');
     end
-    if m > mx && strcmp(purpose, 'whiten')
+    if m > mx && strcmp(purpose, 'maStartup')
+        error('lsqvce:covModel:denseArcTooLong', ...
+              ['The MA part of this ''%s'' law is started exactly by a dense %d x %d block ' ...
+               '(%.3g GB): the impulse response of 1/B(z) decays that slowly -- an MA root ' ...
+               'close to the unit circle -- and %d is above the limit of %d (cm.maxDenseArc). ' ...
+               'Give an MA part further from the unit circle, cut the arcs shorter, or raise ' ...
+               'covariance.<type>.maxDenseArc if the memory is there.'], type, m, m, 8 * m^2 / 1e9, m, mx);
+    elseif m > mx && strcmp(purpose, 'whiten')
         error('lsqvce:covModel:denseArcTooLong', ...
               ['The ''%s'' law has no filter form, so it is factorised over the whole arc: ' ...
                '%d epochs need %.3g GB for the factor alone, above the limit of %d epochs ' ...

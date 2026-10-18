@@ -103,6 +103,7 @@ lsqvce:collectResiduals:badRes,engine.collectResiduals,error,v4.0
 lsqvce:covComponent:badLag,engine.covComponent,error,v4.0
 lsqvce:covComponent:lagTooLarge,engine.covComponent,error,v4.0
 lsqvce:covModel:badCep,engine.covModel,error,v4.0
+lsqvce:covModel:badDeleteRows,engine.covModel,error,v6.31.0
 lsqvce:covModel:badPsdMode,engine.covModel,error,v4.0
 lsqvce:covModel:badSigma,engine.covModel,error,v4.0
 lsqvce:covModel:badWhitenMode,engine.covModel,error,v4.0
@@ -223,6 +224,7 @@ lsqvce:prior:badTarget,engine.CommonPrior,error,v4.0
 lsqvce:probeMatrix:badDist,engine.private.probeMatrix,error,v4.0
 lsqvce:psd2acv:aboveNyquist,kernel.psd2acv,warning,v4.0
 lsqvce:psd2acv:nonPositiveVariance,kernel.psd2acv,error,v4.0
+lsqvce:psd2acv:noZeroFrequency,kernel.psd2acv,error,v6.31.0
 lsqvce:psd2acv:tooFewPoints,kernel.psd2acv,error,v4.0
 lsqvce:psdVCE:arcMismatch,engine.psdVCE,error,v4.0
 lsqvce:psdVCE:shapeMismatch,engine.psdVCE,error,v4.0

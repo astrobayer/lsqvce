@@ -61,7 +61,12 @@ cond 3.3e8 for a phi = 0.5 law). The exact integral has no period: r is
 the ACV of the spectrum S itself, at every lag, and a non-negative S gives a
 positive semi-definite Toeplitz(r) of every size.</pre>
 <h3>Input</h3>
-<pre class="example">f    nf x 1  frequency grid [Hz], strictly increasing, f &gt;= 0
+<pre class="example">f    nf x 1  frequency grid [Hz], strictly increasing, from 0 (WP-153:
+             the band [0, f(1)] is not in the integral -- an AR(0.99) law
+             on 512 bins from its first bin lost 34 % of its variance. A
+             grid whose omitted band, estimated flat as f(1) S(1), exceeds
+             1e-6 of r(0) is refused; a negligible one -- a habitual start
+             at 1e-9 Hz -- passes unchanged)
 S    nf x 1  one-sided PSD [unit^2/Hz], S &gt;= 0
 dt   scalar  lag spacing [s], &gt; 0 (the sampling interval of the data)
 n    scalar  number of lags to return, &gt;= 1</pre>
@@ -74,7 +79,9 @@ A factor-of-two error here shows up as sigma0 ~ sqrt(2) or 1/sqrt(2),
 not as an obvious failure -- check r(1) against var(residuals).</pre>
 <h3>Accuracy</h3>
 <pre class="example">Exact for the piecewise-linear S (1e-11 against a 2e6-point quadrature of
-the same interpolant, at any lag); r(1) == trapz(f, S). What remains is
+the same interpolant, at any lag); r(1) == trapz(f, S). The lags are
+formed in blocks of at most 4e6 lag-segment products (WP-153): memory
+O(n + nf), where one n x nf product was 4 GB at 1e5 lags of 512 bins. What remains is
 how well the linear interpolant represents YOUR spectrum: a grid too
 coarse near a peak biases r(0) low -- resolve the narrowest feature of S.</pre>
 <h3>Best Practice</h3>
@@ -91,6 +98,8 @@ r  = lsqvce.kernel.psd2acv(f, S, dt, 5);
 r(1)                                        % ~ 1/(1-0.9^2) = 5.263</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:psd2acv:tooFewPoints         the PSD has too few ordinates to invert
+  lsqvce:psd2acv:noZeroFrequency      the grid starts above 0 and the band below
+                                it is not negligible: f(1) S(1) &gt; 1e-6 r(0) (WP-153)
   lsqvce:psd2acv:nonPositiveVariance  the implied variance is not positive,
                                 so the PSD is not a valid spectrum
 
@@ -99,6 +108,11 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.ARMAACV, LSQVCE.ENGINE.CHECKPSD
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-153 (review 12.84, C1, C5): a grid
+that starts above 0 with a band below it that is not negligible is refused
+(noZeroFrequency); the lags are
+formed in blocks, memory O(n + nf). With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 2 (R7-01): the exact
 integral of the piecewise-linear spectrum replaces trapezoidal quadrature
 (no lag period, no circulant). With assistance from Claude (Anthropic),
