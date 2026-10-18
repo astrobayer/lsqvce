@@ -21,6 +21,9 @@ function tests = test_speedBudget
 %
 %   See also TIMEPAIR, TEST_INSTRUMENTS, dev/DEVELOPMENT.md (WP-79 table)
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-156: lawInverse's structured path
+%   against the dense inverse. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): the armaACV point's cost model (the response follows its decay).
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
@@ -109,6 +112,26 @@ function testFilterWhiteningBeatsDense(tc)
     dense = @() lsqvce.kernel.decorrFactor(toeplitz(r)) * X;
     rec = timePair(filt, dense, 'Label', 'armaWhiten/dense whitening');
     tc.verifyLessThan(rec.ratio, 1, sprintf('filter/dense = %.3f [%.3f %.3f]', rec.ratio, rec.band));
+end
+
+function testLawInverseBeatsTheDenseInverse(tc)
+% categories: speed
+    % WP-156: lsqvce.kernel.lawInverse inverts a Toeplitz law by Levinson-Durbin
+    % and the Trench recursion, O(N^2), where the dense route (Cholesky, then
+    % the triangular inverse and its product) is O(N^3). tol: ratio < 0.85 at
+    % N = 3000 (measured 0.52 with the structure test and the guard included,
+    % 0.68 at N = 2000 where the O(N^2) overheads still weigh; HANDOVER 12.91)
+    N = 3000;  Sig = toeplitz(0.95 .^ (0:N-1));
+    fast  = @() lsqvce.kernel.lawInverse(Sig);
+    dense = @() denseInverse(Sig);
+    rec = timePair(fast, dense, 'Inner', 1, 'Label', 'lawInverse/dense inverse');
+    tc.verifyLessThan(rec.ratio, 0.85, sprintf('structured/dense = %.3f [%.3f %.3f]', rec.ratio, rec.band));
+end
+
+function P = denseInverse(Sig)
+%DENSEINVERSE  The inverse through the Cholesky factor (lawInverse's other path).
+    X = chol(Sig) \ eye(size(Sig, 1));
+    P = X * X.';
 end
 
 function testArmaACVIsNearLinearInLags(tc)

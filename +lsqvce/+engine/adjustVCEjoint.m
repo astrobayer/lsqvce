@@ -105,10 +105,8 @@ function out = adjustVCEjoint(accFcn, opt)
 %     'Influence' string     "none" (default) | "huber" | "igg3" | "bisquare"
 %              R6 WP-105: the ROBUST PASS INSIDE THE LOOP, in the KOCH
 %              convention -- the weight is a statement about the
-%              OBSERVATION. Every pass ends with one residual sweep; the RAW
-%              residuals, descaled by each epoch's own declared accuracy
-%              (Cep) and reduced to ONE value per epoch (chi-calibrated over
-%              a multi-axis epoch's rows, below), go through
+%              OBSERVATION. Every pass's sweep forms ONE statistic per epoch
+%              (below: Baarda's w since WP-156), which goes through
 %              LSQVCE.KERNEL.ROBUSTWEIGHTS per stream, and the factors
 %              enter the NEXT pass as an additive NUGGET on the temporal
 %              covariance (model.rowWeights -> UserOpt.epochWeights ->
@@ -133,36 +131,51 @@ function out = adjustVCEjoint(accFcn, opt)
 %              selects the epochs with large residuals, which no redundancy
 %              count undoes. So (user decision 2026-10-11) the component
 %              update (the sweep) sees only the REJECTED epochs, factor 0, as
-%              nuggets (deleted); partial factors weight the solution only;
-%              and the stream's level is divided by the Gaussian truncation
-%              factor of the rejection point kReject,
-%              tau = F_{d+2}(q_k) / F_d(q_k) with P(chi2_d > q_k) =
-%              P(|N(0,1)| > kReject) -- 0.9733 for IGG3's k1 = 3 at d = 1,
-%              1 for Huber, which rejects nothing (out.robust.truncation).
-%              The RETURNED solution is hard as well: after the loop one
+%              nuggets (deleted); partial factors weight the solution only.
+%              THE STATISTIC AND THE TRUNCATION (WP-156, design F, user
+%              decision 2026-10-18; HANDOVER 12.91). Deleting epoch i removes
+%              exactly w_i^2 = (R v)_i^2 / R_ii from v'Pv (R = P Qvv P), Baarda's
+%              w for CORRELATED observations; the raw residual rejected on
+%              until then correlates with it only by sqrt(c_i / Sigma_ii), so
+%              on a coloured stream the kept epochs were truncated in the
+%              wrong direction (review 12.84 N3: the level 1-2.5 % high) and a
+%              red stream's blunders went unseen (2 % x 2 sigma at phi 0.98:
+%              35 % caught, the level 3.6 x). Now: (1) the statistic is w per
+%              epoch on the arc's law (LSQVCE.KERNEL.WSNOOP; a d-axis epoch
+%              the sum of its axes' w^2, mapped to a normal deviate as R7-08),
+%              in units of ONE SCALE PER STREAM, the previous pass's MAD of the
+%              final system (never the estimated level: perStreamWeights says
+%              why); (2) every arc is snooped -- the largest |w| beyond the
+%              rejection point deleted, the arc recomputed, until none is left
+%              -- rebuilt from the data's own exclusions every pass (pass 0,
+%              whose scale is not known, rejects simultaneously); (3) the kept
+%              epochs' truncation enters the REDUNDANCY lag by lag
+%              (LSQVCE.KERNEL.TRUNCATIONDEFICIT: s_n - (1 - tau) [R D^-1 R]_n,
+%              and the whole law's pair), so the law, its level and sigma0
+%              are consistent for any law -- the level is no longer divided
+%              by tau, which is exact for the total only (a red stream's
+%              variance read +2.4 %); (4) a rejected set that cycles with
+%              period 2 is frozen at the union of the two (freezeCycle;
+%              out.robust.frozen). tau = F_{d+2}(q_k) / F_d(q_k), P(chi2_d >
+%              q_k) = P(|N(0,1)| > kReject), is 0.9733 for IGG3's k1 = 3 at d
+%              = 1 and 1 for Huber, which rejects nothing.
+%              The RETURNED solution is hard: after the loop one
 %              accumulation with the rejected epochs deleted and every
 %              partial factor 1, its sigma0 / Cxx corrected for the rejected
-%              rows and the truncation (measured: with the partial factors in
-%              that solve, sigma*sigma0 stayed 0.83 -- sigma0 gave the bias
-%              back).
-%              Mirror (mirrors/wp115/nugget.py): 0.978 / 0.976 (phi 0.5 /
-%              white) before the factor. tau is the white-noise value: on a
-%              coloured stream the deletion lowers the Helmert ratio less
-%              (mirror, review 12.84 N3: 0.983 / 0.9955 / 0.998 at phi 0.5 /
-%              0.9 / 0.98), so a robust run's level and hard sigma0 read 1-2.5 %
-%              high there -- not corrected. A HELD arc (no redundancy above
-%              rounding) is not divided by tau, and the bins' stop test reads
-%              the change of shape, which tau does not move (WP-152). Multi-axis streams are
-%              weighted PER EPOCH by one chi-calibrated statistic (R7-08:
-%              the d descaled rows' sum of squares mapped to an equivalent
-%              N(0,1) deviate, so a clean 3-axis epoch is standardised like a
-%              scalar residual; the RMS used before zeroed 24 % of clean
-%              epochs under IGG3). The residuals
-%              are standardised by ONE MAD SCALE PER STREAM, never by the
-%              estimated level (perStreamWeights says why). Prior streams
-%              are never re-weighted. Prefer "igg3" / "bisquare" for gross
-%              blunders: Huber keeps c/|u| of their weight. "none" is bitwise
-%              the plain estimator.
+%              rows and the truncation -- exact for the total under w
+%              (out.robust.truncation; measured: with the partial factors in
+%              that solve, sigma*sigma0 stayed 0.83). MEASURED (HANDOVER
+%              12.91, 20 seeds paired against "none"): a red stream's variance
+%              -0.24 / -0.10 / -0.11 % at phi 0.5 / 0.9 / 0.98 (the raw rule
+%              +0.3 / +1.4 / +1.0 %), sigma0^2 -0.08 %, x unchanged; 2 % x 2
+%              sigma blunders at phi 0.9: phi_b 0.900 (the raw rule 0.843).
+%              Cost: one explicit law inverse per arc (O(m^2) for a Toeplitz
+%              law, LSQVCE.KERNEL.LAWINVERSE) and the deficit's lag sums
+%              (O(m^2 log m)), against the sweep's O(m^3) factor. A HELD arc
+%              keeps its factor and the bins' stop test reads the change of
+%              shape (WP-152). Prior streams are never re-weighted. Prefer
+%              "igg3" / "bisquare" for gross blunders: Huber keeps c/|u| of
+%              their weight. "none" is bitwise the plain estimator.
 %     'Tuning'    [] | 1xK   tuning constants of the influence (its defaults)
 %     'Verbose'   logical    per-iteration banner (default false)
 %     'StepSchedule' 'none' (default) | 'decay'.  WP-40 r2 (F-15): the
@@ -229,15 +242,18 @@ function out = adjustVCEjoint(accFcn, opt)
 %       .seed      1x1        the probe seed used (the given Seed, or the one
 %                             pinned for an unseeded run -- R7-37; passing it
 %                             back as 'Seed' replays the run)
-%       .robust    struct     .influence, .scale (1 x S, the MAD scale per
-%                             stream of the last robust sweep), .streams
-%                             (1 x S 'satKey|obsType', sorted), .factor
+%       .robust    struct     .influence, .scale (1 x S, the scale of the w
+%                             statistic per stream, w units: the MAD of the
+%                             last robust sweep's final system; WP-156),
+%                             .streams (1 x S 'satKey|obsType', sorted), .factor
 %                             (nEpoch x 1, the final factors, ONE PER EPOCH
 %                             in sweep order -- a multi-axis epoch's d rows
 %                             share it), .keys (A x 4 {sysID, obsType, day,
-%                             arc}), .truncation (1 x S, the level's
-%                             truncation factor tau per stream, R7 WP-115
-%                             part 3b); empty under "none" (R6 WP-105)
+%                             arc}), .truncation (1 x S, the truncation factor
+%                             tau per stream, which the hard sigma0 is divided
+%                             by -- the level no longer is, WP-156), .frozen
+%                             (the pass a cycling rejected set was frozen at,
+%                             0 none; WP-156); empty under "none" (R6 WP-105)
 %       .arcKeys   M x 1 cell arc keys s<sys>_<obsType>_d<day>_a<arc> pinned
 %                             on pass 1 (LSQVCE.ENGINE.REDUNDANCY's 'arc' format) --
 %                             the ONE identity .sigma2 and Sigma2_0 align to
@@ -342,6 +358,13 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-156 (design F, user decision
+%   2026-10-18): the robust pass rejects on Baarda's w per epoch, formed and
+%   snooped in the sweep (the separate residual pass is gone), the kept
+%   epochs' truncation enters the redundancy lag by lag (no division of the
+%   level by tau), a cycling rejected set is frozen at its union
+%   (history.robustFrozen, out.robust.frozen); N3 retired. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-157: Pool defaults to "stream", as
 %   lsqvce.Options does. With assistance from Claude (Anthropic), model Claude
 %   Opus 5.5.
@@ -599,7 +622,8 @@ end
     robust = ~strcmp(o.Influence, "none");       % R6 WP-105
     W = containers.Map('KeyType', 'char', 'ValueType', 'any');   % per-epoch factors
     fac = [];  rkeys = cell(0, 4);  rscale = [];  rstreams = {};  tauMap = [];  hardFix = [];
-    hist.robustScale = [];  hist.nDown = [];  hist.nZero = [];
+    hist.robustScale = [];  hist.nDown = [];  hist.nZero = [];  hist.robustFrozen = 0;
+    rob = robustState(robust, o);                % WP-156: the w statistic's scale, the freeze
     if ~isempty(o.Sigma2_0)
         % WP-132 (review low 22): Sigma2_0 weights pass 1 PER ARC. Pass 1 used to
         % run before anything was pinned, so jointModelOpt saw neither stream
@@ -629,13 +653,7 @@ end
                         'arcFactor', arcFactorMap(pinnedStream, pinnedRow, sigma2, o), ...   % WP-132: Sigma2_0
                         'Sgroups', Smap, 'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
                         'lastSol', [], 'rowWeights', W);
-        acc0 = accFcn(model0);
-        sol0 = acc0.solve();
-        [W, ~, ~, rscale0, ~, nDown0, nZero0, tauMap, hardFix] = robustSweep(acc0, sol0, o, size(sol0.x, 1));
-        if v
-            lsqvce.util.log.msg('  [joint  0] robust (%s): scales %s, %d down-weighted, %d at zero\n', ...
-                o.Influence, mat2str(rscale0, 3), nDown0, nZero0);
-        end
+        [W, tauMap, hardFix, rob] = robustPassZero(accFcn(model0), o, nLag, v, rob, W, model0.streamSigma2);
     end
     for it = 1:o.MaxIter
         % ---- steps 1-5: build under the current model, accumulate, solve --
@@ -672,8 +690,8 @@ end
         % WP-34 (fixes F-02): arcs are KEYED, the factor map is pinned on the
         % PASS-1 ENUMERATION, and a skipped arc keeps its previous factor --
         % one skip can no longer shift every later arc's factor by position.
-        [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, streamOf, lagRaw] = ...
-            sweepArcs(acc, sol, sp.UiZ, nLag, v);
+        [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, streamOf, lagRaw, robS] = ...
+            sweepArcs(acc, sol, sp.UiZ, nLag, v, robustContext(rob, W, model.streamSigma2));   % WP-156
         % R5 M1: a skip RATE above the threshold is a refusal, not a smaller
         % estimate. The skipped arcs keep their factors and the run continues
         % on the rest only while they are few; beyond SkipThreshold the law
@@ -801,11 +819,12 @@ end
             % alpha2_m = etilde' T etilde / trace(Rbar T) (qa / ta from sweepArcs:
             % redundancyLags .omegaLaw / .sLaw, WP-132)
             avk = lsqvce.engine.arcVarianceFactors(qa(cols), ta(cols), s2Applied(cols));   % 1 x M rows
-            % R7 WP-115 part 3b (R7-12): the sweep deleted the REJECTED epochs, so
-            % the stream's Helmert factor is that of a sample truncated at the
-            % rejection point -- divided by its Gaussian truncation factor tau
-            % (truncated; WP-125/126: lvl is the stream's pooled level)
-            [g2, s2, lvl(sk{1})] = truncated(avk, tauRow(tauMap, sk), s2Applied(cols));
+            % WP-156 (design F): the sweep deleted the REJECTED epochs and took
+            % the truncation of the kept ones into the redundancy, lag by lag and
+            % in the whole law's pair (lsqvce.kernel.truncationDeficit) -- the
+            % level is no longer divided by tau (R7 WP-115 part 3b did, which is
+            % exact for the total only: a red stream's variance read +2.4 %)
+            [g2, s2, lvl(sk{1})] = arcLevels(avk, s2Applied(cols));   % WP-125/126: lvl pooled
             dispMap(sk{1}) = levelDispersion(avk, ta(cols));          % WP-154 (M3)
             av.gamma2(cols) = g2;  av.sigma2(cols) = s2;
             av.gammaBar(end+1) = avk.gammaBar;
@@ -867,16 +886,20 @@ end
         end
 
         % ---- step 9c (R6 WP-105): the robust pass -- next pass's factors ----
-        % One residual sweep under THIS pass's accumulator; the RAW residuals,
-        % descaled by the declared Cep (epochResiduals -- the factors are a
-        % nugget, never in Cep), standardised per stream by their MAD. The
-        % factors are written for the NEXT
-        % pass, one pass behind the model -- the same lag adjustRobust has.
+        % WP-156 (design F): THIS pass's sweep formed Baarda's w per epoch and
+        % snooped every arc (robS); the influence turns the statistics into
+        % the factors, written for the NEXT pass, one pass behind the model --
+        % the same lag adjustRobust has. A period-2 cycle of the rejected set
+        % is frozen at its union (freezeCycle, user decision 2026-10-18).
+        if robust && rob.frozen == 0
+            [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap, hardFix, rob] = ...
+                robustSweep(robS, o, size(sol.x, 1), rob);
+            [W, fac, nZero, hardFix, rob] = freezeCycle(W, fac, rkeys, robS, hardFix, rob, it, v);
+            hist.robustFrozen = rob.frozen;
+        end
         if robust
-            [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap, hardFix] = robustSweep(acc, sol, o, size(sol.x, 1));
-            hist.robustScale(it,1:numel(rscale)) = rscale;       %#ok<AGROW>  one MAD scale per stream
-            hist.nDown(it,1) = nDown;                            %#ok<AGROW>
-            hist.nZero(it,1) = nZero;                            %#ok<AGROW>
+            hist.robustScale(it,1:numel(rscale)) = rscale;       %#ok<AGROW>  one scale per stream (w units)
+            hist.nDown(it,1) = nDown;  hist.nZero(it,1) = nZero;  %#ok<AGROW>
             if v
                 lsqvce.util.log.msg('  [joint %2d] robust (%s): scales %s, %d down-weighted, %d at zero\n', ...
                     it, o.Influence, mat2str(rscale, 3), nDown, nZero);
@@ -980,38 +1003,40 @@ end
                  'seed', o.Seed, 'checks', checks, ...                 % R7-37; WP-154
                  'robust', struct('influence', char(o.Influence), 'scale', rscale, ...
                                   'streams', {rstreams}, 'factor', fac, 'keys', {rkeys}, ...      % R6 WP-105
-                                  'truncation', tauRow(tauMap, rstreams)));                      % R7 WP-115
+                                  'truncation', tauRow(tauMap, rstreams), ...                    % R7 WP-115
+                                  'frozen', rob.frozen));                                        % WP-156
 end
 
 %==========================================================================
-function [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap, hardFix] = robustSweep(acc, sol, o, nc)
-%ROBUSTSWEEP  One robust sweep (R6 WP-105, the KOCH convention): the RAW
-%   residuals under this accumulator, descaled by each epoch's DECLARED
-%   accuracy (Cep; the factors are a nugget since R7 WP-115 part 3b, so
-%   nothing has to be divided back out), one value per epoch, the influence
-%   per stream (perStreamWeights), the collapse refusal, the factor map W
-%   for the NEXT pass (one per epoch) and tauMap, the level's truncation
-%   factor per stream (truncationFactor at the influence's rejection point,
-%   averaged over the stream's epochs by their axis count), and hardFix
-%   (.tau the row-weighted factor over every weighted epoch, .nRej the
-%   rejected ROWS) for the final hard solution (hardSolution).
-    % Whitened=true: the record carries the RAW residual .v either way, and
-    % the sweep's own sigma0 check must see the WHITENED sum (round 11: with
-    % Whitened=false its vtv is the raw sum, and the honest sigma0Mismatch
-    % guard fired on every robust pass).
-    res = lsqvce.engine.residuals(acc, sol, 'Whitened', true, 'Collect', true, 'Verbose', false);
-    [uEp, rkeys, sizes, qEp, dEp] = epochResiduals(res);
-    uEp = chiCalibrated(uEp, qEp, dEp, rkeys, sizes);               % R7-08: d > 1 epochs
+function [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap, hardFix, rob] = robustSweep(robS, o, nc, rob)
+%ROBUSTSWEEP  The robust pass (R6 WP-105; WP-156 design F): the factor map
+%   W for the NEXT pass (one per epoch) from the statistics THIS pass's
+%   sweep formed -- robS from sweepArcs: per epoch Baarda's w for correlated
+%   observations in units of the stream's scale (lsqvce.kernel.wSnoop), +-Inf
+%   on an epoch the arc's snooping deleted, NaN on one excluded on every
+%   axis. The influence acts per stream (perStreamWeights); its MAD of the
+%   statistic, rscale, carries the stream's scale to the next pass (rob.scale
+%   x rscale, level-free -- robustContext -- so the snooping threshold settles
+%   where the MAD of the final system is one). tauMap, the truncation factor per stream at the
+%   influence's rejection point (averaged over the stream's epochs by their
+%   axis count), and hardFix (.tau the row-weighted factor, .nRej the
+%   rejected ROWS) correct the final hard solution's sigma0 (hardSolution):
+%   the total v'Pv of a sample truncated in its w directions is exactly tau
+%   times the untruncated one. The level is no longer corrected here (the
+%   deficit is in the sweep's redundancy). The collapse refusal and the
+%   breakdown warning as before.
+    uEp = robS.u;  rkeys = robS.keys;  sizes = robS.sizes;  dEp = robS.d;
     [fac, rscale, rstreams, kReject, rowsOf] = perStreamWeights(uEp, rkeys, sizes, o.Influence, o.Tuning);
     tauMap = containers.Map('KeyType', 'char', 'ValueType', 'double');
     for si = 1:numel(rstreams)
         [ud, ~, j] = unique(dEp(rowsOf{si}));          % one factor per axis count
         tv = arrayfun(@(d) truncationFactor(kReject, d), ud);
         tauMap(rstreams{si}) = mean(tv(j));
+        s0 = 1;  if isKey(rob.scale, rstreams{si}), s0 = rob.scale(rstreams{si}); end
+        if isfinite(rscale(si)) && rscale(si) > 0, rob.scale(rstreams{si}) = s0 * rscale(si); end
     end
-    ud = unique(dEp);  tAll = arrayfun(@(d) truncationFactor(kReject, d), ud);
-    [~, j] = ismember(dEp, ud);
-    hardFix = struct('tau', sum(dEp .* tAll(j)) / sum(dEp), 'nRej', sum(dEp(fac == 0)));
+    rob.active = isfinite(kReject);                   % the deficit applies from the next sweep on
+    hardFix = hardFixOf(fac, dEp, kReject);
     nAlive = sum(fac > 0);
     if nAlive < nc + 1                                              % live EPOCHS
         error('lsqvce:adjustVCEjoint:collapsed', ...
@@ -1026,6 +1051,40 @@ function [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap, hardFix] = robu
               nAlive, nc, nc + 1);
     end
     warnAtBreakdown(fac, 'adjustVCEjoint');        % engine-private: > 45 % of the epochs zeroed (R7 WP-115)
+    W = factorMap(fac, rkeys, sizes);
+    rscale = cellfun(@(k) rob.scale(k), rstreams);
+    nDown = sum(fac < 0.5 & fac > 0);
+    nZero = sum(fac == 0);
+end
+
+function [W, tauMap, hardFix, rob] = robustPassZero(acc0, o, nLag, v, rob, W, lvl)
+%ROBUSTPASSZERO  PASS 0 of a robust run (round 10): the first robust pass
+%   runs BEFORE the first spectral update, on ACC0, the accumulation under
+%   the start model. WP-156 (design F): the statistic is Baarda's w, formed
+%   per epoch by the sweep, so pass 0 sweeps once for it alone. It does not
+%   snoop -- the stream's scale is not known yet -- and rejects
+%   simultaneously under the MAD of the undeleted system (a warm start);
+%   from pass 1 the sweep snoops with the previous pass's scale.
+    sol0 = acc0.solve();
+    sp0 = lsqvce.engine.sharedProbe(probeFactor(acc0, 0), 'numProbes', o.Probes, 'seed', o.Seed);
+    [~, ~, ~, ~, ~, ~, ~, ~, ~, ~, ~, ~, robS] = sweepArcs(acc0, sol0, sp0.UiZ, nLag, v, robustContext(rob, W, lvl));
+    [W, ~, ~, rscale0, ~, nDown0, nZero0, tauMap, hardFix, rob] = robustSweep(robS, o, size(sol0.x, 1), rob);
+    if v
+        lsqvce.util.log.msg('  [joint  0] robust (%s): scales %s, %d down-weighted, %d at zero\n', ...
+            o.Influence, mat2str(rscale0, 3), nDown0, nZero0);
+    end
+end
+
+function hardFix = hardFixOf(fac, dEp, kReject)
+%HARDFIXOF  The final hard solution's correction: .tau the truncation factor
+%   weighted by the rows of every epoch, .nRej the rejected rows.
+    ud = unique(dEp);  tAll = arrayfun(@(d) truncationFactor(kReject, d), ud);
+    [~, j] = ismember(dEp, ud);
+    hardFix = struct('tau', sum(dEp .* tAll(j)) / sum(dEp), 'nRej', sum(dEp(fac == 0)));
+end
+
+function W = factorMap(fac, rkeys, sizes)
+%FACTORMAP  The per-epoch factors keyed by the loader's arc key.
     W = containers.Map('KeyType', 'char', 'ValueType', 'any');
     off = 0;
     for kk = 1:size(rkeys, 1)
@@ -1033,8 +1092,98 @@ function [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap, hardFix] = robu
         W(lsqvce.util.rowWeightKey(rkeys{kk,1}, rkeys{kk,3}, rkeys{kk,2}, rkeys{kk,4})) = fac(off + (1:n));
         off = off + n;
     end
-    nDown = sum(fac < 0.5 & fac > 0);
+end
+
+function rob = robustState(robust, o)
+%ROBUSTSTATE  WP-156: the robust pass's state across passes -- .on (a robust
+%   run), .kRej the influence's rejection point (Inf for Huber), .tau(d) its
+%   truncation factor for a d-axis epoch, .scale the stream's scale of the
+%   w statistic (empty before pass 0's MAD), .active (a robust pass has
+%   rejected: the sweep subtracts the truncation deficit), .frozen (the pass
+%   a period-2 cycle was frozen at, 0 none) and .zeroSets (the last two
+%   rejected sets, freezeCycle).
+    kRej = Inf;
+    if robust
+        [~, ~, ~, ~, kRej] = lsqvce.kernel.robustWeights(linspace(-2, 2, 41).', o.Influence, o.Tuning);
+    end
+    rob = struct('on', robust, 'kRej', kRej, 'tau', @(d) truncationFactor(kRej, d), ...
+                 'scale', containers.Map('KeyType', 'char', 'ValueType', 'double'), ...
+                 'active', false, 'frozen', 0, 'zeroSets', {{}});
+end
+
+function rc = robustContext(rob, W, lvl)
+%ROBUSTCONTEXT  What the sweep needs from the robust pass (WP-156): .on (form
+%   the statistic: a robust run whose set is not frozen), .thr the snooping
+%   threshold (Inf until a scale exists -- pass 0 does not snoop), .scale
+%   (stream -> s, level-free: the scale of w sqrt(L)), .level (stream -> L,
+%   the stream's level factor the arcs were weighted with, model.
+%   streamSigma2; 1 where none), .W the factors the arcs were weighted with
+%   (which epochs the robust pass deleted, as opposed to the data's own
+%   exclusions), and .tauBar(d) = 1 - tau(d) once a robust pass has rejected
+%   (else []). WHY level-free: w is standardised by the law, which carries the
+%   estimated level, so w scales as 1 / sqrt(L); a scale carried in w units
+%   from the last pass lagged every change of the level (pass 0 -> 1 moves it
+%   from the declared to the estimated one: 4 x for a stream declared 1 and
+%   truly 0.5) and one pass snooped 13 % of the epochs -- measured, the level
+%   then read 6-11 % low and nearly every run froze a cycle.
+    if isempty(lvl), lvl = containers.Map('KeyType', 'char', 'ValueType', 'double'); end
+    rc = struct('on', rob.on && rob.frozen == 0, 'thr', Inf, 'scale', rob.scale, 'level', lvl, ...
+                'W', W, 'tauBar', []);
+    if rob.scale.Count > 0, rc.thr = rob.kRej; end
+    if rob.on && rob.active && isfinite(rob.kRej), rc.tauBar = @(d) 1 - rob.tau(d); end
+end
+
+function [W, fac, nZero, hardFix, rob] = freezeCycle(W, fac, rkeys, robS, hardFix, rob, it, v)
+%FREEZECYCLE  WP-156 (user decision 2026-10-18): a rejected set that returns
+%   to the set of two passes ago, having differed from the last one, is a
+%   period-2 cycle -- an epoch or two at the threshold that the law's
+%   feedback on w flips each pass (measured: 2-5 of 20 seeds per scenario
+%   without the freeze). It is frozen at the UNION of the two sets (the
+%   borderline epochs deleted) and the loop settles the law under it; the
+%   sweep keeps subtracting the deficit and no longer forms the statistic.
+%   Reported in the log, history.robustFrozen and out.robust.frozen.
+    rowKeys = arcRowKeys(rkeys);
+    z = zeroSetOf(fac, rowKeys, robS.sizes);
+    H = rob.zeroSets;
+    if numel(H) >= 2 && isequal(z, H{end-1}) && ~isequal(z, H{end})
+        add = setdiff(H{end}, z);
+        off = [0, cumsum(robS.sizes(:).')];
+        for a = 1:numel(add)
+            cut = find(add{a} == '#', 1, 'last');
+            kk = find(strcmp(rowKeys, add{a}(1:cut-1)), 1);
+            if ~isempty(kk), fac(off(kk) + str2double(add{a}(cut+1:end))) = 0; end
+        end
+        W = factorMap(fac, rkeys, robS.sizes);
+        hardFix = hardFixOf(fac, robS.d, rob.kRej);
+        rob.frozen = it;
+        if v
+            lsqvce.util.log.msg('  [joint %2d] robust: the rejected set cycles; frozen at the union (%d epochs)\n', ...
+                it, sum(fac == 0));
+        end
+    end
+    rob.zeroSets = [H(max(1, end-1):end), {z}];
     nZero = sum(fac == 0);
+end
+
+function z = zeroSetOf(fac, rowKeys, sizes)
+%ZEROSETOF  The rejected epochs as sorted 'arcKey#epoch' labels (the loader's
+%   arc key, so a label names the same epoch every pass, skips or not).
+    z = {};
+    off = 0;
+    for kk = 1:numel(sizes)
+        e = find(fac(off + (1:sizes(kk))) == 0);
+        z = [z, arrayfun(@(x) sprintf('%s#%d', rowKeys{kk}, x), e(:).', 'UniformOutput', false)]; %#ok<AGROW>
+        off = off + sizes(kk);
+    end
+    z = sort(z);
+end
+
+function k = arcRowKeys(rkeys)
+%ARCROWKEYS  The loader's key of every arc of rkeys {sysID, obsType, day, arc}.
+    k = cell(1, size(rkeys, 1));
+    for kk = 1:size(rkeys, 1)
+        k{kk} = lsqvce.util.rowWeightKey(rkeys{kk,1}, rkeys{kk,3}, rkeys{kk,2}, rkeys{kk,4});
+    end
 end
 
 %==========================================================================
@@ -1053,10 +1202,12 @@ function [fac, scale, streams, kReject, rowsOf] = perStreamWeights(vw, keys, siz
 %   A MULTI-AXIS arc (axes(kk) = d > 1, rows epoch-major) is weighted PER
 %   EPOCH (round 4): the influence acts on ONE statistic per epoch, and the d
 %   rows of an epoch share the factor. Since R7-08 that statistic is the
-%   chi-calibrated deviate of chiCalibrated (it was the RMS, which zeroed a
-%   quarter of clean 3-axis epochs under IGG3). That is what
-%   the sweep needs: its temporal covariance is per axis and per epoch, so a
-%   factor must be per epoch to be expressible there.
+%   chi-calibrated deviate (it was the RMS, which zeroed a quarter of clean
+%   3-axis epochs under IGG3); since WP-156 of the epoch's w (lsqvce.kernel.
+%   wSnoop), and an epoch excluded on every axis (NaN) keeps factor 1 and stays
+%   out of the MAD. That is what the sweep needs: its temporal covariance is
+%   per axis and per epoch, so a factor must be per epoch to be expressible
+%   there.
 %   OUTPUT fac n x 1; scale 1 x S (the MAD per stream); streams 1 x S cell
 %          'satKey|obsType', sorted; kReject 1x1 the influence's rejection
 %          point (Inf for Huber); rowsOf 1 x S cell, each stream's epochs.
@@ -1080,7 +1231,8 @@ function [fac, scale, streams, kReject, rowsOf] = perStreamWeights(vw, keys, siz
         for kk = arcs(:).'
             rows = [rows, starts(kk):ends(kk)]; %#ok<AGROW>
         end
-        [fac(rows), scale(si), ~, ~, kReject] = lsqvce.kernel.robustWeights(vw(rows), influence, tuning);
+        live = rows(~isnan(vw(rows)));                 % WP-156: NaN = excluded on every axis, factor 1
+        [fac(live), scale(si), ~, ~, kReject] = lsqvce.kernel.robustWeights(vw(live), influence, tuning);
         rowsOf{si} = rows;
     end
 end
@@ -1144,21 +1296,19 @@ function sol = hardSolution(sol, hardFix, nExcl)
     sol.truncation = hardFix.tau;
 end
 
-function [gamma2, sigma2, pooled] = truncated(avk, tau, s2Applied)
-%TRUNCATED  One stream's arc factors and pooled level from arcVarianceFactors'
-%   AVK, divided by the stream's truncation factor TAU (1 without a robust
-%   pass, or for Huber). WP-152 (N2): not a HELD arc -- it took no ratio, so
-%   it carries no truncation; dividing its factor every pass grew it by
-%   1 / tau (2.7 % per pass under IGG3) and the loop never settled. The pooled
-%   level holds no held arc (arcVarianceFactors leaves them out of it).
-%   INPUT   avk struct, tau 1x1, s2Applied M x 1 (the factors as weighted)
+function [gamma2, sigma2, pooled] = arcLevels(avk, s2Applied)
+%ARCLEVELS  One stream's arc factors and pooled level from arcVarianceFactors'
+%   AVK. WP-156: no division by a truncation factor any more -- a robust
+%   run's truncation is in the sweep's redundancy (lsqvce.kernel.
+%   truncationDeficit); until then (R7 WP-115 part 3b, WP-152 N2) every
+%   factor but a held arc's was divided by tau here.
+%   INPUT   avk struct, s2Applied M x 1 (the factors as weighted)
 %   OUTPUT  gamma2 / sigma2 M x 1 (sigma2: the clamped gamma2_m, or s2Applied
 %           when the mean was unusable -- badMean: unchanged this pass), pooled 1x1
-    tauA = tau .^ ~avk.held;                          % M x 1, 1 on a held arc
-    gamma2 = avk.gamma2 ./ tauA;
-    pooled = avk.pooled / tau;
+    gamma2 = avk.gamma2;
+    pooled = avk.pooled;
     if isfinite(avk.gammaBar) && avk.gammaBar > 0
-        sigma2 = avk.sigma2 * avk.gammaBar^2 ./ tauA;
+        sigma2 = avk.sigma2 * avk.gammaBar^2;
     else
         sigma2 = s2Applied;
     end
@@ -1175,116 +1325,9 @@ function t = tauRow(tauMap, streams)
     end
 end
 
-function z = chiCalibrated(uEp, qEp, dEp, keys, sizes)
-%CHICALIBRATED  One signed, normal-calibrated statistic per multi-axis epoch
-%   (R7-08, user decision 2026-10-10). The RMS over d descaled axes is
-%   chi-shaped (median ~1, small MAD) and robustWeights standardises vw/s
-%   UNCENTRED, so on clean 3-axis data IGG3 zeroed 24 % of the epochs (62 %
-%   at d = 6; review R7 mirror). Instead the epoch's sum of squares q is
-%   mapped through the chi^2(d) distribution to the equivalent |N(0,1)|
-%   deviate and given the sign of the axes' sum:
-%       z = sign(sum v) * sqrt(2) * erfcinv(Q(d/2, q / (2 s^2)))
-%   with s^2 = median(q ./ med_d) per stream (med_d = the chi^2(d) median), so
-%   the statistic -- and hence every weight -- is invariant to the level the
-%   whitener applied, as perStreamWeights requires. For isotropic Gaussian
-%   epochs the norm and the direction are independent, so z is exactly
-%   N(0,1): a clean multi-axis epoch is standardised like a scalar residual.
-%   Scalar epochs (d = 1) are returned unchanged.
-    z = uEp;
-    multi = dEp > 1;
-    if ~any(multi), return, end
-    nA = size(keys, 1);
-    skey = cell(nA, 1);
-    for kk = 1:nA
-        skey{kk} = lsqvce.util.streamKey(keys{kk,1}, keys{kk,2});
-    end
-    arcOf = repelem((1:nA).', sizes(:));
-    streamOf = skey(arcOf);
-    for st = unique(streamOf(multi)).'
-        rows = find(multi & strcmp(streamOf, st{1}));
-        d = dEp(rows);
-        medD = arrayfun(@chi2Median, d);
-        s2 = median(qEp(rows) ./ medD);
-        if ~(s2 > 0 && isfinite(s2)), continue, end    % all-zero residuals: nothing to calibrate
-        tail = gammainc(qEp(rows) ./ (2 * s2), d / 2, 'upper');
-        z(rows) = sign(uEp(rows)) .* min(sqrt(2) * erfcinv(tail), 40);
-    end
-end
-
-function m = chi2Median(d)
-%CHI2MEDIAN  Median of chi^2(d), by bisection on the regularised gamma.
-    persistent cache
-    if isempty(cache), cache = containers.Map('KeyType', 'double', 'ValueType', 'double'); end
-    if isKey(cache, d), m = cache(d); return, end
-    lo = 0;  hi = d + 10 * sqrt(2 * d);
-    for it = 1:200
-        m = (lo + hi) / 2;
-        if gammainc(m / 2, d / 2) < 0.5, lo = m; else, hi = m; end
-        if hi - lo <= 4 * eps(m), break, end
-    end
-    cache(d) = m;
-end
-
-function [uEp, keys, sizes, qEp, dEp] = epochResiduals(res)
-%EPOCHRESIDUALS  One standardised RAW residual per EPOCH, in sweep order
-%   (R6 WP-105 round 8, the Koch convention): the raw residual v = l - A x
-%   - B y of every arc, descaled by the epoch's own declared accuracy (the
-%   arc's Cep: a per-epoch sigma, per-axis sigmas or a full d x d), then for
-%   a d-axis epoch its RMS over the d descaled rows -- the multivariate
-%   statistic of a vector observation. The level of the law is NOT divided
-%   out here: perStreamWeights standardises by the stream's MAD, so the
-%   weights are invariant to the level and cannot chase it. The Cep the
-%   sweep returns is the DECLARED one: the factors are a nugget on the
-%   temporal law since R7 WP-115 part 3b, never folded into Cep (when they
-%   were, they had to be divided back out here -- standardising a blunder
-%   by an accuracy that carried its own zero weight made it look perfect,
-%   and the weights flipped on and off every pass, round 8: nZero 60 / 0 /
-%   55 / 0 ...).
-%   The local prior groups' pseudo-arcs (obsType prior_*) are left out
-%   (WP-134): their factor stays 1 (no key in the map), and they are not
-%   epochs of the collapse guard, the breakdown count or tau.
-%   OUTPUT uEp n_epochs x 1 (d = 1: the descaled residual; d > 1: the sign
-%          of the axes' sum, +1 for a zero sum -- chiCalibrated supplies the
-%          magnitude); keys A x 4 {sysID, obsType, day, arc}; sizes 1 x A
-%          epochs per arc; qEp n_epochs x 1 the epoch's sum of squares over its
-%          d descaled axes (NaN for d = 1); dEp n_epochs x 1 the axis count.
-    uEp = [];  keys = cell(0, 4);  sizes = [];  qEp = [];  dEp = [];
-    for k = 1:numel(res.sys)
-        S = res.sys(k);
-        for j = 1:numel(S.obs)
-            o = S.obs(j);
-            % WP-134: a local prior group's pseudo-arc is never re-weighted, and
-            % it is no epoch: it counted in the collapse guard's live epochs,
-            % the breakdown fraction and the hard solution's tau
-            if lsqvce.util.priorStream.is(char(string(o.obsType))), continue, end
-            v = o.v(:);  d = o.nAxis;  m = numel(v);
-            if ~isempty(o.Cep)
-                Cep = o.Cep;
-                if ismatrix(Cep) && size(Cep, 2) == 1 && d == 1
-                    v = v ./ Cep(:);
-                else
-                    [~, ~, v] = lsqvce.kernel.separableWhiten(1, 1, 1, Cep, d, zeros(m, 0), zeros(m, 0), v, true);
-                end
-            end
-            if d > 1
-                V = reshape(v, d, []);
-                q = sum(V.^2, 1).';
-                u = sign(sum(V, 1)).';  u(u == 0) = 1;     % R7-08: magnitude from chiCalibrated
-            else
-                u = v;  q = nan(m, 1);
-            end
-            uEp = [uEp; u]; %#ok<AGROW>
-            qEp = [qEp; q]; %#ok<AGROW>
-            dEp = [dEp; d * ones(numel(u), 1)]; %#ok<AGROW>
-            keys(end+1, :) = {S.sysID, o.obsType, o.day, o.arc}; %#ok<AGROW>
-            sizes(end+1) = numel(u); %#ok<AGROW>
-        end
-    end
-end
-
 %==========================================================================
-function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keyStream, lagRaw] = ...
-    sweepArcs(acc, sol, UiZ, L, v)
+function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keyStream, lagRaw, robS] = ...
+    sweepArcs(acc, sol, UiZ, L, v, rc)
 %SWEEPARCS  Steps 7-8: re-stream every arc and return its Helmert statistics,
 %   one COLUMN per arc (R7 WP-111 part 3):
 %     Qb(:, m) = lambda_m K' Omega^m,  Tb(:, m) = lambda_m K' s^m   (L x M)
@@ -1316,6 +1359,11 @@ function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keySt
 %                            (lsqvce.util.streamKey), aligned to keysAll
 %     keyStream 1 x M  cell  the same, aligned to keys
 %   R7-43: the stream of an arc is CARRIED, never parsed back out of its key.
+%     robS     struct  WP-156: the robust pass's statistics (rc.on), per epoch
+%                      of every arc in sweep order -- .u (lsqvce.kernel.wSnoop's
+%                      z), .d (axes), .keys (A x 4 {sysID, obsType, day, arc}),
+%                      .sizes (1 x A epochs); rc (robustContext) also carries the
+%                      truncation deficit oneArc subtracts from the redundancy
 %
 %   NO SHARED WEIGHT ANY MORE (R6 WP-100 is superseded). Until part 3 one
 %   pooled C weighted the lag statistics of every arc in eqs. 6.5.22-6.5.23
@@ -1337,6 +1385,7 @@ function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keySt
     skips  = cell(0, 2);
     nArc   = 0;
     wstats = containers.Map('KeyType', 'char', 'ValueType', 'any');   % stream -> [lag sums; pair counts] (R7-38)
+    robS = struct('u', zeros(0, 1), 'd', zeros(0, 1), 'keys', {cell(0, 4)}, 'sizes', zeros(1, 0));   % WP-156
 
     for k = 1:numel(ids)
         st = acc.getStore(ids(k));
@@ -1367,8 +1416,8 @@ function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keySt
                     keysAll{end+1} = key;                    %#ok<AGROW>
                     streamAll{end+1, 1} = sk;                %#ok<AGROW>
                     rowAll{end+1, 1} = lsqvce.util.rowWeightKey(st.sysID, d, obsType, a); %#ok<AGROW>
-                    [om, sn, r, why, wsum, wm, qw, tw] = oneArc(st, obsType, a, d, uo, UiZ, ...
-                                                                x, ySys, Gsys, LlS);
+                    [om, sn, r, why, wsum, wm, qw, tw, zE, dE] = oneArc(st, obsType, a, d, uo, UiZ, ...
+                                                                x, ySys, Gsys, LlS, rc, sk);
                     if isempty(om)
                         % an inactive prior arc is not a skip (WP-127): it counted
                         % against SkipThreshold before its group's 'from' pass
@@ -1383,6 +1432,11 @@ function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keySt
                     lagRaw.om{nArc} = om;  lagRaw.sn{nArc} = sn;  lagRaw.lam(nArc) = r(1);   % lambda_m
                     qa(nArc) = qw;                           %#ok<AGROW>  WP-132: the whole law,
                     ta(nArc) = tw;                           %#ok<AGROW>  no Toeplitz assumption
+                    if ~isempty(zE)                          % WP-156: the robust statistic
+                        robS.u = [robS.u; zE];  robS.d = [robS.d; dE * ones(numel(zE), 1)];
+                        robS.keys(end+1, :) = {st.sysID, obsType, d, a};
+                        robS.sizes(end+1) = numel(zE);
+                    end
                 end
             end
         end
@@ -1523,7 +1577,7 @@ function checks = modelChecks(hist, Cmap, dispMap, lagRaw, streamOf, o)
 end
 
 %==========================================================================
-function [om, sn, r, why, wsum, wm, qw, tw] = oneArc(st, obsType, arc, day, uo, UiZ, x, ySys, Gsys, LlS)
+function [om, sn, r, why, wsum, wm, qw, tw, zE, dE] = oneArc(st, obsType, arc, day, uo, UiZ, x, ySys, Gsys, LlS, rc, sk)
 %ONEARC  Decorrelate one arc, form its residual, and return the per-lag Omega
 %   and s from LSQVCE.KERNEL.REDUNDANCYLAGS over ALL the arc's lags, and r, the
 %   first column of the arc's law covariance (without the robust nugget; R7
@@ -1536,12 +1590,15 @@ function [om, sn, r, why, wsum, wm, qw, tw] = oneArc(st, obsType, arc, day, uo, 
 %   exactly (jointArcParts + redundancyLags 'LocalBbar'/'LocalLl').
 %   qw / tw: the arc factor's Helmert pair with the arc's WHOLE law as the
 %   component (redundancyLags .omegaLaw / .sLaw, WP-132), summed over the axes.
+%   WP-156: zE (mE x 1, [] when rc does not ask for it) the robust pass's
+%   statistic per epoch and dE the arc's axis count (arcRobust); sn and tw
+%   carry the truncation deficit once a robust pass has rejected.
     uo.obsType = obsType;
     uo.day     = day;
     uo.arc     = arc;
     why = '';
     wsum = zeros(WHITE_LAGS + 1, 1);  wm = zeros(WHITE_LAGS + 1, 1);   % R5 M4 4a / R7-38: sums and pair counts
-    qw = 0;  tw = 0;
+    qw = 0;  tw = 0;  zE = [];  dE = 1;
     a = st.dataFcn(day, obsType, arc, uo);
     if isempty(a) || ~isfield(a, 'l') || isempty(a.l)
         % WP-127: a local prior group's pseudo-arc is listed on every pass (the
@@ -1626,6 +1683,8 @@ function [om, sn, r, why, wsum, wm, qw, tw] = oneArc(st, obsType, arc, day, uo, 
             qw = qw + rl.omegaLaw;  tw = tw + rl.sLaw;      % WP-132: the whole law
             wsum = wsum + whiteLagSums(ebar);  wm = wm + lagPairs(numel(ebar));
         end
+        [zE, du, dt] = arcRobust(rc, sk, st, obsType, day, arc, Sig, Ad, Bd, ld, x, ySys, exAx, numel(sn));
+        sn = sn - du;  tw = tw - dt;  dE = nAx;
         return
     end
     if isfield(a, 'Cfcn') && ~isempty(a.Cfcn)
@@ -1666,6 +1725,53 @@ function [om, sn, r, why, wsum, wm, qw, tw] = oneArc(st, obsType, arc, day, uo, 
     r  = Sig(:, 1);
     qw = rl.omegaLaw;  tw = rl.sLaw;                    % WP-132: the whole law
     wsum = whiteLagSums(ebar);  wm = lagPairs(numel(ebar));
+    [zE, du, dt] = arcRobust(rc, sk, st, obsType, day, arc, Sig, A, B, l, x, ySys, excludedAxes(a, m, 1), numel(sn));
+    sn = sn - du;  tw = tw - dt;
+end
+
+function [zE, du, dt] = arcRobust(rc, sk, st, obsType, day, arc, Sig, A, B, l, x, y, exAx, nL)
+%ARCROBUST  WP-156 (design F): what the robust pass needs from one arc, on the
+%   law Sig the arc's sweep uses (temporal, over epochs) and its explicit
+%   inverse (lsqvce.kernel.lawInverse, O(m^2) for a Toeplitz law):
+%     zE  m_E x 1  Baarda's w per epoch with iterative data snooping
+%                  (lsqvce.kernel.wSnoop) in units of the stream's scale
+%                  (rc.scale / sqrt(rc.level): level-free), when rc.on -- the residual of the
+%                  full fit l - A x - B y per axis (rows epoch-major, A / B / l
+%                  descaled by Cep), the arc's local columns as the parameters;
+%                  the set rebuilt from the data's own exclusions every pass
+%     du / dt      the truncation deficit of the redundancy per lag and of the
+%                  whole law's pair (lsqvce.kernel.truncationDeficit), once a
+%                  robust pass has rejected (rc.tauBar), on the epochs the
+%                  arcs were weighted with: rc.W's zeros deleted
+%   The robust zeros and the data's exclusions both reach the arc as
+%   arc.excluded (WP-133); rc.W tells them apart. A local prior group's
+%   pseudo-arc is never re-weighted (WP-134): zE = [], no deficit.
+    zE = [];  du = zeros(nL, 1);  dt = 0;
+    if ~(rc.on || ~isempty(rc.tauBar)) || lsqvce.util.priorStream.is(char(string(obsType))), return, end
+    [mE, nAx] = size(exAx);
+    key = lsqvce.util.rowWeightKey(st.sysID, day, obsType, arc);
+    rr = false(mE, 1);
+    if isKey(rc.W, key), f = rc.W(key);  rr = f(:) <= 0; end
+    dataEx = logical(exAx);  dataEx(rr, :) = false;
+    act = any(B ~= 0, 1);
+    E = zeros(mE, nAx);  X = cell(1, nAx);
+    nc = size(A, 2);
+    for k = 1:nAx
+        rows = k:nAx:size(A, 1);
+        e = l(rows) - A(rows, :) * x(1:nc);
+        if any(act), e = e - B(rows, act) * y(act); end
+        E(:, k) = e;
+        X{k} = full(B(rows, act));
+    end
+    P = lsqvce.kernel.lawInverse(Sig);
+    if rc.on
+        s = 1;  if isKey(rc.scale, sk), s = rc.scale(sk); end
+        L = 1;  if isKey(rc.level, sk), L = rc.level(sk); end
+        zE = lsqvce.kernel.wSnoop(P, E, X, dataEx, rc.thr, s / sqrt(L));   % w units: w ~ 1 / sqrt(L)
+    end
+    if ~isempty(rc.tauBar)
+        [du, dt] = lsqvce.kernel.truncationDeficit(P, X, dataEx, rr, rc.tauBar(nAx), nL);
+    end
 end
 
 function ex = excludedAxes(a, mE, nAx)

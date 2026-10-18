@@ -14,6 +14,11 @@ function tests = test_vcePolicy
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTVCEJOINT, TEST_ELLMER, TEST_PHYSORACLE
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-156 (design F): a red stream's
+%   robust level and variance are the plain run's (fixed law and estimated),
+%   small blunders on a red stream are caught, a cycling rejected set is
+%   frozen; redFixture. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-17 (CEST, UTC+02:00), WP-144: plot("psd") on a log axis
 %   for every pool group (A3); the prior's "scale" update survives a refused
 %   v'Pv (A6). With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -1416,8 +1421,10 @@ function testRobustLevelOfACleanStreamIsUnbiased(tc)
     % 20 seeds). With IGG3 inside the component update the level came back
     % 0.81 / 0.86 (robust/plain, se 0.004): the influence selects the epochs
     % with large residuals. Since part 3b only REJECTED epochs leave the
-    % update, and the level is divided by the rejection point's Gaussian
-    % truncation factor (0.9733 at k1 = 3, R.noise.robust.truncation).
+    % update; since WP-156 their truncation is in the redundancy (the
+    % hard sigma0 keeps the Gaussian truncation factor, 0.9733 at k1 = 3,
+    % R.noise.robust.truncation). The tight form of this test on a red
+    % stream is testRobustLevelOfARedStreamMatchesThePlainRun.
     data = levelFixture(struct('a', 0.2, 'b', 0.5), 3);
     base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 16, 'Verbose', false};
     Rp = lsqvce.fit(data, lsqvce.Options(base{:}));
@@ -1460,6 +1467,114 @@ function testRobustJointLoopConvergesOnCleanData(tc)
         % planted colour (testPoolStreamGivesEachStreamItsOwnLaw)
         tc.verifyEqual(Cr(2) / Cr(1), Cp(2) / Cp(1), 'AbsTol', 0.03, sprintf('%s: the same law', st{1}));
     end
+end
+
+function testRobustLevelOfARedStreamMatchesThePlainRun(tc)
+% categories: reference, robustness
+    % WP-156 (review 12.84 N3; design F, user decision 2026-10-18): the TRUE
+    % law declared (levelFixture, estimate "scale"), so the level is the whole
+    % law's Helmert ratio and the plain run is its reference. The raw-residual
+    % rule truncated the kept epochs in the wrong direction on a coloured
+    % stream and the level read high -- measured on this fixture +2.2 % (phi
+    % 0.9) and +2.5 % (0.98) in variance; with the rejection on Baarda's w and
+    % the truncation deficit in the redundancy it is the plain run's. The
+    % acceptance bar (HANDOVER 12.91): within 0.5 %, IGG3 and bisquare.
+    base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 16, 'Verbose', false};
+    lv = @(R, st) (R.noise.model{find(strcmp(R.noise.stream, st), 1)}.sigma * R.sigma0)^2;
+    for infl = ["igg3", "bisquare"]
+        nSeed = 16;  if infl == "bisquare", nSeed = 6; end
+        r = nan(nSeed, 2);
+        for sd = 1:nSeed
+            data = levelFixture(struct('a', 0.9, 'b', 0.98), sd);
+            Rp = lsqvce.fit(data, lsqvce.Options(base{:}));
+            Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', infl));
+            r(sd, :) = [lv(Rr, 'x1|a') / lv(Rp, 'x1|a'), lv(Rr, 'x1|b') / lv(Rp, 'x1|b')] - 1;
+        end
+        % tol: 0.5 % on the mean variance ratio (the bar); its standard error
+        % here is ~0.15 % (per-seed sd ~0.6-1.3 %, 32 / 12 stream-seeds)
+        tc.verifyEqual(mean(r(:)), 0, 'AbsTol', 0.005, sprintf(['%s: the robust level of a red stream ' ...
+            'is the plain one (mean %+.3f %%, phi 0.9 %+.3f %%, phi 0.98 %+.3f %%)'], infl, 100 * mean(r(:)), ...
+            100 * mean(r(:, 1)), 100 * mean(r(:, 2))));
+    end
+end
+
+function testRobustKeepsTheVarianceOfARedStreamUnderTruncation(tc)
+% categories: reference, robustness
+    % WP-156 (design F): the law ESTIMATED (redFixture: stream a white, b
+    % AR(1) phi 0.9). Deleting on w truncates every kept epoch in its w
+    % direction, whose spectrum is H / S(f): a red stream's low-frequency bins
+    % lose almost nothing, so dividing the level by tau over-corrected its
+    % variance (the design study: +2.4 %), and the raw rule read +1.4 %
+    % (this fixture: +2.1 %). The per-lag deficit in the redundancy
+    % (lsqvce.kernel.truncationDeficit) makes it the plain run's.
+    base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 30, 'Verbose', false};
+    lv = @(R, st) (R.noise.model{find(strcmp(R.noise.stream, st), 1)}.sigma * R.sigma0)^2;
+    nSeed = 6;  rb = nan(nSeed, 1);  rs = rb;
+    for sd = 1:nSeed
+        data = redFixture(0.9, sd, [0 0]);
+        Rp = lsqvce.fit(data, lsqvce.Options(base{:}));
+        Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', "igg3"));
+        tc.verifyTrue(Rr.converged, sprintf('seed %d: the robust loop converges', sd));
+        rb(sd) = lv(Rr, 'x1|b') / lv(Rp, 'x1|b') - 1;
+        rs(sd) = (Rr.sigma0 / Rp.sigma0)^2 - 1;
+    end
+    % tol: 0.5 % (the bar); the standard error of the mean over 6 seeds is
+    % ~0.17 % (per-seed sd 0.42 %, 24 seeds measured: -0.09 % +- 0.09)
+    tc.verifyEqual(mean(rb), 0, 'AbsTol', 0.005, sprintf(['the red stream''s variance under the robust ' ...
+        'pass is the plain one (mean %+.3f %%; seeds %s %%)'], 100 * mean(rb), mat2str(100 * rb.', 2)));
+    % tol: 0.5 % (the bar); sigma0^2 per seed scatters 0.09 %
+    tc.verifyEqual(mean(rs), 0, 'AbsTol', 0.005, sprintf('sigma0^2 is the plain one (mean %+.3f %%)', 100 * mean(rs)));
+end
+
+function testRobustCatchesSmallBlundersOnARedStream(tc)
+% categories: robustness, reference
+    % WP-156: 2 % blunders of 2 marginal sigma on both streams, phi_b 0.9. In
+    % w a 2-sigma blunder of the red stream is ~6 sigma; the raw residual saw
+    % 2, missed most of them, and the law explained them as a white floor
+    % (the design study: phi_b 0.84 against 0.90, its variance +6.7 %). The bar
+    % (HANDOVER 12.91): >= 95 % of the RED stream's blunders rejected, its
+    % level within 2 %. (In the white stream a 2-sigma blunder is a 2-sigma w:
+    % no rule sees it -- 14 % in the controlled study -- and it is not
+    % counted.) The reference is the plain run on the same data without them.
+    base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 30, 'Verbose', false};
+    Rc = lsqvce.fit(redFixture(0.9, 1, [0 0]), lsqvce.Options(base{:}));
+    Rr = lsqvce.fit(redFixture(0.9, 1, [0.02 2]), lsqvce.Options(base{:}, 'Robust', "igg3"));
+    tc.verifyTrue(Rr.converged, 'the robust loop converges');
+    f = Rr.noise.robust.factor;  k = Rr.noise.robust.keys;
+    planted = false(size(f));  off = 0;
+    for j = 1:size(k, 1)
+        if ~strcmp(k{j, 2}, 'b'), off = off + 256;  continue, end
+        [idx, ~] = redBlunders(1, k{j, 3}, k{j, 2}, 3 * 256, 0.02);
+        idx = idx(idx > (k{j, 4} - 1) * 256 & idx <= k{j, 4} * 256) - (k{j, 4} - 1) * 256;
+        planted(off + idx) = true;
+        off = off + 256;
+    end
+    tc.verifyGreaterThanOrEqual(nnz(f(planted) == 0), 0.95 * nnz(planted), sprintf( ...
+        '%d of the red stream''s %d planted blunders rejected', nnz(f(planted) == 0), nnz(planted)));
+    lv = @(R, st) (R.noise.model{find(strcmp(R.noise.stream, st), 1)}.sigma * R.sigma0)^2;
+    % tol: 2 % (the bar) on the red stream's variance against the clean run
+    tc.verifyEqual(lv(Rr, 'x1|b') / lv(Rc, 'x1|b'), 1, 'AbsTol', 0.02, 'the red stream''s level survives the blunders');
+    Cc = Rc.noise.Cgroups('x1|b');  Cr = Rr.noise.Cgroups('x1|b');
+    % tol: 0.02 on a lag-1 correlation -- the raw rule missed by 0.06
+    tc.verifyEqual(Cr(2) / Cr(1), Cc(2) / Cc(1), 'AbsTol', 0.02, 'the red stream''s colour survives the blunders');
+end
+
+function testRobustFreezesARejectedSetThatCycles(tc)
+% categories: robustness, contract
+    % WP-156 (user decision 2026-10-18): w depends on the law the loop is
+    % estimating, so an epoch at the threshold can flip each pass and the
+    % rejected set cycle with period 2 (the prototype without a freeze: 2-5
+    % of 20 seeds per scenario never converged). The set is frozen at the
+    % union of the two and the loop settles the law under it; the pass is
+    % reported. redFixture seed 1 cycles.
+    base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 30, 'Verbose', false};
+    R = lsqvce.fit(redFixture(0.9, 1, [0 0]), lsqvce.Options(base{:}, 'Robust', "igg3"));
+    tc.verifyGreaterThan(R.noise.robust.frozen, 0, 'the cycle is detected and frozen');
+    tc.verifyEqual(R.history.robustFrozen, R.noise.robust.frozen, 'the history records the same pass');
+    tc.verifyTrue(R.converged, sprintf('the loop converges after the freeze (%d passes, frozen at %d)', ...
+        R.history.nIter, R.noise.robust.frozen));
+    zf = R.history.nZero(R.noise.robust.frozen:end);
+    tc.verifyEqual(zf, repmat(zf(1), size(zf)), 'the rejected set no longer moves once frozen');
 end
 
 function testHeldArcKeepsItsFactorUnderRobust(tc)
@@ -1792,6 +1907,52 @@ function D = colourDay(cfg, day, obsType)
     D.arcIdx = arrayfun(@(a) (a-1)*cfg.mArc + (1:cfg.mArc), 1:cfg.arcs, ...
                         'UniformOutput', false);
     D = arcCells(D);                                 % v6: the cells are the arcs
+end
+
+function data = redFixture(phiB, seed, blunder)
+%REDFIXTURE  WP-156: stream a white, stream b AR(1) phiB, both "law"
+%   (estimated), unit innovations, 3 days x 3 arcs x 256 epochs, seeded on
+%   (seed, day, stream); BLUNDER = [fraction, size in marginal sigma] planted
+%   on both streams (redBlunders: the same rows the test reads back).
+    cfg = struct('nc', 4, 'days', 1:3, 'arcs', 3, 'mArc', 256, 'dt', 5, ...
+                 'xTrue', [0.8 -0.45 0.3 0.15], 'seed', seed, 'blunder', blunder);
+    cfg.phi = struct('a', 0, 'b', phiB);
+    data = struct();
+    data.commonParams = [repmat({'common'}, cfg.nc, 1), ...
+                         arrayfun(@(j) sprintf('c%d', j), (1:cfg.nc).', 'UniformOutput', false)];
+    data.days = cfg.days;
+    spec = struct('type', 'diag', 'sigma', 1, 'estimate', "law", 'arcFactors', false);
+    data.systems = struct('buildDay', @(day, ot) redDay(cfg, day, ot), ...
+                          'covariance', struct('a', spec, 'b', spec), ...
+                          'arcs', cfg.arcs, 'id', 1, 'name', 'red');
+end
+
+function D = redDay(cfg, day, obsType)
+%REDDAY  One (day, stream) of redFixture.
+    m = cfg.arcs * cfg.mArc;
+    t = (day - 1)*86400 + (0:m-1).' * cfg.dt;
+    w = 2*pi / (0.5 * 86400);
+    D.A = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];
+    D.B = zeros(m, 0);
+    phi = cfg.phi.(obsType);
+    rs = RandStream('mt19937ar', 'Seed', 1e5 * cfg.seed + 10 * day + double(obsType(1)));
+    e = filter(1, [1 -phi], randn(rs, m + 2000, 1));
+    e = e(2001:end);
+    if cfg.blunder(1) > 0
+        [idx, sgn] = redBlunders(cfg.seed, day, obsType, m, cfg.blunder(1));
+        e(idx) = e(idx) + cfg.blunder(2) / sqrt(1 - phi^2) * sgn;
+    end
+    D.l = D.A * cfg.xTrue(:) + e;
+    D.t = t;
+    D.arcIdx = arrayfun(@(a) (a-1)*cfg.mArc + (1:cfg.mArc), 1:cfg.arcs, 'UniformOutput', false);
+    D = arcCells(D);
+end
+
+function [idx, sgn] = redBlunders(seed, day, obsType, m, fraction)
+%REDBLUNDERS  The planted rows of a day (of its m epochs) and their signs.
+    rs = RandStream('mt19937ar', 'Seed', 7e5 + 1e3 * seed + 10 * day + double(obsType(1)));
+    idx = sort(randperm(rs, m, round(fraction * m))).';
+    sgn = sign(randn(rs, numel(idx), 1));  sgn(sgn == 0) = 1;
 end
 
 function data = arcFactorFixture(badScale)

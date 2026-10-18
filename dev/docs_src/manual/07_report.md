@@ -496,7 +496,8 @@ qualify a result:
 
 A robust run reports `ROBUST_FIT` at Level 1. Its weights come back in `R.noise.robust`
 when the robust pass runs inside the noise loop: `influence`, `scale` per stream, `factor`
-per epoch in sweep order, `keys`, and `truncation`. For the stand-alone IRLS they are in
+per epoch in sweep order, `keys`, `truncation` (the factor the hard σ0 is corrected by) and
+`frozen` (the pass a cycling rejected set was frozen at, 0 if none). For the stand-alone IRLS they are in
 `R.noise.influence` and `R.noise.scale`, with per-pass `scale`, `dx`, `nDown` and `nZero`
 in `R.history`. Down-weighted epochs are the robust counterpart of a flag list. Compare
 them with a Pope or MAD snooping run before you remove anything permanently.

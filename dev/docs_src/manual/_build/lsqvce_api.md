@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.33.0 — API Reference"
+title: "lsqvce 6.34.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -1325,7 +1325,10 @@ What `fit` dispatches to and what it is built from: one line per public unit, fr
 | `hatACV` | ACV of every bin of a piecewise-linear spectrum |
 | `levinsonDurbin` | Levinson-Durbin recursion |
 | `psd2acv` | PSD -> autocovariance |
+| `lawInverse` | explicit inverse of an arc's covariance law |
 | `redundancyLags` | redundancy per lag without the dense W^-1 |
+| `truncationDeficit` | the redundancy a robust sample loses to its truncation |
+| `wSnoop` | Baarda's w per epoch with iterative data snooping |
 | `separableWhiten` | separable (temporal x axis) whitening |
 | `stat` | distributions and test thresholds, base MATLAB only |
 | `toeplitzCofactor` | Toeplitz cofactor construction |
@@ -1374,6 +1377,8 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:Results:noVPv` | Results | error | v4.0 |
 | `lsqvce:Results:compareEstimatedWeights` | Results | error | v6.28.0 |
 | `lsqvce:Results:tableMismatch` | Results | error | v4.0 |
+| `lsqvce:lawInverse:notPD` | kernel.lawInverse | error | v6.34.0 |
+| `lsqvce:lawInverse:notSquare` | kernel.lawInverse | error | v6.34.0 |
 | `lsqvce:report:badIteration` | report | error | v6.24.0 |
 | `lsqvce:accum:arcBadNc` | engine.BlockAccumulator | error | v4.0 |
 | `lsqvce:accum:arcBadNl` | engine.BlockAccumulator | error | v4.0 |
@@ -1660,6 +1665,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:traceEstimate:needSize` | engine.traceEstimate | error | v4.0 |
 | `lsqvce:traceEstimate:notSquare` | engine.traceEstimate | error | v4.0 |
 | `lsqvce:traceEstimate:sizeMismatch` | engine.traceEstimate | error | v4.0 |
+| `lsqvce:truncationDeficit:badSize` | kernel.truncationDeficit | error | v6.34.0 |
 | `lsqvce:util:log:badKey` | util.log | error | v4.0 |
 | `lsqvce:varACV:badA` | kernel.varACV | error | v4.0 |
 | `lsqvce:varACV:notStationary` | kernel.varACV | error | v4.0 |
@@ -1675,6 +1681,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:vce:notConverged` | engine.vce | warning | v4.0 |
 | `lsqvce:verbosity:badLevel` | util.verbosity | error | v4.0 |
 | `lsqvce:verbosity:badTag` | util.verbosity | error | v4.0 |
+| `lsqvce:wSnoop:badSize` | kernel.wSnoop | error | v6.34.0 |
 | `lsqvce:whittle:badG` | kernel.whittle | error | v4.0 |
 | `lsqvce:whittle:notPD` | kernel.whittle | error | v4.0 |
 | `lsqvce:covModel:badNugget` | engine.covModel | error | v6.6.0 |

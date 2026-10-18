@@ -19,6 +19,8 @@ lsqvce:Results:noPerObservation,Results,error,v6.5.0
 lsqvce:Results:noVPv,Results,error,v4.0
 lsqvce:Results:compareEstimatedWeights,Results,error,v6.28.0
 lsqvce:Results:tableMismatch,Results,error,v4.0
+lsqvce:lawInverse:notPD,kernel.lawInverse,error,v6.34.0
+lsqvce:lawInverse:notSquare,kernel.lawInverse,error,v6.34.0
 lsqvce:report:badIteration,report,error,v6.24.0
 lsqvce:accum:arcBadNc,engine.BlockAccumulator,error,v4.0
 lsqvce:accum:arcBadNl,engine.BlockAccumulator,error,v4.0
@@ -305,6 +307,7 @@ lsqvce:traceEstimate:badOperator,engine.traceEstimate,error,v4.0
 lsqvce:traceEstimate:needSize,engine.traceEstimate,error,v4.0
 lsqvce:traceEstimate:notSquare,engine.traceEstimate,error,v4.0
 lsqvce:traceEstimate:sizeMismatch,engine.traceEstimate,error,v4.0
+lsqvce:truncationDeficit:badSize,kernel.truncationDeficit,error,v6.34.0
 lsqvce:util:log:badKey,util.log,error,v4.0
 lsqvce:varACV:badA,kernel.varACV,error,v4.0
 lsqvce:varACV:notStationary,kernel.varACV,error,v4.0
@@ -320,6 +323,7 @@ lsqvce:vce:lowRedundancy,engine.vce,warning,v4.0
 lsqvce:vce:notConverged,engine.vce,warning,v4.0
 lsqvce:verbosity:badLevel,util.verbosity,error,v4.0
 lsqvce:verbosity:badTag,util.verbosity,error,v4.0
+lsqvce:wSnoop:badSize,kernel.wSnoop,error,v6.34.0
 lsqvce:whittle:badG,kernel.whittle,error,v4.0
 lsqvce:whittle:notPD,kernel.whittle,error,v4.0
 lsqvce:covModel:badNugget,engine.covModel,error,v6.6.0
