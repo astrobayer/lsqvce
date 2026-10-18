@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-157 OPEN (tier A; model Claude Opus 5.5; user: "Open a separate WP to change the default Pool to "stream", measured first"): measured -- pooling identical spectra gains nothing in x, pooling different ones fails (eff 37 / 132) -- and Pool defaults to "stream"; version 6.33.0; stacked on WP-154; §12.90.
+Last substantive update: 2026-10-18 — WP-154 and WP-157 DONE (PR #202, merge d8584ca; PR #203, merge ace8166; CI GREEN in the first round on 1f068d3 and 5f1254d: ci_gate 772/772 and 773/773, inventory lsqvce:internal:testProbe only; main's push CI on ace8166 GREEN): the closures in §12.89 and §12.90, one HANDOVER-only PR; version 6.33.0. Open: WP-156 (robust variance redesign), WP-155 (speed).
+Preceding entry: Last substantive update: 2026-10-18 — WP-157 OPEN (tier A; model Claude Opus 5.5; user: "Open a separate WP to change the default Pool to "stream", measured first"): measured -- pooling identical spectra gains nothing in x, pooling different ones fails (eff 37 / 132) -- and Pool defaults to "stream"; version 6.33.0; stacked on WP-154; §12.90.
 Preceding entry: Last substantive update: 2026-10-18 — WP-154 OPEN (tier A; model Claude Opus 5.5; user: "Please continue"): the closed-loop findings of §12.84 reproduced and acted on -- Noise.Smooth defaults to 1 (measured better in x, formal errors and passes; the review's arc-length grid was measured and withdrawn: it biased the level low at high phi), three model checks warn (pooled spectra, a level varying by arc, long memory against short arcs; R.noise.checks), the plug-in formal errors documented; version 6.32.0; §12.89.
 Preceding entry: Last substantive update: 2026-10-18 — WP-153 DONE (PR #200, merge a81ab87; CI GREEN on ed6c53c in the first round: ci_gate 768/768, inventory lsqvce:internal:testProbe only): the closure in §12.88; version 6.31.0. Next: WP-154.
 Preceding entry: Last substantive update: 2026-10-18 — WP-153 OPEN (tier A; model Claude Opus 5.5; user: "Go ahead"): the covariance findings of §12.84 reproduced and fixed -- a PSD grid with a non-negligible band below f(1) refused (r(0) was 34 % low, silently), excluded rows of 'var' laws and partly excluded epochs deleted exactly (x was 0.35 sd off), maxDenseArc bounds the MA start-up and the nugget, a d = 1 Cep is sigmas (stated), the Cholesky composition kept and documented (user decision); version 6.31.0; order after it: 154, 156 (the robust variance redesign, option 4), 155; §12.88.
@@ -12173,7 +12174,7 @@ variance redesign), WP-155.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 154 | The closed-loop findings M1-M5 of §12.84, each reproduced on the current tree first: (M1) Noise.Smooth defaults to 1 -- the review's grid tied to the arc length was implemented, measured, and withdrawn (it biased the level low at high phi); (M2) a pool group of >= 2 streams with a member not white under its law warns (lsqvce:adjustVCEjoint:poolNotWhite); (M3) a stream without arc factors whose arcs' levels scatter beyond their sampling variance warns (levelVaries); (M4) a law whose correlation time exceeds half its median arc warns (memoryVsArc); R.noise.checks carries the evidence; (M5) the formal errors' plug-in optimism documented (fit's ACCURACY, the Manual); version 6.32.0 (a changed default, three new warnings: a minor) | 146 | OPEN (2026-10-18) |
+| 154 | The closed-loop findings M1-M5 of §12.84, each reproduced on the current tree first: (M1) Noise.Smooth defaults to 1 -- the review's grid tied to the arc length was implemented, measured, and withdrawn (it biased the level low at high phi); (M2) a pool group of >= 2 streams with a member not white under its law warns (lsqvce:adjustVCEjoint:poolNotWhite); (M3) a stream without arc factors whose arcs' levels scatter beyond their sampling variance warns (levelVaries); (M4) a law whose correlation time exceeds half its median arc warns (memoryVsArc); R.noise.checks carries the evidence; (M5) the formal errors' plug-in optimism documented (fit's ACCURACY, the Manual); version 6.32.0 (a changed default, three new warnings: a minor) | 146 | DONE (2026-10-18, PR #202, merge d8584ca; CI GREEN on 1f068d3 in the first round: ci_gate 772/772, warning inventory lsqvce:internal:testProbe only; local postflight on 1f068d3 GREEN 772/772) |
 
 **The user's request (2026-10-18):** "#200 is merged. Please continue" -- WP-154 next in the order
 agreed (153, 154, 156, 155).
@@ -12265,11 +12266,20 @@ the plug-in errors), the catalogue (three warnings), RELEASE_NOTES; version 6.32
 **Gates (tier A):** `ci_gate` GREEN 772 / 772, 27 / 27, inventory `lsqvce:internal:testProbe` only;
 Linux audit CLEAN, selftest every fault caught. Tests 784 declared / 772 run.
 
+**CI round 1 (1f068d3): GREEN** -- `ci_gate` 772 / 772, 27 / 27 suites, the warning inventory
+`lsqvce:internal:testProbe` only; the audit and release jobs green. The local postflight on the
+same commit: GREEN 772 / 772.
+
+**Closure (2026-10-18).** WP-154 DONE: PR #202 merged as d8584ca, after #201 (the WP-153 closure,
+d3bc7ed) and before #203 (the loop's record step after the merge: the ledger row, this note; no
+code change -- 6.32.0 stays, 784 declared / 772 run). Its observation on the default Pool became
+WP-157 (§12.90), merged right after.
+
 ### 12.90 WP-157 — Pool defaults to "stream" (2026-10-18, model Claude Opus 5.5, tier A)
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 157 | Pool defaults to "stream" (lsqvce.Options and the engine), measured first: pooling identical spectra gains nothing in x, pooling different ones fails (eff 37 / 132); "all" put streams of different physics in one law, which the Manual says never to do and WP-154's poolNotWhite reported in most of the suite's fixtures; version 6.33.0 (a changed default: a minor). Stacked on WP-154 (#202) | 154 | OPEN (2026-10-18) |
+| 157 | Pool defaults to "stream" (lsqvce.Options and the engine), measured first: pooling identical spectra gains nothing in x, pooling different ones fails (eff 37 / 132); "all" put streams of different physics in one law, which the Manual says never to do and WP-154's poolNotWhite reported in most of the suite's fixtures; version 6.33.0 (a changed default: a minor). Stacked on WP-154 (#202) | 154 | DONE (2026-10-18, PR #203, merge ace8166; CI GREEN on 5f1254d in the first round: ci_gate 773/773, warning inventory lsqvce:internal:testProbe only; local postflight on 5f1254d GREEN 773/773; main's push CI on ace8166 GREEN) |
 
 **The user's request (2026-10-18):** "Open a separate WP to change the default Pool to "stream",
 measured first." -- after WP-154's observation that the default pooled different physics.
@@ -12305,3 +12315,12 @@ GREEN 773 / 773, 27 / 27, inventory `lsqvce:internal:testProbe` only (one RED ro
 tests that meant a pooled run, above); Linux audit CLEAN, selftest every fault caught. Tests 785
 declared / 773 run.
 
+**CI round 1 (5f1254d): GREEN** -- `ci_gate` 773 / 773, 27 / 27 suites, the warning inventory
+`lsqvce:internal:testProbe` only; the audit and release jobs green. The local postflight on the
+same commit: GREEN 773 / 773. After the merges, main's push CI on ace8166 GREEN (the run on
+d3bc7ed was superseded by the next merge and cancelled).
+
+**Closure (2026-10-18).** WP-157 DONE: PR #203 merged as ace8166 (the loop's record step after the
+merge: the ledger row, this note; no code change -- 6.33.0 stays, 785 declared / 773 run). Both
+WP-154 and WP-157 close in this one HANDOVER-only PR. Open: WP-156 (the robust variance redesign,
+option 4 of N3 -- not yet scoped in the ledger) and WP-155 (speed, §12.84), in that order as agreed.
