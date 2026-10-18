@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-155 OPEN (tier A; model Claude Opus 5.5; user: "#207 is merged"): speed without loss of precision -- a dense law whitened by solves (the explicit inverse was two thirds of the cost), the inverse law's lag sums by FFT, the robust snooping by projection; one pass at 24 576 observations 52 % faster at 4096-epoch arcs (45 % robust), results unchanged to 1.1e-14; Schur Cholesky and a factor cache measured and not adopted; version 6.34.1; §12.92.
+Last substantive update: 2026-10-18 — WP-155 DONE (PR #208, merge f621c30; CI GREEN on 68a628e in the first round: ci_gate 790/790, inventory lsqvce:internal:testProbe only): speed without loss of precision, version 6.34.1; the closure in §12.92. Review 12.84's packages are all closed (153, 154, 157, 156, 155).
+Preceding entry: Last substantive update: 2026-10-18 — WP-155 OPEN (tier A; model Claude Opus 5.5; user: "#207 is merged"): speed without loss of precision -- a dense law whitened by solves (the explicit inverse was two thirds of the cost), the inverse law's lag sums by FFT, the robust snooping by projection; one pass at 24 576 observations 52 % faster at 4096-epoch arcs (45 % robust), results unchanged to 1.1e-14; Schur Cholesky and a factor cache measured and not adopted; version 6.34.1; §12.92.
 Preceding entry: Last substantive update: 2026-10-18 — WP-156 DONE (round 1 PR #205, merge 6d3b237; round 2 PR #206, merge c36dcee; CI GREEN on 88b25dd in the first round: ci_gate 786/786, inventory lsqvce:internal:testProbe only, the measure job reproducing the acceptance table): the robust variance estimator redesigned (design F, version 6.34.0), review 12.84 N3 retired; the white-stream offset traced to sampling; the closure in §12.91. Next: WP-155.
 Preceding entry: Last substantive update: 2026-10-18 — WP-156 round 2 OPEN, the implementation of design F (tier A; model Claude Opus 5.5; user: "Adopt design F as proposed ... Go ahead with the implementation once #205 is merged"): the robust pass rejects on Baarda's w, snooped in the sweep, the kept epochs' truncation in the redundancy lag by lag, a cycling set frozen at its union; three kernel units; the acceptance bar met in every row (20 seeds paired: every stream and sigma0^2 within 0.5 %, 717 of 720 small blunders on a red stream); a lagged scale found and fixed on the way (the scale is level-free); the white-stream offset traced to sampling (two fixtures shared their draws; 72 seeds: -0.01 % +- 0.14); round 1 DONE (PR #205, merge 6d3b237); version 6.34.0; §12.91.
 Preceding entry: Last substantive update: 2026-10-18 — WP-156 OPEN, the design study (tier A; model Claude Opus 5.5; user: "Go ahead with WP-156"): N3 diagnosed -- the robust pass rejects on the raw residual while a deletion removes Baarda's w for correlated observations, so the kept epochs are truncated in the wrong direction (and a red stream's blunders go undetected: 2 % x 2 sigma at phi 0.98 read the level 3.6 x); candidates measured with the law known and in an engine prototype; proposed design F (w, data snooping, the per-lag truncation deficit in the redundancy, a 2-cycle frozen) -- clean levels within 0.25 % of a non-robust run where today's rule reads +1.4 %, x unchanged; design F adopted by the user (union freeze, the bar as proposed), the implementation is round 2 after this PR merges; no source change; §12.91.
@@ -12632,7 +12633,7 @@ factor).
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 155 | Speed without loss of precision (review 12.84 P1-P3), each reproduced by a profile first: a dense law whitened by forward substitutions with its Cholesky factor instead of an explicit inverse (denseLawWhiten, the one dense step of covModel / makeLoader / arcBatchWhiten); the inverse law's lag sums in redundancyLags by FFT for every lag (weightedCorr) instead of a loop; the robust pass's snooping by projection (wSnoop) and a cheap Toeplitz test (lawInverse); the dense Toeplitz forms built by column copies; results unchanged to rounding; version 6.34.1 | 156 | OPEN (2026-10-18) |
+| 155 | Speed without loss of precision (review 12.84 P1-P3), each reproduced by a profile first: a dense law whitened by forward substitutions with its Cholesky factor instead of an explicit inverse (denseLawWhiten, the one dense step of covModel / makeLoader / arcBatchWhiten); the inverse law's lag sums in redundancyLags by FFT for every lag (weightedCorr) instead of a loop; the robust pass's snooping by projection (wSnoop) and a cheap Toeplitz test (lawInverse); the dense Toeplitz forms built by column copies; results unchanged to rounding; version 6.34.1 | 156 | DONE (2026-10-18, PR #208, merge f621c30; CI GREEN on 68a628e in the first round: ci_gate 790/790, warning inventory lsqvce:internal:testProbe only; local postflight on 68a628e GREEN 790/790) |
 
 **The user's request (2026-10-18):** "#207 is merged" -- after the question whether to continue with
 WP-155, the last of the agreed order 153 -> 154 -> 156 -> 155.
@@ -12704,3 +12705,12 @@ kernel.decorrFactor reference, kernel.redundancyLags reference).
 **Docs.** covModel (cost table, help stamp), redundancyLags, wSnoop (COST), lawInverse, makeLoader,
 arcBatchWhiten, RELEASE_NOTES, DEVELOPMENT.md (802 declared); version 6.34.1 (no result changes
 beyond rounding and no new identifiers: a patch).
+
+**CI round.** 68a628e GREEN in the first round: matlab (ci_gate 790/790, 27/27 suites, inventory
+lsqvce:internal:testProbe only), audit, release. The speed budgets on the runner
+(testDenseLawWhiteningSkipsTheInverse, testLawInverseBeatsTheDenseInverse) passed as locally.
+
+**Closure.** WP-155 DONE: PR #208, merge f621c30. With it the agreed order of the open packages
+from review 12.84 is complete -- 153 (#200), 154 (#202), 157 (#203), 156 (#205, #206) and 155
+(#208); every finding of 12.84 is fixed, documented as a decision, or measured and recorded as not
+worth doing (12.86-12.92).
