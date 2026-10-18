@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.27.0 — User Manual</title>
+  <title>lsqvce 6.28.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.27.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.28.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1355,7 +1355,11 @@ residuals</td>
 <tr class="odd">
 <td><code>R.compare(Rred)</code></td>
 <td>nested-model F test: does the full model <code>R</code> earn its
-extra parameters over <code>Rred</code>?</td>
+extra parameters over <code>Rred</code>? Both fits must share one fixed
+weighting. After <code>Estimate = "noise"</code> each model’s v’Pv is
+normalised to its own redundancy, so F would be 1 whatever the data, and
+such fits are refused. Declare the noise model the full fit estimated,
+with <code>estimate = "none"</code>, refit both, and compare those.</td>
 </tr>
 <tr class="even">
 <td><code>R.ellipse(i, j, ...)</code></td>
@@ -3522,10 +3526,10 @@ from <code>R.noise.model{k}.sigma</code>, with their ratio. Only the
 ratios matter, because a common factor goes into
 <code>sigma0</code>.</li>
 <li><strong>The field:</strong>
-<code>z = (R.x - xTrue) ./ (sqrt(diag(R.sol.Cxx)) * R.sigma0)</code>,
-max <code>|z|</code>, mean <code>z^2</code>, the anomaly with its sigma,
-and the ratio of the error degree variance to its formal value per
-degree.</li>
+<code>z = (R.x - xTrue) ./ sqrt(diag(R.sol.Cxx))</code>
+(<code>R.sol.Cxx</code> is scaled by σ₀² already), max <code>|z|</code>,
+mean <code>z^2</code>, the anomaly with its sigma, and the ratio of the
+error degree variance to its formal value per degree.</li>
 </ol>
 <p>The help block records the numbers of one measured run.</p>
 <h2 data-number="9.14"

@@ -85,6 +85,15 @@ function [D, diagSol, batchFcn, nBatch] = fromAccumulator(acc, sol, varargin)
 %     batchFcn  1x1 fh      the batch source (R.batchFcn)
 %     nBatch    1x1 double  its batch count (R.nBatch)
 %
+%   A REFUSED v'Pv (WP-150, F6): when the backend refused a cancelled v'Pv
+%   (sol.s0sq NaN), diagnose studentises with the fallback sigma0 and flags
+%   against the wrong scale -- reproduced: 28 rows flagged on Backend "normal"
+%   against 1 (the blunder) on "qr", R.sigma0 3.27 on both. The verdict then
+%   runs diagnose once more with the s0^2 of its own residual pass (D.s0sq,
+%   the number LSQVCE.ENGINE.VERDICT.SUPERSEDE gives R.sigma0), and diagSol
+%   carries it. Only in that case: the flags are decided inside the data
+%   pass, before its v'Pv exists.
+%
 %   ACCURACY
 %     As LSQVCE.ENGINE.VERDICT.SOURCE and LSQVCE.ENGINE.VERDICT.DIAGNOSE: it
 %     adds no arithmetic of its own (WP-138).
@@ -94,11 +103,18 @@ function [D, diagSol, batchFcn, nBatch] = fromAccumulator(acc, sol, varargin)
 %
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE
 %
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-150 (F6): a refused v'Pv is
+%   diagnosed again with the pass's own s0^2. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
 %   ACCURACY; it adds no arithmetic of its own. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
     [diagSol, batchFcn, nBatch] = lsqvce.engine.verdict.source(acc, sol);
     D = lsqvce.engine.verdict.diagnose(diagSol, batchFcn, 'nBatch', nBatch, varargin{:});
+    if ~isfinite(diagSol.s0sq) && D.s0Fallback && isfinite(D.s0sq) && D.s0sq > 0
+        diagSol.s0sq = D.s0sq;                       % WP-150 (F6): the pass's own s0^2
+        D = lsqvce.engine.verdict.diagnose(diagSol, batchFcn, 'nBatch', nBatch, varargin{:});
+    end
 end
 
 function sol = supersede(sol, D, acc)

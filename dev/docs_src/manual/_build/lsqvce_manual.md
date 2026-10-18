@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.27.0 — User Manual"
+title: "lsqvce 6.28.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -634,7 +634,7 @@ All properties are read-only.
 | `R.reliability()` | one row per observation: `obs`, `v`, `r`, `w`, `mdb`, `quadrant` |
 | `R.snoop(...)` | iterative data snooping on this fit; `R` itself is not changed |
 | `R.systematic(...)` | runs, Ljung–Box and binned-mean tests for unmodelled signal in the residuals |
-| `R.compare(Rred)` | nested-model F test: does the full model `R` earn its extra parameters over `Rred`? |
+| `R.compare(Rred)` | nested-model F test: does the full model `R` earn its extra parameters over `Rred`? Both fits must share one fixed weighting. After `Estimate = "noise"` each model's v'Pv is normalised to its own redundancy, so F would be 1 whatever the data, and such fits are refused. Declare the noise model the full fit estimated, with `estimate = "none"`, refit both, and compare those. |
 | `R.ellipse(i, j, ...)` | confidence ellipse of the parameter pair `(i, j)` |
 | `R.residuals(...)` | the collected residuals per system and stream (re-reads the arcs) |
 | `R.contribution(...)` | the information share of every stream in the common parameters |
@@ -1829,7 +1829,7 @@ loop needed 72 passes. The demo prints three sections:
 2. **The weights:** planted and recovered sigma per stream from
    `R.noise.model{k}.sigma`, with their ratio. Only the ratios matter,
    because a common factor goes into `sigma0`.
-3. **The field:** `z = (R.x - xTrue) ./ (sqrt(diag(R.sol.Cxx)) * R.sigma0)`,
+3. **The field:** `z = (R.x - xTrue) ./ sqrt(diag(R.sol.Cxx))` (`R.sol.Cxx` is scaled by σ₀² already),
    max `|z|`, mean `z^2`, the anomaly with its sigma, and the ratio of the
    error degree variance to its formal value per degree.
 

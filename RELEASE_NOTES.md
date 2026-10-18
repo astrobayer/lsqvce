@@ -1,5 +1,30 @@
 # lsqvce release notes
 
+## 6.28.0 — 2026-10-17 (WP-150: the wrong verdicts at the front door)
+
+Corrections found by the review of the core calculation (HANDOVER §12.84). Each one returned a
+result that looked valid and was not.
+
+- `R.compare(Rred)` refuses fits whose weights were estimated (`Estimate = "noise"` or a `Robust`
+  influence; new error `lsqvce:Results:compareEstimatedWeights`). The nested F test assumes one
+  fixed weighting. After the noise estimator each model's v'Pv is normalised to its own redundancy,
+  so F was 1 whatever the data. Measured: "not significant" for a term the declared weights test
+  at F = 2705.
+- Robust IRLS stops when every parameter moved by less than `RobustOpts.Tol` of its own formal
+  sigma, or less than its own rounding. Before, one large parameter set the threshold for all, and a
+  run reported "converged" 22.6 formal sigma from its fixed point.
+- Rows of weight 0 no longer enter the robust (MAD) scale or its counts. With 40 % zero weights the
+  scale was a third of the true one, and IGG3 rejected good rows.
+- A prior group with `estimate = "scale"` in a run that cannot estimate a prior's sigma
+  (`Estimate = "none"`, or the matrix and batched kinds) now warns that its declared sigma is used
+  (new warning `lsqvce:fit:priorScaleHeld`); it was silent.
+- `R.snoop()` on a Gauss–Newton fit returns estimates, not the linear increments about `R.x`.
+- After the normal backend refused a cancelled v'Pv, the diagnostics' tests now use the residual
+  pass's own sigma0. Before, they used the a-priori sigma0 1, so the two backends flagged different
+  rows (28 against the 1 blunder).
+- `demo_gravity` and the Manual divided by sigma0 twice in the z-scores; `sol.Cxx` is already
+  scaled by sigma0².
+
 ## 6.27.0 — 2026-10-17 (WP-148: a rejected epoch stays on the grid and is deleted exactly)
 
 A behaviour change for rows a `buildDay` marks `excluded` under a correlated law; every other

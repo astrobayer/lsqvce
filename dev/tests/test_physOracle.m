@@ -399,6 +399,11 @@ function testDemoGravityRunsEndToEnd(tc)
     tc.verifyLessThan(sc.zMax, 4, sprintf('max |z| = %.2f', sc.zMax));
     % tol: the planted anomaly within 3 of its own formal sigma (measured 1.10)
     tc.verifyLessThan(abs(sc.anomaly.z), 3, sprintf('anomaly z = %.2f', sc.anomaly.z));
+    % WP-150 (F7): sol.Cxx is sigma0^2-scaled already; the demo multiplied the
+    % formal error by sigma0 a second time
+    cfg = demo_gravity_dataLoader();
+    % tol: the same arithmetic on the same Results -- eps-level
+    tc.verifyEqual(sc.zMax, max(abs((Rg.x - cfg.xTrue) ./ sqrt(diag(Rg.sol.Cxx)))), 'RelTol', 1e-12);
     tc.verifyTrue(contains(out, 'The problem'));
     tc.verifyTrue(contains(out, 'The weights'));
     tc.verifyClass(Rg, 'lsqvce.Results');
@@ -625,6 +630,9 @@ function testGravfireTemplateRunsOnAGeneratedBundle(tc)
     tc.verifyEqual(data.priors(1).x0, [0.5; 0], 'each member keeps its a-priori value');
     tc.verifyEqual(string({data.priors.estimate}), ["scale", "none"]);
     tc.verifyEqual(data.systems.priors(1).group, '^(GraceA_accscale|GraceB_accscale)$');
+    % the labelled groups are "scale" and this single solve holds them: the
+    % warning is the truth here (WP-150), fired on purpose
+    muteWarn(tc, 'lsqvce:fit:priorScaleHeld');
     R = lsqvce.fit(data, lsqvce.Options(Verbose=0));
     % rows: 2 days x (posA 59 x 3 + posB 59 x 3 + kbr 59) -- 2 pieces of 30
     % epochs per (day, group), one flagged epoch at weight 0 (WP-148); unknowns: 6 commons
@@ -658,6 +666,7 @@ function testGravfireFlaggedEpochsStayOnTheGrid(tc)
         if isfield(o, 'iSpp'), o.iSpp{1}(f, :) = NaN; end
         s2{1}.observations{k} = o;
     end
+    muteWarn(tc, 'lsqvce:fit:priorScaleHeld');      % the labelled groups, held by a single solve
     R1 = lsqvce.fit(data, lsqvce.Options(Verbose=0));
     R2 = lsqvce.fit(gravfire_data(c, m, s2, 'DryRun', true), lsqvce.Options(Verbose=0));
     % tol: 0 -- the flagged rows are zeroed before any arithmetic; the same doubles

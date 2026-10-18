@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-17 — review of the core calculation behind fit (tier A; model Claude Opus 5.5; user: "Review the core calculation routines needed by fit ... closed loop simulation ... limits"): four static lanes, every material finding reproduced in MATLAB, a 425-run closed-loop Monte Carlo against a true-covariance oracle; the estimator closes (levels 1-2 %, colour to phi 0.98, all runs converged) with 8-16 % variance loss and 5-7 % optimistic formal errors on short arcs under the default Grid 60; 2 high front-door findings (compare after estimated weights F = 1; IRLS stops 22.6 sd off), the normal backend's unit-dependent rank cut (10.7 sd) and Schur cancellation (v'Pv +1000 %), robust noise runs that cannot converge, excluded rows in the sweep; WP-150 to WP-155 PROPOSED; no code change; §12.84.
+Last substantive update: 2026-10-17 — WP-150 OPEN (tier A; model Claude Opus 5.5; user: "Go ahead with WP-150"): the front-door findings F1-F7 of §12.84 reproduced and fixed -- compare refuses estimated weights, IRLS stops per parameter in its own sigma (or its rounding), excluded rows out of the MAD (robust rejections stay live: a first version oscillated), a held "scale" prior warns, snoop on Gauss-Newton returns estimates, a refused v'Pv is re-diagnosed with its own sigma0, demo_gravity's double sigma0; version 6.28.0; ci_gate GREEN 757/757; §12.85.
+Preceding entry: Last substantive update: 2026-10-17 — review of the core calculation behind fit (tier A; model Claude Opus 5.5; user: "Review the core calculation routines needed by fit ... closed loop simulation ... limits"): four static lanes, every material finding reproduced in MATLAB, a 425-run closed-loop Monte Carlo against a true-covariance oracle; the estimator closes (levels 1-2 %, colour to phi 0.98, all runs converged) with 8-16 % variance loss and 5-7 % optimistic formal errors on short arcs under the default Grid 60; 2 high front-door findings (compare after estimated weights F = 1; IRLS stops 22.6 sd off), the normal backend's unit-dependent rank cut (10.7 sd) and Schur cancellation (v'Pv +1000 %), robust noise runs that cannot converge, excluded rows in the sweep; WP-150 to WP-155 PROPOSED; no code change; §12.84.
 Preceding entry: Last substantive update: 2026-10-17 — WP-146 DONE (PR #192, merge 6d75bf2; CI GREEN on f45b5aa in the first round: the six build-mode cases on Linux, every fault caught; ci_gate 751/751, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.83 -- every finding of §12.77 acted on; no code change, no version (6.27.0 stays).
 Preceding entry: Last substantive update: 2026-10-17 — WP-146 OPEN (model Claude Opus 5.5; user: "Go ahead"): build_manual.py -- every failure caught per document, the four outputs of a document staged and replaced together (the PDF first), check mode writes nothing, pandoc decoded as UTF-8; six build-mode cases in audit_selftest.py (pandoc faked) reproduced B1-B4, B6, B7 on the old builder and pass on the new; no version; §12.83.
 Preceding entry: Last substantive update: 2026-10-17 — WP-148 DONE (PR #189, merge fee9287; CI GREEN on 0e25afc in the first completed round -- two earlier runs cancelled by newer pushes: ci_gate 751/751, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.82; no code change, no version (6.27.0 stays, 763 declared / 751 run).
@@ -11635,7 +11636,7 @@ observation 1). No package is open; the next step is the user's.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 150 | Wrong verdicts at the front door (findings F1-F6 below): `R.compare` after estimated weights, the IRLS stop rule, a "scale" prior outside the noise loop, zero-weight rows in the robust scale, `snoop` on a Gauss-Newton fit, the diagnostics' sigma0 after a refused v'Pv, demo_gravity's double sigma0 | 146 | PROPOSED (not opened; the user's go opens it) |
+| 150 | Wrong verdicts at the front door (findings F1-F6 below): `R.compare` after estimated weights, the IRLS stop rule, a "scale" prior outside the noise loop, zero-weight rows in the robust scale, `snoop` on a Gauss-Newton fit, the diagnostics' sigma0 after a refused v'Pv, demo_gravity's double sigma0 | 146 | OPENED 2026-10-17 -- its row and status live in §12.85 |
 | 151 | The solve core (S1-S3): the local rank tests on the equilibrated block, a guard for the Schur step's cancellation of l'Pl, the help's memory claims | 146 | PROPOSED |
 | 152 | The noise estimator (N1-N4): the robust stop rule and the truncation factor tau (white value on coloured streams), held arcs under IGG3, excluded rows in the sweep | 146 | PROPOSED |
 | 153 | Covariance and whitening (C1-C6): a PSD grid without f = 0, the d = 1 Cep shape, the frame-dependent Cholesky composition of a full Cep, WP-148's exact deletion for 'var' and partly excluded epochs, the unbounded memory paths | 146 | PROPOSED |
@@ -11844,3 +11845,72 @@ is invalid after estimated weights (F1).
 **Not acted on in this round** (a review: no code change; the user decides which package opens).
 Recommended order: WP-150 (silently wrong verdicts users act on), WP-152 N1/N4 and WP-151 S1/S2
 (wrong numbers), WP-154 M1/M2 (defaults and guards the study measured), WP-153, WP-155.
+
+### 12.85 WP-150 — the wrong verdicts at the front door (2026-10-17, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 150 | The front-door findings F1-F7 of §12.84, each reproduced before its fix, each with a test that fails without it: (F1) `R.compare` refuses two Results whose weights were estimated (Estimate "noise" or a robust influence) -- the nested F test assumes one fixed weighting, and after estimated weights it returns F = 1 whatever the data; (F2) the IRLS stop rule per parameter in its own formal sigma; (F3) a prior group with estimate "scale" in a run that cannot estimate it warns that it is held; (F4) zero-weight rows out of the IRLS median, MAD and live count; (F5) `R.snoop()` on a Gauss-Newton fit returns estimates, not increments; (F6) after a refused v'Pv the diagnostics' tests use the verdict's own sigma0, not 1; (F7) demo_gravity and the Manual scale sigma_x by sigma0 once; version 6.28.0 (a new refusal and a new warning: a minor) | 146 | IN PROGRESS |
+
+**The user's request (2026-10-17):** "Go ahead with WP-150".
+
+**Reproductions (tier A, main 2cc4c91, before any fix).** F1-F4 and F7 as measured in §12.84
+(compare F = 1.000 / p 0.32 against F = 2705 with declared weights; IRLS "converged" after 2 passes
+at 22.6 formal sd from its fixed point; the "scale" prior held at 1e-3, x ~1e-4 against 1, no
+warning; robust scale 0.329 with 40 % zero weights; sigma0 applied twice). New:
+- **F5 -- reproduced.** A Gauss-Newton fit (3 exp(-0.7 t), one blunder): R.x = [2.985 0.676];
+  `R.snoop()` returns sol.x = D.x = [0.021 0.028] -- the linear increment about R.x.
+- **F6 -- reproduced.** One blunder (25 against a true sigma of 3, declared 1), a tight fit (signal
+  1e5): Backend "normal" refuses v'Pv, diagnose falls back to sigma0 = 1 and flags 28 rows; Backend
+  "qr" flags 1 (the blunder). R.sigma0 is 3.2729 on both.
+
+**The fixes (each with a test that fails without it; tier A).**
+- **F1** `Results.compare` reads both fits' `meta.options` and refuses a fit with Estimate "noise"
+  or a robust influence: `lsqvce:Results:compareEstimatedWeights` (new), the message says how to
+  test instead (declare the full fit's noise model, estimate "none", refit both). Test: test_vcePolicy
+  `testCompareRefusesEstimatedWeights` (noise, huber either side; the declared-weight comparison of
+  the same data still F > 100).
+- **F2** adjustRobust: settled when every parameter moved by at most max(Tol sigma_j, 64 eps |x_j|) --
+  its own formal sigma, or its own rounding, which no step can beat (measured: 6.4e6 against a sigma
+  of 1e-5 moves in steps of 1.4e-4 sigma). history.dx is max |dx_j| / sigma_j. The lane's case now
+  stops after 22 passes at 1.8e-7 sigma from a reference run (was: 2 passes, 22.6 sigma). A reference
+  asked for 1e-12 sigma still exhausts 200 passes at ~5e-5 sigma: observations of 6.4e6 against
+  noise of 1e-3 leave ~10 digits in the residuals, so the Huber weights jitter -- a precision floor
+  of that problem, not of the rule. Test: test_fit `testRobustStopRuleIsPerParameterSigma`.
+- **F4** `lawWhitenedResiduals` returns a live mask; adjustRobust forms the MAD and the live / down /
+  zero counts over the live rows. Live means: not excluded BY THE DECLARATION. The first version used
+  the residual record's `.excluded` alone -- which the sweep also sets on rows the previous pass
+  REJECTED (factor 0) -- so every rejected row came back with factor 1 and IGG3 alternated (104
+  rejected / 0 / 125 / 0 ..., steps of 43 sigma, MaxIter): caught by the existing
+  `testRobustStopRuleIsUnitInvariant`, which then hit its budget. A row excluded AND with a previous
+  factor > 0 is declared; excluded with factor 0 is a robust rejection and stays live (re-tested).
+  That case now converges in 19 passes on the truth ([1.001 -1.916 0.490 2.984], 42 rejected of 40
+  planted). Test: test_fit `testExcludedRowsStayOutOfTheRobustScale` (80 zero-weight rows change
+  neither the scale nor x against the 120 live rows alone).
+- **F3** fit warns `lsqvce:fit:priorScaleHeld` (new) when a common or local prior group declares
+  estimate "scale" on the streaming kind with Estimate "none" (and the robust path) or on the matrix
+  and batched kinds. Test: test_fit `testHeldScalePriorWarns`. The gate then heard it from five
+  places, each looked at: demo_priors declared its drift group "scale" for two single solves -- it now
+  declares "none" there and switches to "scale" for the one Estimate "noise" run (its numbers are
+  unchanged: "none" and "scale" differ only in the noise loop); the GRAVFIRE template maps labelled
+  groups to "scale", so the two template tests (a dry-run single solve) mute it with that reason, and
+  test_examples runs demo_gravfire on the generated bundle with the labels off (the mapping is the
+  template test's); WP-149's `testRefusedVtPvIsSupersededInResults` mutes it for its Estimate "none"
+  half.
+- **F5** `Results.snoop` adds `sol.xLin` to sol.x and D.x on a Gauss-Newton fit (both the
+  closed-form and the re-solve path return increments); the help says the rejection is one linear
+  step about R.x. Test: test_fit `testSnoopOnGaussNewtonReturnsEstimates` (both paths, [3 0.7] to
+  0.05).
+- **F6** `verdict.fromAccumulator`: when the backend refused v'Pv and diagnose fell back, it runs
+  diagnose once more with the s0^2 of its own residual pass (the number supersede gives R.sigma0) --
+  only then; the flags are decided inside the data pass, before its v'Pv exists. Test: test_fit
+  `testRefusedVtPvIsDiagnosedWithItsOwnSigma0` (the normal backend flags row 50 alone, as QR).
+- **F7** demo_gravity sigma_x = sqrt(diag(R.sol.Cxx)); the Manual's formula too. Test: test_physOracle
+  `testDemoGravityRunsEndToEnd` recomputes max |z| from R.sol.Cxx to 1e-12.
+
+**Docs:** the API (compare, RobustOpts.Tol), the Manual (07: compare under one weighting; 09: the z
+formula), fit's ERRORS (priorScaleHeld), the catalogue (two identifiers); version 6.28.0.
+
+**Gates (tier A):** `ci_gate` GREEN 757 / 757, 27 / 27, inventory `lsqvce:internal:testProbe` only
+(228 s); Linux audit CLEAN, selftest every fault caught (the audit cases and the build cases).
+Tests 769 declared / 757 run.

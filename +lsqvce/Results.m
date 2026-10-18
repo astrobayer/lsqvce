@@ -155,6 +155,12 @@ classdef Results < handle
 %   (Backend "normal", a tight fit) sigma0 and sol.Cxx are the verdict's
 %   residual pass (lsqvce.engine.verdict.supersede), not NaN. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-150 (F5): snoop() on a
+%   Gauss-Newton fit returns estimates, not increments. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-150 (F1): compare() refuses fits
+%   whose weights were estimated (lsqvce:Results:compareEstimatedWeights).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A3): plot("psd") draws
 %   every pool group on a log axis. With assistance from Claude (Anthropic),
 %   model Claude Opus 5.5.
@@ -523,7 +529,16 @@ classdef Results < handle
         %   INPUT   Rred 1x1 lsqvce.Results; Alpha (0.05); Verbose (false)
         %   OUTPUT  F    1x1 struct  the engine's record (.F .p .df1 .df2 .significant
         %                            .alpha .valid) -- see LSQVCE.ENGINE.VERDICT.FTEST
+        %   ONE FIXED WEIGHTING (WP-150): the test is valid only when both fits used
+        %   the same declared weights. After Estimate "noise" each model's v'Pv is
+        %   normalised to its own redundancy, so F = 1 whatever the data (measured:
+        %   F = 1.000, p 0.32, for an extra term the declared weights test at F =
+        %   2705); a robust influence re-weights each model differently. Such
+        %   Results are refused: declare the noise model the full fit estimated
+        %   (estimate "none"), refit both models, and compare those.
         %   ERRORS  lsqvce:Results:noVPv    a v'Pv is NaN or missing
+        %           lsqvce:Results:compareEstimatedWeights  a fit's weights were
+        %                                   estimated (Estimate "noise" or Robust)
         %           lsqvce:ftest:*          the engine's own refusals (not nested, ...)
         arguments
             obj
@@ -531,8 +546,29 @@ classdef Results < handle
             opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha, 1)} = 0.05
             opt.Verbose (1,1) logical = false
         end
+            for Rk = {obj, Rred}
+                how = estimatedWeights(Rk{1});
+                if ~isempty(how)
+                    error('lsqvce:Results:compareEstimatedWeights', ...
+                          ['compare() tests nested models under ONE fixed weighting, but a fit''s ' ...
+                           'weights were estimated (%s): each model''s v''Pv is then normalised to its ' ...
+                           'own redundancy and F is 1 whatever the data. Declare the noise model the ' ...
+                           'full fit estimated (estimate "none"), refit both models, and compare those.'], how);
+                end
+            end
             sF = solOf(obj);  sR = solOf(Rred);
             F = lsqvce.engine.verdict.ftest(sF, sR, 'Alpha', opt.Alpha, 'Verbose', opt.Verbose);
+
+            function how = estimatedWeights(Rk)
+                % WP-150 (F1): the run's resolved options say how its weights came about
+                o = lsqvce.util.getfielddef(Rk.meta, 'options', struct());
+                how = '';
+                if ~strcmpi(string(lsqvce.util.getfielddef(o, 'Estimate', "none")), "none")
+                    how = sprintf('Estimate "%s"', string(o.Estimate));
+                elseif ~strcmpi(string(lsqvce.util.getfielddef(o, 'Robust', "none")), "none")
+                    how = sprintf('Robust "%s"', string(o.Robust));
+                end
+            end
 
             function s = solOf(Rk)
                 if isempty(Rk.sol) || ~isfield(Rk.sol, 'vtv') || ~isfinite(Rk.sol.vtv)
@@ -575,6 +611,11 @@ classdef Results < handle
         %   OUTPUT  D    1x1 struct  the diagnostics after rejection (.rejectedIdx)
         %           REJ  1x1 struct  the rejection record (.idx .w .r .refused ...)
         %           sol  1x1 struct  the solution after rejection (.x .Q .s0sq ...)
+        %   A GAUSS-NEWTON fit (WP-150, F5): its rows are increments about R.x, so
+        %   the engine returns increments; sol.x and D.x are the ESTIMATES
+        %   (R.x + increment). The rejection is one linear step about R.x, not a
+        %   re-converged nonlinear solution -- refit without the rejected rows
+        %   for that.
             dflt = {};
             if isstruct(obj.diag) && isfield(obj.diag, 'alpha')
                 t = "pope";  if strcmp(lsqvce.util.getfielddef(obj.diag, 'test', ''), 'mad'), t = "mad"; end
@@ -584,6 +625,14 @@ classdef Results < handle
                 dflt = reshape(dflt, 2, []);  dflt = reshape(dflt(:, keep), 1, []);
             end
             [sol, D, REJ] = lsqvce.engine.verdict.snoop(obj.source, obj.diag, obj.batchFcn, dflt{:}, varargin{:});
+            xLin = lsqvce.util.getfielddef(obj.sol, 'xLin', []);
+            if ~isempty(xLin)
+                % WP-150 (F5): reproduced, sol.x = D.x = [0.021 0.028] for a fit at
+                % R.x = [2.985 0.676] -- the increment, returned as the estimate
+                u = numel(xLin);
+                sol.x(1:u) = sol.x(1:u) + xLin(:);
+                D.x(1:u)   = D.x(1:u) + xLin(:);
+            end
         end
 
         function T = reliability(obj)

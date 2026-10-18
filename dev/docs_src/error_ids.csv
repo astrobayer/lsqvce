@@ -17,6 +17,7 @@ lsqvce:Results:noCovariance,Results,error,v4.0
 lsqvce:Results:noHistory,Results,error,v4.0
 lsqvce:Results:noPerObservation,Results,error,v6.5.0
 lsqvce:Results:noVPv,Results,error,v4.0
+lsqvce:Results:compareEstimatedWeights,Results,error,v6.28.0
 lsqvce:Results:tableMismatch,Results,error,v4.0
 lsqvce:report:badIteration,report,error,v6.24.0
 lsqvce:accum:arcBadNc,engine.BlockAccumulator,error,v4.0
@@ -156,6 +157,7 @@ lsqvce:fit:noDays,engine.declaration,error,v4.0
 lsqvce:fit:noSystems,engine.declaration,error,v4.0
 lsqvce:fit:notYet,fit,error,v4.0
 lsqvce:fit:priorNotActive,fit,warning,v4.0
+lsqvce:fit:priorScaleHeld,fit,warning,v6.28.0
 lsqvce:fit:uCount,fit,error,v4.0
 lsqvce:fit:varUnderNoise,fit,error,v6.1.5
 lsqvce:fit:unknownField,engine.declaration;fit,error,v4.0

@@ -50,7 +50,7 @@ All properties are read-only.
 | `R.reliability()` | one row per observation: `obs`, `v`, `r`, `w`, `mdb`, `quadrant` |
 | `R.snoop(...)` | iterative data snooping on this fit; `R` itself is not changed |
 | `R.systematic(...)` | runs, Ljung–Box and binned-mean tests for unmodelled signal in the residuals |
-| `R.compare(Rred)` | nested-model F test: does the full model `R` earn its extra parameters over `Rred`? |
+| `R.compare(Rred)` | nested-model F test: does the full model `R` earn its extra parameters over `Rred`? Both fits must share one fixed weighting. After `Estimate = "noise"` each model's v'Pv is normalised to its own redundancy, so F would be 1 whatever the data, and such fits are refused. Declare the noise model the full fit estimated, with `estimate = "none"`, refit both, and compare those. |
 | `R.ellipse(i, j, ...)` | confidence ellipse of the parameter pair `(i, j)` |
 | `R.residuals(...)` | the collected residuals per system and stream (re-reads the arcs) |
 | `R.contribution(...)` | the information share of every stream in the common parameters |

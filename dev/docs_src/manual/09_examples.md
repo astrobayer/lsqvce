@@ -593,7 +593,7 @@ loop needed 72 passes. The demo prints three sections:
 2. **The weights:** planted and recovered sigma per stream from
    `R.noise.model{k}.sigma`, with their ratio. Only the ratios matter,
    because a common factor goes into `sigma0`.
-3. **The field:** `z = (R.x - xTrue) ./ (sqrt(diag(R.sol.Cxx)) * R.sigma0)`,
+3. **The field:** `z = (R.x - xTrue) ./ sqrt(diag(R.sol.Cxx))` (`R.sol.Cxx` is scaled by σ₀² already),
    max `|z|`, mean `z^2`, the anomaly with its sigma, and the ratio of the
    error degree variance to its formal value per degree.
 

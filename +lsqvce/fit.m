@@ -135,6 +135,11 @@ function R = fit(data, opts, nv)
 %                                  or a local group, WP-128), or its from lies
 %                                  beyond the passes the joint loop ran
 %                                  (WP-131)
+%       lsqvce:fit:priorScaleHeld  (warning) a prior group with estimate
+%                                  "scale" in a run that cannot estimate a
+%                                  prior's sigma (Estimate "none", or the
+%                                  kinds A / B / C) is applied with its
+%                                  declared sigma (WP-150)
 %       lsqvce:fit:badPrior        data.priors is malformed (unknown
 %                                  field, L not p x nc, sigma not a positive scalar,
 %                                  x0 of the wrong length)
@@ -286,6 +291,9 @@ end
              'they are not applied. Use Estimate="noise" for a pass schedule.'], nLate);
         if ~isempty(priorGroups), pri = stackPriors(priorGroups, 1); end
     end
+    if strcmp(opts.Estimate, "none")
+        warnScaleHeld(nScaleGroups(priorGroups, data));          % WP-150 (F3)
+    end
 
     % R5 M2 2b: robust IRLS is a POLICY on the block path -- on the streaming
     % kind it is Estimate "none" with reweighting (H-02: the same accumulator).
@@ -314,6 +322,38 @@ end
             %   "pooled"  one law for all streams (Pool "all"), no arc factors
             % (the separate-mode engine adjustVCE was deleted in M4 4c)
             R = fitEllmer(systems, days, opts, pri, onPassContext(data, systems), priorGroups, froms);
+    end
+end
+
+%==========================================================================
+function n = nScaleGroups(priorGroups, data)
+%NSCALEGROUPS  How many prior groups -- common (priorGroups) and local
+%   (data.systems(k).priors) -- declare estimate "scale" (WP-150, F3).
+    n = 0;
+    if ~isempty(priorGroups) && isfield(priorGroups, 'estimate')
+        n = sum(strcmpi(string({priorGroups.estimate}), "scale"));
+    end
+    if isfield(data, 'systems')
+        for k = 1:numel(data.systems)
+            if ~isfield(data.systems(k), 'priors') || isempty(data.systems(k).priors), continue, end
+            P = data.systems(k).priors;
+            if isfield(P, 'estimate')
+                n = n + sum(strcmpi(string({P.estimate}), "scale"));
+            end
+        end
+    end
+end
+
+function warnScaleHeld(n)
+%WARNSCALEHELD  A prior group with estimate "scale" in a run that cannot
+%   estimate a prior's sigma is applied with its DECLARED sigma. WP-150 (F3):
+%   it was, silently -- a group declared at 1e-3 shrank x to ~1e-4 against a
+%   truth of 1, and nothing said the sigma had not been estimated.
+    if n > 0
+        lsqvce.util.log.warnOnce('lsqvce:fit:priorScaleHeld', ...
+            ['%d prior group(s) declare estimate "scale", but only Estimate="noise" on the ' ...
+             'streaming kind estimates a prior''s sigma: they are applied with their DECLARED ' ...
+             'sigma. Declare estimate "none" to say so, or run the noise estimator.'], n);
     end
 end
 
@@ -397,6 +437,7 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind, data)
              'passes of one linearisation): they are not applied.'], sum([priorGroups.from] > 1));
         pri = stackPriors(priorGroups, 1);
     end
+    warnScaleHeld(nScaleGroups(priorGroups, struct()));          % WP-150 (F3)
     if isempty(x0)
         R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind, pri, data);
         return

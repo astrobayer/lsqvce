@@ -72,7 +72,7 @@ is merged onto the defaults; an unknown field is refused
 |---|---|---|
 | `Tuning` | `[]` | tuning constant of the influence function; empty = Huber 1.345, IGG3 (1.5, 2.5), bisquare 4.685 |
 | `MaxIter` | 30 | IRLS passes |
-| `Tol` | 1e-8 | relative change of x that ends the iteration |
+| `Tol` | 1e-8 | IRLS stops when every parameter moved by less than `Tol` of its own formal sigma between two passes |
 
 ### `Diagnostics` — the per-observation tests
 

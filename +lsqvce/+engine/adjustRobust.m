@@ -15,7 +15,7 @@ function R = adjustRobust(systems, days, opt)
 %
 %   The result is NOT a least-squares result: its covariance is that of the
 %   reweighted problem and is scaled by the reweighted sigma0 (report() says
-%   so). The pass record is R.history (scale, max|dx|, counts); the final
+%   so). The pass record is R.history (scale, max|dx|/sigma, counts); the final
 %   factors are R.history(end).factor, one per observation in sweep order,
 %   with R.history(end).keys naming the (sys, obsType, day, arc) rows. They
 %   are the weights the RETURNED solve used (WP-132): R.x is the weighted
@@ -32,8 +32,10 @@ function R = adjustRobust(systems, days, opt)
 %     'Influence'  "huber" | "igg3" | "bisquare"            default "huber"
 %     'Tuning'     [] | constants of the influence          default [] (its default)
 %     'MaxIter'    passes (>= 1)                            default 30
-%     'Tol'        stop when max|dx| < Tol * max(max|x|, max sigma_x)
-%                  -- relative to the problem's own scale     default 1e-8
+%     'Tol'        stop when every parameter moved by less than Tol of its
+%                  own formal sigma, |dx_j| <= Tol sigma_j -- or by less than
+%                  its own rounding, 64 eps |x_j|, which no step can beat
+%                                                           default 1e-8
 %     'Parallel', 'DistributeDays', 'ParallelThreshold'     as adjustBlock
 %     'Verbose'    logical                                  default false
 %     'Provenance' struct   resolved user options for Results.meta (fit)
@@ -45,7 +47,9 @@ function R = adjustRobust(systems, days, opt)
 %                passes .data and .processingOptions)            default struct()
 %   OUTPUT
 %     R  1x1 lsqvce.Results   stopReason "converged" | "maxPasses"; history(k):
-%        .pass .scale .dx .nDown (0 < factor < 0.5) .nZero (factor == 0)
+%        .pass .scale .dx (max_j |dx_j| / sigma_j, the stop quantity; Inf on
+%        pass 1) .nDown (0 < factor < 0.5) .nZero (factor == 0), counted
+%        over the rows the declaration did not exclude
 %        (scale, nDown, nZero: what pass k derived from its residuals for
 %        the next pass) .factor (last pass: n x 1, the weights the returned
 %        solve used) .keys (last pass: n x 4 cell)
@@ -86,6 +90,10 @@ function R = adjustRobust(systems, days, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
 %            LSQVCE.ENGINE.RESIDUALS, LSQVCE.FIT
 %
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-150: the stop rule per parameter
+%   in its own formal sigma (F2), and the rows the declaration excluded out
+%   of the MAD scale and the counts (F4). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: each pass writes its
 %   factors into a new map, so the returned accumulator keeps the weights its
 %   solve used; rejected rows (factor 0) leave the degrees of freedom
@@ -156,7 +164,7 @@ end
     if opt.Verbose
         lsqvce.util.log.msg('IRLS (%s) on the block path: %d system(s), %d day(s)\n', ...
                             opt.Influence, numel(specs), numel(days));
-        lsqvce.util.log.msg('  %4s %14s %12s %10s %10s\n', 'pass', 'scale (MAD)', 'max|dx|', 'n down', 'n zero');
+        lsqvce.util.log.msg('  %4s %14s %12s %10s %10s\n', 'pass', 'scale (MAD)', 'max dx/sigma', 'n down', 'n zero');
     end
 
     for it = 1:opt.MaxIter
@@ -167,11 +175,14 @@ end
 
         % law-whitened residuals of every observation, and the keys to put
         % the next factors back where they belong
-        [vw, keys, sizes] = lawWhitenedResiduals(res, W);   % engine-private, THIS driver's alone (WP-108: adjustVCEjoint has its own producer and its own prior exclusion)
-        [fac, s] = lsqvce.kernel.robustWeights(vw, opt.Influence, opt.Tuning);
+        [vw, keys, sizes, live] = lawWhitenedResiduals(res, W);   % engine-private, THIS driver's alone (WP-108: adjustVCEjoint has its own producer and its own prior exclusion)
+        % WP-150 (F4): an excluded row (weight 0, residual 0 by construction)
+        % takes no part in the scale or the counts; its factor is moot
+        fac = ones(size(vw));
+        [fac(live), s] = lsqvce.kernel.robustWeights(vw(live), opt.Influence, opt.Tuning);
         facUsed = appliedFactors(W, keys, sizes);   % WP-132: what THIS solve was weighted with
 
-        nAlive = sum(fac > 0);
+        nAlive = sum(fac(live) > 0);
         if nAlive < nc + 1
             error('lsqvce:adjustRobust:collapsed', ...
                  ['The influence function left %d observations with a non-zero ' ...
@@ -186,12 +197,28 @@ end
                   'Check the model, not the data.'], ...
                   nAlive, nc, nc + 1);
         end
-        warnAtBreakdown(fac, 'adjustRobust');      % engine-private: > 45 % zeroed, said once (R7 WP-115)
+        warnAtBreakdown(fac(live), 'adjustRobust');   % engine-private: > 45 % zeroed, said once (R7 WP-115)
 
-        dx = Inf;
-        if ~isempty(x), dx = max(abs(sol.x(:) - x)); end
+        % WP-150 (F2): the step of EVERY parameter in its own formal sigma. The
+        % stop rule was max|dx| < Tol * max(max|x|, max sigma_x): one parameter
+        % of size 6.4e6 known to 1e-4 set the threshold for all, and IRLS
+        % stopped "converged" after 2 passes at 22.6 formal sd from its fixed
+        % point (reproduced, HANDOVER 12.84 F2)
+        % The threshold never asks for less than the ROUNDING of the parameter:
+        % a value of 6.4e6 moves in steps of eps*6.4e6 ~ 1.4e-9, which against
+        % a sigma of 1e-5 is 1.4e-4 sigma -- a Tol of 1e-12 sigma could never be
+        % met (measured: 200 passes, the step stuck at 5e-5 sigma)
+        dx = Inf;  settled = false;
+        sx = sqrt(max(diag(sol.Cxx), 0));
+        if ~isempty(x)
+            d  = abs(sol.x(:) - x);
+            ok = sx > 0;
+            dx = max(d(ok) ./ sx(ok));
+            if isempty(dx), dx = 0; end
+            settled = all(d <= max(opt.Tol * sx, 64 * eps * max(abs(sol.x(:)), abs(x))));
+        end
         x = sol.x(:);
-        nDown = sum(fac < 0.5 & fac > 0);  nZero = sum(fac == 0);
+        nDown = sum(fac(live) < 0.5 & fac(live) > 0);  nZero = sum(fac(live) == 0);
         hist(end+1) = struct('pass', it, 'scale', s, 'dx', dx, 'nDown', nDown, ...
                              'nZero', nZero, 'factor', [], 'keys', {{}}); %#ok<AGROW>
         if opt.Verbose
@@ -202,11 +229,10 @@ end
                      'sigma0', sol.sigma0, 's0sq', sol.s0sq, 'factor', fac, 'keys', {keys}, 'scale', s, ...
                      'dx', dx, 'acc', acc);
         userStop = ~lsqvce.util.onPass(opt.OnPass, opt.OnPassContext, ctx);
-        % R7-17: relative to the problem's OWN scale -- the larger of the
-        % parameters and their formal errors -- so the same fit in other
-        % units stops on the same pass (the floor of 1 stopped SH-scale
-        % coefficients, ~1e-9, at pass 2 ~1 sigma from the fixed point)
-        if it > 1 && dx < opt.Tol * max(max(abs(x)), sqrt(max(diag(sol.Cxx))))
+        % in units of each parameter's formal sigma: the same fit in other
+        % units stops on the same pass (R7-17), and no parameter can hide
+        % behind another's scale (WP-150, F2)
+        if it > 1 && settled
             converged = true;
             break
         end
@@ -234,8 +260,8 @@ end
 
     if ~converged && ~userStop
         lsqvce.util.log.warn('lsqvce:adjustRobust:notConverged', ...
-            ['IRLS reached MaxIter = %d (max|dx| = %.3e, scale %.3e); the last ' ...
-             'pass is returned with stopReason "maxPasses".'], opt.MaxIter, dx, s);
+            ['IRLS reached MaxIter = %d (max|dx|/sigma = %.3e, scale %.3e); the last ' ...
+             'pass is returned with stopReason "maxPasses".'], opt.MaxIter, dx, s);   % dx in formal sigma (WP-150)
     end
 
     % final diagnostics on the reweighted problem (the factors are in Wfcn)

@@ -91,6 +91,10 @@ function [R, s] = demo_priors(varargin)
 %   See also LSQVCE.LAYOUT, LSQVCE.FIT, LSQVCE.OPTIONS, DEMO_NOISEPOLICY,
 %   DEMO_WORKFLOW
 %
+%   Updated 2026-10-17 (CEST, UTC+02:00), WP-150: the drift group is declared
+%   estimate "none" for the single solves and switched to "scale" for the one
+%   run that estimates it. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-112 (R7-16): the refusal
 %   without priors is lsqvce:qr:singularR, the rank decision on the pivots.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -188,16 +192,20 @@ function [R, s] = demo_priors(varargin)
             Ld(r, :) = unit(lay.systems(1).col(cfg.rowDrift, d, a));
         end
     end
+    % estimate "none": these single solves use the declared sigma, and say so
+    % by the declaration (section 6 switches the group to "scale" for the
+    % noise estimator, the one run that estimates it -- WP-150: a "scale" group
+    % in a single solve now warns that it is held)
     data.systems(1).priors = struct('L', Ld, 'x0', zeros(size(Ld, 1), 1), ...
                                     'sigma', cfg.driftSigma, 'name', 'drift', ...
-                                    'estimate', "scale");
+                                    'estimate', "none");
     R  = lsqvce.fit(data, lsqvce.Options(Verbose=verbose));
     R0 = fitWithoutGroups(data);
 
     dataPat = data;
     dataPat.systems(1).priors = struct('group', '^drift$', 'x0', 0, ...
                                        'sigma', cfg.driftSigma, 'name', 'drift', ...
-                                       'estimate', "scale");
+                                       'estimate', "none");
     Rp = lsqvce.fit(dataPat, lsqvce.Options(Verbose=false));
 
     s.formGap = max(abs(R.x - Rp.x));
@@ -235,6 +243,7 @@ function [R, s] = demo_priors(varargin)
     % not ask for what its data cannot give -- see DEMO_NOISEPOLICY for the
     % policy field itself.
     dataN = data;
+    dataN.systems(1).priors(1).estimate = "scale";
     dataN.systems(1).covariance.rng.estimate = "scale";
     Rn = lsqvce.fit(dataN, lsqvce.Options(Estimate="noise", Pool="stream", ...
                                           ArcFactors=false, MaxPasses=4, ...

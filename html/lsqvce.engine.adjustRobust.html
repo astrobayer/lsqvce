@@ -59,7 +59,7 @@ batched kinds through fit&#x27;s block adapter.
 
 The result is NOT a least-squares result: its covariance is that of the
 reweighted problem and is scaled by the reweighted sigma0 (report() says
-so). The pass record is R.history (scale, max|dx|, counts); the final
+so). The pass record is R.history (scale, max|dx|/sigma, counts); the final
 factors are R.history(end).factor, one per observation in sweep order,
 with R.history(end).keys naming the (sys, obsType, day, arc) rows. They
 are the weights the RETURNED solve used (WP-132): R.x is the weighted
@@ -75,8 +75,10 @@ days     1xD double          the calendar</pre>
 &#x27;Influence&#x27;  &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;            default &quot;huber&quot;
 &#x27;Tuning&#x27;     [] | constants of the influence          default [] (its default)
 &#x27;MaxIter&#x27;    passes (&gt;= 1)                            default 30
-&#x27;Tol&#x27;        stop when max|dx| &lt; Tol * max(max|x|, max sigma_x)
-             -- relative to the problem&#x27;s own scale     default 1e-8
+&#x27;Tol&#x27;        stop when every parameter moved by less than Tol of its
+             own formal sigma, |dx_j| &lt;= Tol sigma_j -- or by less than
+             its own rounding, 64 eps |x_j|, which no step can beat
+                                                      default 1e-8
 &#x27;Parallel&#x27;, &#x27;DistributeDays&#x27;, &#x27;ParallelThreshold&#x27;     as adjustBlock
 &#x27;Verbose&#x27;    logical                                  default false
 &#x27;Provenance&#x27; struct   resolved user options for Results.meta (fit)
@@ -88,7 +90,9 @@ days     1xD double          the calendar</pre>
            passes .data and .processingOptions)            default struct()</pre>
 <h3>Output</h3>
 <pre class="example">R  1x1 lsqvce.Results   stopReason &quot;converged&quot; | &quot;maxPasses&quot;; history(k):
-   .pass .scale .dx .nDown (0 &lt; factor &lt; 0.5) .nZero (factor == 0)
+   .pass .scale .dx (max_j |dx_j| / sigma_j, the stop quantity; Inf on
+   pass 1) .nDown (0 &lt; factor &lt; 0.5) .nZero (factor == 0), counted
+   over the rows the declaration did not exclude
    (scale, nDown, nZero: what pass k derived from its residuals for
    the next pass) .factor (last pass: n x 1, the weights the returned
    solve used) .keys (last pass: n x 4 cell)</pre>
@@ -127,6 +131,10 @@ which the flat driver could not express.</pre>
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
          LSQVCE.ENGINE.RESIDUALS, LSQVCE.FIT
 
+Updated 2026-10-17 (CEST, UTC+02:00), WP-150: the stop rule per parameter
+in its own formal sigma (F2), and the rows the declaration excluded out
+of the MAD scale and the counts (F4). With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-133: each pass writes its
 factors into a new map, so the returned accumulator keeps the weights its
 solve used; rejected rows (factor 0) leave the degrees of freedom
