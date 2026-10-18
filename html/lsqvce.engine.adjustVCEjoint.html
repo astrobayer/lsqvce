@@ -225,7 +225,7 @@ OPTIONS (Name/Value)
            late-pass drift -- keep it &lt;= 4) and does nothing useful
            without it (mirror-measured). The iteration itself always
            runs on the raw S.
-  &#x27;Pool&#x27;     &quot;all&quot; (default) | &quot;obstype&quot; | &quot;stream&quot;: which streams SHARE
+  &#x27;Pool&#x27;     &quot;stream&quot; (default; &quot;all&quot; until WP-157) | &quot;obstype&quot; | &quot;all&quot;: which streams SHARE
              one estimated law (one psdVCE per pool group, out.Sgroups)
   &#x27;Estimate&#x27; [] | containers.Map &#x27;satKey|obsType&#x27; -&gt; &quot;none&quot; | &quot;scale&quot; |
              &quot;law&quot;: the per-stream policy ([] = &quot;law&quot; for every stream)
@@ -377,6 +377,9 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-157: Pool defaults to &quot;stream&quot;, as
+lsqvce.Options does. With assistance from Claude (Anthropic), model Claude
+Opus 5.5.
 Updated 2026-10-18 (CEST, UTC+02:00), WP-154 (review 12.84, M2-M4): out.checks
 and three warnings for the assumptions the data can contradict -- one law
 for a pool group&#x27;s spectra, one level for a stream&#x27;s arcs, a memory short

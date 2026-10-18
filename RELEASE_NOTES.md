@@ -1,5 +1,18 @@
 # lsqvce release notes
 
+## 6.33.0 — 2026-10-18 (WP-157: Pool defaults to "stream")
+
+- `Pool` now defaults to `"stream"`: every stream gets its own estimated spectral shape. The old
+  default, `"all"`, put the streams of different physics in one law, which the Manual already said
+  never to do. Measured in the closed loop (10 seeds) before the change:
+  - pooling identical spectra gained nothing for x (efficiency 1.00–1.08 pooled against 0.90–1.08
+    per stream, with unbiased levels either way);
+  - pooling different spectra failed badly (efficiency 37 for two streams and 132 for four, levels
+    2–3× off).
+  
+  Pool streams of the same physics deliberately with `Pool = "obsType"`. A run that relied on the
+  old default gets one law per stream now: set `Pool = "all"` to keep the old behaviour.
+
 ## 6.32.0 — 2026-10-18 (WP-154: defaults and guards from the closed-loop study)
 
 From the Monte Carlo study of the review of the core calculation (HANDOVER §12.84).

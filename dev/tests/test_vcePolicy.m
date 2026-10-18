@@ -50,11 +50,12 @@ function setupOnce(tc)
     tc.TestData.data = data;
     % ONE shared run per model (the rebuild-per-test lesson of the old suite)
     tc.TestData.Rv = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false));
-    % the pooled run puts the demo's four streams of different physics in one
-    % group (Pool "all"), which WP-154's check reports -- off for this run only
-    % (a class-wide mute silenced testPoolGroupOfDifferentSpectraWarns too)
+    % the POOLED run (Pool "all", the default until WP-157) puts the demo's four
+    % streams of different physics in one group, which WP-154's check reports
+    % -- off for this run only (a class-wide mute silenced
+    % testPoolGroupOfDifferentSpectraWarns too)
     wp = warning('off', 'lsqvce:adjustVCEjoint:poolNotWhite');
-    tc.TestData.Rp = lsqvce.fit(data, lsqvce.Options(Estimate="noise", ArcFactors=false, MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    tc.TestData.Rp = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="all", ArcFactors=false, MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     warning(wp);
 end
 
@@ -1606,6 +1607,24 @@ function testNoiseSmoothDefaultsToOne(tc)
         % far inside that
         tc.verifyEqual(C1(2) / C1(1), C0(2) / C0(1), 'AbsTol', 0.03, sprintf('%s: the same law', st{1}));
     end
+end
+
+function testPoolDefaultsToStream(tc)
+% categories: contract
+    % WP-157 (user decision 2026-10-18, measured first). Pool defaults to
+    % "stream": every stream its own law. MEASURED in the review's closed loop
+    % (10 seeds): pooling identical spectra gained nothing in x (eff 1.00-1.08
+    % pooled, 0.90-1.08 per stream; levels unbiased either way), pooling
+    % different spectra failed (eff 36.7 for two streams, 132 for four, levels
+    % 2-3 x off) -- and "all", the default until then, put streams of different
+    % physics in one law, which the Manual says never to do.
+    o = lsqvce.Options();
+    tc.verifyEqual(o.Pool, "stream");
+    a = o.engineArgs('adjustVCEjoint');
+    k = find(strcmp(a.nv(1:2:end), 'Pool'));
+    tc.verifyEqual(string(a.nv{2*k}), "stream", 'the default reaches the joint estimator');
+    R = lsqvce.fit(colourFixture(0.2, 0.5), lsqvce.Options(Estimate="noise", MaxPasses=30, Verbose=false));
+    tc.verifyEqual(sort(keys(R.noise.Cgroups)), {'x1|a', 'x1|b'}, 'one law per stream by default');
 end
 
 function testPoolGroupOfDifferentSpectraWarns(tc)

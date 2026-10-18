@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.32.0 — User Manual</title>
+  <title>lsqvce 6.33.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.32.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.33.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1020,10 +1020,13 @@ settle”).</p>
 <tbody>
 <tr class="odd">
 <td><code>Pool</code></td>
-<td>streams of the same physics may share a shape
-(<code>"obsType"</code>: both satellites’ range-rate); never pool
-streams of different physics or units — positions with range-rate drives
-the normal matrix towards singularity</td>
+<td>the default <code>"stream"</code> gives every stream its own shape.
+Streams of the same physics may share one (<code>"obsType"</code>: both
+satellites’ range-rate), but measured on identical spectra that gains
+nothing for x. Never pool streams of different physics or units:
+positions with range-rate drives the normal matrix towards singularity,
+and a shared law biases both levels (<code>poolNotWhite</code> says
+so)</td>
 </tr>
 <tr class="even">
 <td><code>ArcFactors</code></td>

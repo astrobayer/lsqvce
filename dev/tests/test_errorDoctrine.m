@@ -235,7 +235,6 @@ end
 %% ============================================================ H-15: multi-axis on the joint path
 function testEllmerRunsOnMultiAxisStreams(tc)
 % categories: contract, robustness
-    muteWarn(tc, 'lsqvce:adjustVCEjoint:poolNotWhite');   % the demo's four streams of different physics in one group (Pool "all"): WP-154 says so
     % R5 M3 (H-15): the demo's 3-axis position streams are declared
     % with the per-epoch Cep on the day (R6 WP-90: a 'diag' temporal law + Cep). The joint (Ellmer)
     % estimator now descales every epoch and takes the per-lag statistics
@@ -272,7 +271,6 @@ function testEllmerRunsOnMultiAxisStreams(tc)
 end
 function testJointRobustPassKeepsCleanMultiAxisEpochs(tc)
 % categories: robustness, precision
-    muteWarn(tc, 'lsqvce:adjustVCEjoint:poolNotWhite');   % the demo's four streams of different physics in one group (Pool "all"): WP-154 says so
     % R7-08 (user decision 2026-10-10: chi-calibrated). The joint loop's robust
     % pass reduced a 3-axis epoch to its RMS -- chi-shaped, median ~1 -- and
     % robustWeights standardises vw/s uncentred, so IGG3 zeroed ~24 % of CLEAN
