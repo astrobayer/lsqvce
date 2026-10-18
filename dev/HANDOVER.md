@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-156 DONE (round 1 PR #205, merge 6d3b237; round 2 PR #206, merge c36dcee; CI GREEN on 88b25dd in the first round: ci_gate 786/786, inventory lsqvce:internal:testProbe only, the measure job reproducing the acceptance table): the robust variance estimator redesigned (design F, version 6.34.0), review 12.84 N3 retired; the white-stream offset traced to sampling; the closure in §12.91. Next: WP-155.
+Last substantive update: 2026-10-18 — WP-155 OPEN (tier A; model Claude Opus 5.5; user: "#207 is merged"): speed without loss of precision -- a dense law whitened by solves (the explicit inverse was two thirds of the cost), the inverse law's lag sums by FFT, the robust snooping by projection; one pass at 24 576 observations 52 % faster at 4096-epoch arcs (45 % robust), results unchanged to 1.1e-14; Schur Cholesky and a factor cache measured and not adopted; version 6.34.1; §12.92.
+Preceding entry: Last substantive update: 2026-10-18 — WP-156 DONE (round 1 PR #205, merge 6d3b237; round 2 PR #206, merge c36dcee; CI GREEN on 88b25dd in the first round: ci_gate 786/786, inventory lsqvce:internal:testProbe only, the measure job reproducing the acceptance table): the robust variance estimator redesigned (design F, version 6.34.0), review 12.84 N3 retired; the white-stream offset traced to sampling; the closure in §12.91. Next: WP-155.
 Preceding entry: Last substantive update: 2026-10-18 — WP-156 round 2 OPEN, the implementation of design F (tier A; model Claude Opus 5.5; user: "Adopt design F as proposed ... Go ahead with the implementation once #205 is merged"): the robust pass rejects on Baarda's w, snooped in the sweep, the kept epochs' truncation in the redundancy lag by lag, a cycling set frozen at its union; three kernel units; the acceptance bar met in every row (20 seeds paired: every stream and sigma0^2 within 0.5 %, 717 of 720 small blunders on a red stream); a lagged scale found and fixed on the way (the scale is level-free); the white-stream offset traced to sampling (two fixtures shared their draws; 72 seeds: -0.01 % +- 0.14); round 1 DONE (PR #205, merge 6d3b237); version 6.34.0; §12.91.
 Preceding entry: Last substantive update: 2026-10-18 — WP-156 OPEN, the design study (tier A; model Claude Opus 5.5; user: "Go ahead with WP-156"): N3 diagnosed -- the robust pass rejects on the raw residual while a deletion removes Baarda's w for correlated observations, so the kept epochs are truncated in the wrong direction (and a red stream's blunders go undetected: 2 % x 2 sigma at phi 0.98 read the level 3.6 x); candidates measured with the law known and in an engine prototype; proposed design F (w, data snooping, the per-lag truncation deficit in the redundancy, a 2-cycle frozen) -- clean levels within 0.25 % of a non-robust run where today's rule reads +1.4 %, x unchanged; design F adopted by the user (union freeze, the bar as proposed), the implementation is round 2 after this PR merges; no source change; §12.91.
 Preceding entry: Last substantive update: 2026-10-18 — WP-154 and WP-157 DONE (PR #202, merge d8584ca; PR #203, merge ace8166; CI GREEN in the first round on 1f068d3 and 5f1254d: ci_gate 772/772 and 773/773, inventory lsqvce:internal:testProbe only; main's push CI on ace8166 GREEN): the closures in §12.89 and §12.90, one HANDOVER-only PR; version 6.33.0. Open: WP-156 (robust variance redesign), WP-155 (speed).
@@ -12626,3 +12627,80 @@ this closure, a HANDOVER-only PR as the loop asks. Review 12.84's N3 is retired.
 order: WP-155 (speed: structured Toeplitz whitening, FFT lag sums, no explicit inverses -- which
 can now build on lsqvce.kernel.lawInverse's Levinson / Trench machinery for the sweep's own
 factor).
+
+### 12.92 WP-155 — speed without loss of precision (2026-10-18, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 155 | Speed without loss of precision (review 12.84 P1-P3), each reproduced by a profile first: a dense law whitened by forward substitutions with its Cholesky factor instead of an explicit inverse (denseLawWhiten, the one dense step of covModel / makeLoader / arcBatchWhiten); the inverse law's lag sums in redundancyLags by FFT for every lag (weightedCorr) instead of a loop; the robust pass's snooping by projection (wSnoop) and a cheap Toeplitz test (lawInverse); the dense Toeplitz forms built by column copies; results unchanged to rounding; version 6.34.1 | 156 | OPEN (2026-10-18) |
+
+**The user's request (2026-10-18):** "#207 is merged" -- after the question whether to continue with
+WP-155, the last of the agreed order 153 -> 154 -> 156 -> 155.
+
+**Reproduction (tier A, main ff46253, before any change).** One noise pass (MaxPasses 1: pass 1,
+the closing solve, the residual pass) on one day of 3 arcs x 2048 epochs, two streams (white 0.5,
+AR(1) 0.9 1.2), the law estimated, arc biases: 2.45 s, of which decorrFactor 1.04 s (18 calls --
+three whitenings per arc and stream: accumulation, closing solve, residual pass), toeplitz 0.41 s
+(24 builds), sigmaInvSubdiagSums 0.25 s. P1 confirmed. Taken apart at m = 2048 per call: the
+Toeplitz build 0.017 s, the Cholesky 0.011 s, the explicit inverse L \ eye 0.037 s, W A 0.001 s
+against L \ A 0.003 s -- the INVERSE is the cost, not the factor. With Robust "igg3" (WP-156's
+pass) 5.34 s: in addition truncationDeficit, the snooping's rank-one updates of the inverse law
+(0.35 s) and lawInverse's Toeplitz test (two (N-1)^2 temporaries, 0.17 s).
+
+**Changes.**
+- *Dense whitening by solves (P1).* +engine/private/denseLawWhiten: C = L L', the batch L \ A,
+  L \ B, L \ l -- forward substitutions, O(m^2 K); decorrFactor's eigenvalue rescue (and its
+  warning) when Cholesky refuses C. covModel's denseWhiten, makeLoader's denseRows and
+  arcBatchWhiten's dense branch all call it. W A and L \ A agree to 1e-15.
+- *Lag sums by FFT (P1).* redundancyLags' Toeplitz path (Gohberg-Semencul) formed each lag's
+  weighted correlation S_n(u) = sum_j u(j+n) u(j) (N-n-j+1) in a loop over the lags; now
+  (N-n+1) acf(u)_n - xcorr(j u, u)_n by one zero-padded FFT for every lag (weightedCorr). Against
+  the loop 4e-16 of the trace (AR(1) phi 0.5-0.995, N 256-2048), against the dense Rbar the same.
+- *Robust pass (WP-156's kernels).* wSnoop projects the snooped epochs out with the parameters (a
+  deletion is a free parameter for the observation): O(m r^2) per step for r projected columns
+  where the rank-one update of the inverse law cost O(m^2) per deletion; the epochs excluded on
+  every axis by one block update. lawInverse's Toeplitz test by two columns and a deterministic
+  probe (redundancyLags' test since WP-131), O(N) memory.
+- *Toeplitz builds.* covModel's dense psd / arma forms by column copies of one reflected vector
+  (symToeplitz): bitwise toeplitz(c), 0.048 s against 0.068 s at n = 4096.
+
+**Measured -- one pass, the same 24 576 observations (12 288 epochs per stream), median of 3.**
+
+| m (arcs) | 6.34.0 | 6.34.1 | with Robust "igg3": 6.34.0 | 6.34.1 |
+|---|---|---|---|---|
+| 256 (48) | 1.15 s | 1.01 s (-12 %) | 2.42 s | 2.01 s (-17 %) |
+| 1024 (12) | 2.33 s | 1.17 s (-50 %) | 6.44 s | 3.80 s (-41 %) |
+| 4096 (3) | 9.76 s | 4.66 s (-52 %) | 31.7 s | 17.3 s (-45 %) |
+
+Per observation 47 / 95 / 397 us became 41 / 48 / 190 us: the growth with m is now the Cholesky
+and the O(m^2) builds, not the inverse. **Precision: x within 1.1e-14 and sigma0 within 8.9e-16
+relative of 6.34.0 in all six cases.**
+
+**Measured and not done (recorded).**
+- *A structured Cholesky (Schur algorithm, O(m^2)).* Prototyped and exact (R'R - T at 6e-14 of
+  T, R within 6e-13 of chol's, phi up to 0.9995), but SLOWER than MATLAB's dense chol at the arc
+  lengths that occur (0.023 s against 0.009 s at m = 2048): the O(m^2) recursion runs as m
+  interpreted vector steps, chol as tuned BLAS-3. Not adopted.
+- *P2, factorising one law three times per arc and pass* (accumulation, closing solve, residual
+  pass): a cache would hold an m x m factor per arc for every arc of the run -- 3.2 GB per arc at
+  the 20 000-epoch limit. Not adopted; with the inverse gone each whitening costs a factor and a
+  solve.
+- *P2, lag sums a non-law stream never reads; P3, per-axis repeats.* After the FFT the lag sums
+  are a small part of redundancyLags (0.037 s per 2048-epoch arc in all, against ~0.03 s per
+  whitening), and a multi-axis arc already shares one factor across its axes (deletedFactor per
+  deletion pattern); a second code path for either would buy little. Not adopted.
+
+**Tests (4 new; the gate 790/790).** test_precision: testDenseLawWhitensBySolvingNotByInverting
+(psd / Toeplitz, acf with a per-row sigma through a unit Cep, against decorrFactor's inverse to
+1e-12; the dense psd and arma forms equal toeplitz bit for bit),
+testLagSumsOfTheInverseLawByFftAtEveryLag (every lag of a 300-epoch AR(1) arc against the dense
+Rbar to 1e-10 of the trace), testSnoopingByProjectionIsTheReducedSystem (after snooping, every kept
+epoch's w equals the reduced adjustment's to 1e-10). test_speedBudget:
+testDenseLawWhiteningSkipsTheInverse (< 0.7 of the inverse route at n = 2048). The WP-156 kernel
+tests (deletion removes w^2, the deficit's per-lag consistency, scale equivariance) pass unchanged.
+category_exemptions.csv: three rows the new tests made stale removed (engine.covModel speed,
+kernel.decorrFactor reference, kernel.redundancyLags reference).
+
+**Docs.** covModel (cost table, help stamp), redundancyLags, wSnoop (COST), lawInverse, makeLoader,
+arcBatchWhiten, RELEASE_NOTES, DEVELOPMENT.md (802 declared); version 6.34.1 (no result changes
+beyond rounding and no new identifiers: a patch).

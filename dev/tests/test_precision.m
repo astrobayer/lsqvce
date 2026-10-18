@@ -8,6 +8,10 @@ function tests = test_precision
 %
 %   See also TEST_RELIABILITY, TEST_SPEED, TEST_LSQACCUM
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-155: a dense law whitened by
+%   solves equals the inverse form; the inverse law's lag sums by FFT at every
+%   lag; snooping by projection equals the reduced system. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-156: the robust w statistic's
 %   kernel -- lawInverse, wSnoop (deletion removes exactly w^2), the truncation
 %   deficit and its per-lag consistency. With assistance from Claude
@@ -1205,3 +1209,84 @@ function testRobustKernelRefusesMismatchedSizes(tc)
         'lsqvce:truncationDeficit:badSize');
 end
 
+%% ================================================== WP-155: speed without loss of precision
+function testDenseLawWhitensBySolvingNotByInverting(tc)
+% categories: precision, reference
+% WP-155 (review 12.84 P1): a dense law is whitened by forward substitutions
+% with its Cholesky factor, no explicit inverse; the result must be the old
+% one (decorrFactor's L^-1 times the batch) to rounding, and the dense
+% Toeplitz form must be toeplitz(r) bit for bit.
+    n = 300;  t = 5 * (0:n-1).';
+    f = linspace(0, 0.1, 61).';  S = 1 ./ (1 + (f / 0.004).^2);
+    rs = RandStream('mt19937ar', 'Seed', 21);
+    A = randn(rs, n, 4);  B = randn(rs, n, 2);  l = randn(rs, n, 1);
+    laws = {struct('type', 'psd', 'f', f, 'S', S), struct('psdMode', 'toeplitz'); ...
+            struct('type', 'acf', 'acf', @(dt, o) exp(-abs(dt) / 40), 'sigma', [ones(150, 1); 2 * ones(150, 1)]), struct()};
+    for k = 1:size(laws, 1)
+        [Cfcn, Wfcn] = lsqvce.engine.covModel(laws{k, 1}, t, laws{k, 2});
+        C = Cfcn(1:n, struct());
+        W = lsqvce.kernel.decorrFactor(C);
+        if isempty(Wfcn)
+            [Aw, Bw, lw] = denseThroughLoader(C, A, B, l);   % the dense step, through a unit Cep
+        else
+            [Aw, Bw, lw] = Wfcn(1:n, A, B, l, struct());
+        end
+        % tol: 1e-12 relative -- one Cholesky factor, applied by solve against
+        % applied by its explicit inverse (measured 1.3e-15 at n = 2048)
+        tc.verifyEqual(norm([Aw Bw lw] - W * [A B l], 'fro') / norm(W * [A B l], 'fro'), 0, 'AbsTol', 1e-12, ...
+            sprintf('law %d: solve = inverse', k));
+    end
+    [Cfcn, ~] = lsqvce.engine.covModel(laws{1, 1}, t, laws{1, 2});
+    r = Cfcn(1:n, struct());  r = r(:, 1);
+    tc.verifyTrue(isequal(Cfcn(1:n, struct()), toeplitz(r)), 'the dense psd law is toeplitz(r), bit for bit');
+    cmA = struct('type', 'arma', 'ar', [1 -0.9], 'ma', 1, 'sigma', 1.3);
+    [CfA, ~] = lsqvce.engine.covModel(cmA, t, struct());
+    CA = CfA(1:n, struct());
+    tc.verifyTrue(isequal(CA, toeplitz(CA(:, 1))), 'the arma law''s dense form is toeplitz, bit for bit');
+end
+
+function [A, B, l] = denseThroughLoader(C, A, B, l)
+%DENSETHROUGHLOADER  A law without a filter form is whitened by the batch
+%   iterator's dense step; covModel's composition reaches the same helper.
+%   Here: through a unit Cep, which composes the law's dense whitener.
+    n = size(C, 1);
+    cm = struct('type', 'custom', 'fcn', @(tt, o) C, 'Cep', ones(n, 1));
+    [~, Wfcn] = lsqvce.engine.covModel(cm, (0:n-1).', struct());
+    [A, B, l] = Wfcn(1:n, A, B, l, struct());
+end
+
+function testLagSumsOfTheInverseLawByFftAtEveryLag(tc)
+% categories: precision, reference
+% WP-155: redundancyLags' Toeplitz path forms Sigma^-1's sub-diagonal sums by
+% FFT for every lag at once (it looped over the lags); against the dense
+% Rbar at every lag of a 300-epoch AR(1) arc, phi 0.95.
+    N = 300;  Sig = toeplitz(0.95 .^ (0:N-1));  W = chol(Sig);
+    rs = RandStream('mt19937ar', 'Seed', 23);
+    A = randn(rs, N, 3);  Abar = W.' \ A;
+    U = chol(Abar.' * Abar);
+    sp = lsqvce.engine.sharedProbe(U, 'numProbes', 40, 'seed', 3);
+    r = lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, [], N, 'WantRbar', true);
+    d = arrayfun(@(n) sum(diag(r.Rbar, -n)), (0:N-1).');
+    d = [d(1); 2 * d(2:end)];
+    % tol: 1e-10 of the trace -- FFT correlations against dense diagonals
+    % (measured 7e-15 at phi 0.95, 3e-13 at 0.995, N 2048)
+    tc.verifyEqual(max(abs(r.s - d)) / abs(d(1)), 0, 'AbsTol', 1e-10);
+end
+
+function testSnoopingByProjectionIsTheReducedSystem(tc)
+% categories: precision, reference
+% WP-155: wSnoop projects the snooped epochs out with the parameters instead of
+% updating the inverse law; after snooping, every kept epoch's w must be the
+% w of the reduced adjustment (the snooped rows removed, the law restricted).
+    m = 160;  Sig = toeplitz(0.85 .^ (0:m-1));  P = lsqvce.kernel.lawInverse(Sig);
+    rs = RandStream('mt19937ar', 'Seed', 25);
+    B = [ones(m, 1), (1:m).' / m];
+    e = chol(Sig, 'lower') * randn(rs, m, 1);  e([30 31 90]) = e([30 31 90]) + [4; -3; 5];
+    [z, ~, del] = lsqvce.kernel.wSnoop(P, e, {B}, false(m, 1), 3, 1);
+    tc.verifyGreaterThanOrEqual(nnz(del), 2, 'the planted blunders are snooped');
+    K = ~del;  SK = Sig(K, K);  BK = B(K, :);  PK = inv(SK);
+    R = PK - PK * BK * ((BK.' * PK * BK) \ (BK.' * PK));
+    wK = (R * e(K)) ./ sqrt(diag(R));
+    % tol: 1e-10 relative -- the projection against the explicit reduced system
+    tc.verifyEqual(z(K), wK, 'RelTol', 1e-10, 'AbsTol', 1e-12);
+end

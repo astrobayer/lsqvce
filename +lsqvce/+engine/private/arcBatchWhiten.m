@@ -63,6 +63,9 @@ function arcBatchWhiten(a, uo, cb)
 %            LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.REDUNDANCY,
 %            LSQVCE.ENGINE.STREAMCONTRIBUTION, LSQVCE.KERNEL.DECORRFACTOR
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-155: the dense path solves with the
+%   law's Cholesky factor (denseLawWhiten), no explicit inverse. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: a dense law, or an overlap the
 %   batch cannot hold, is whitened as ONE batch. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -125,8 +128,7 @@ function arcBatchWhiten(a, uo, cb)
         if hasW
             [Ab, Bb, lb] = a.Wfcn(idx, Ab, Bb, lb, uo);
         elseif hasC
-            W  = lsqvce.kernel.decorrFactor(a.Cfcn(idx, uo));
-            Ab = W*Ab;  Bb = W*Bb;  lb = W*lb;
+            [Ab, Bb, lb] = denseLawWhiten(a.Cfcn(idx, uo), Ab, Bb, lb);   % WP-155: solves, no inverse
         elseif hasM
             W  = a.W(idx, idx);
             Ab = W*Ab;  Bb = W*Bb;  lb = W*lb;

@@ -297,6 +297,9 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-155: the dense step solves with the
+%   law's Cholesky factor instead of forming its inverse (denseLawWhiten).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-153 (review 12.84, C4): the excluded
 %   rows the epoch nugget does not reach -- every one under a 'var' law, those
 %   of an epoch excluded on some of its axes under a correlated law or a full
@@ -1706,9 +1709,9 @@ end
 
 function [A, B, l] = denseRows(C, A, B, l)
 %DENSEROWS  The batch iterator's dense step (lsqvce.engine.private.arcBatchWhiten):
-%   decorrelate one batch by the factor of its dense covariance. R6 WP-105.
-    W = lsqvce.kernel.decorrFactor(C);
-    A = W * A;  B = W * B;  l = W * l;
+%   decorrelate one batch by the factor of its dense covariance. R6 WP-105;
+%   WP-155: forward substitutions, no explicit inverse (denseLawWhiten).
+    [A, B, l] = denseLawWhiten(C, A, B, l);
 end
 
 function checkStreamNames(obsTypes, priors)

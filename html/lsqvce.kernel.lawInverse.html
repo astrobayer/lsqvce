@@ -63,8 +63,9 @@ the truncation deficit reads its columns.</pre>
 <pre class="example">  P    N x N double  inv(Sig), symmetric
 
 STRUCTURE TEST AND GUARD
-  Sig is taken as Toeplitz when every diagonal is constant to 1e-12 of
-  Sig(1,1). The structured result is then checked on three columns
+  Sig is taken as Toeplitz when two of its columns are its first one
+  shifted (to 1e-12 of Sig(1,1)) and a deterministic probe agrees with
+  the Toeplitz product (to 1e-12). The structured result is then checked on three columns
   (first, middle, last): if max |Sig * P(:, j) - e_j| exceeds 1e-8 --
   a law so ill-conditioned that the recursion lost digits -- the
   Cholesky path is taken instead, so the fast path never returns a worse
@@ -92,6 +93,9 @@ and guard included (test_speedBudget testLawInverseBeatsTheDenseInverse:
 See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.WSNOOP,
          LSQVCE.KERNEL.TRUNCATIONDEFICIT, LSQVCE.KERNEL.REDUNDANCYLAGS
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-155: the Toeplitz test by two
+columns and a probe, O(N) memory (it compared every diagonal). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Created 2026-10-18 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Opus 5.5 -- WP-156 round 2, design F.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>

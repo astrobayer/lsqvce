@@ -83,8 +83,10 @@ scale  1x1     the stream&#x27;s scale s (w units, the previous pass&#x27;s)</pr
             every axis
 q    m x 1  the epoch&#x27;s sum of w^2 over its live axes (unscaled; NaN as z)
 del  m x 1  logical, the snooped epochs</pre>
-<h3>COST. One rank-one update of P per snooped epoch (O(m^2)) and per axis a</h3>
-<pre class="example">matrix-vector product; the parameter part is O(m n_k^2).</pre>
+<h3>COST. One block update for the excluded epochs and one product P E per</h3>
+<pre class="example">call (O(m^2)); each snooping step projects the snooped epochs out with the
+parameters, O(m r^2) for r projected columns (WP-155: a rank-one update
+of P per deletion was O(m^2)).</pre>
 <h3>Example</h3>
 <pre class="example">Sig = toeplitz(0.9 .^ (0:255));  P = lsqvce.kernel.lawInverse(Sig);
 e = chol(Sig, &#x27;lower&#x27;) * randn(256, 1);  e(100) = e(100) + 3;   % a blunder
@@ -106,6 +108,11 @@ the level with tau within 0.15 % for phi &lt;= 0.98.</pre>
 See also LSQVCE.KERNEL.LAWINVERSE, LSQVCE.KERNEL.TRUNCATIONDEFICIT,
          LSQVCE.KERNEL.ROBUSTWEIGHTS, LSQVCE.ENGINE.OUTLIERS
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-155: the snooped epochs are
+projected out with the parameters (a deletion is a free parameter for
+the observation) instead of updating the inverse law per deletion; the
+same w to 1e-10 (test_precision testSnoopingByProjectionIsTheReducedSystem).
+With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Created 2026-10-18 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Opus 5.5 -- WP-156 round 2, design F.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
