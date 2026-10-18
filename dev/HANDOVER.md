@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-150 DONE (PR #195, merge de7b2ab; CI GREEN on 0674da6 in the first round: ci_gate 757/757, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.85; no code change, no version (6.28.0 stays).
+Last substantive update: 2026-10-18 — WP-152 OPEN (tier A; model Claude Opus 5.5; user: "Continue with 152 and 151"): the noise-estimator findings of §12.84 reproduced and fixed -- the bins' stop test reads the change of shape (IGG3 never converged on clean data), a held bin keeps its share of the shape, a held arc is not divided by tau, a zero redundancy rounded positive is held (it took 1e8 times the weight), excluded rows are deleted from the sweep (excluded = removed to 6e-14); tau on coloured streams documented, not corrected; version 6.29.0; §12.86.
+Preceding entry: Last substantive update: 2026-10-18 — WP-150 DONE (PR #195, merge de7b2ab; CI GREEN on 0674da6 in the first round: ci_gate 757/757, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.85; no code change, no version (6.28.0 stays).
 Preceding entry: Last substantive update: 2026-10-17 — WP-150 OPEN (tier A; model Claude Opus 5.5; user: "Go ahead with WP-150"): the front-door findings F1-F7 of §12.84 reproduced and fixed -- compare refuses estimated weights, IRLS stops per parameter in its own sigma (or its rounding), excluded rows out of the MAD (robust rejections stay live: a first version oscillated), a held "scale" prior warns, snoop on Gauss-Newton returns estimates, a refused v'Pv is re-diagnosed with its own sigma0, demo_gravity's double sigma0; version 6.28.0; ci_gate GREEN 757/757; §12.85.
 Preceding entry: Last substantive update: 2026-10-17 — review of the core calculation behind fit (tier A; model Claude Opus 5.5; user: "Review the core calculation routines needed by fit ... closed loop simulation ... limits"): four static lanes, every material finding reproduced in MATLAB, a 425-run closed-loop Monte Carlo against a true-covariance oracle; the estimator closes (levels 1-2 %, colour to phi 0.98, all runs converged) with 8-16 % variance loss and 5-7 % optimistic formal errors on short arcs under the default Grid 60; 2 high front-door findings (compare after estimated weights F = 1; IRLS stops 22.6 sd off), the normal backend's unit-dependent rank cut (10.7 sd) and Schur cancellation (v'Pv +1000 %), robust noise runs that cannot converge, excluded rows in the sweep; WP-150 to WP-155 PROPOSED; no code change; §12.84.
 Preceding entry: Last substantive update: 2026-10-17 — WP-146 DONE (PR #192, merge 6d75bf2; CI GREEN on f45b5aa in the first round: the six build-mode cases on Linux, every fault caught; ci_gate 751/751, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.83 -- every finding of §12.77 acted on; no code change, no version (6.27.0 stays).
@@ -11639,7 +11640,7 @@ observation 1). No package is open; the next step is the user's.
 |----|-------|-----------|--------|
 | 150 | Wrong verdicts at the front door (findings F1-F6 below): `R.compare` after estimated weights, the IRLS stop rule, a "scale" prior outside the noise loop, zero-weight rows in the robust scale, `snoop` on a Gauss-Newton fit, the diagnostics' sigma0 after a refused v'Pv, demo_gravity's double sigma0 | 146 | OPENED 2026-10-17 -- its row and status live in §12.85 |
 | 151 | The solve core (S1-S3): the local rank tests on the equilibrated block, a guard for the Schur step's cancellation of l'Pl, the help's memory claims | 146 | PROPOSED |
-| 152 | The noise estimator (N1-N4): the robust stop rule and the truncation factor tau (white value on coloured streams), held arcs under IGG3, excluded rows in the sweep | 146 | PROPOSED |
+| 152 | The noise estimator (N1-N4): the robust stop rule and the truncation factor tau (white value on coloured streams), held arcs under IGG3, excluded rows in the sweep | 146 | OPENED 2026-10-18 -- its row and status live in §12.86 |
 | 153 | Covariance and whitening (C1-C6): a PSD grid without f = 0, the d = 1 Cep shape, the frame-dependent Cholesky composition of a full Cep, WP-148's exact deletion for 'var' and partly excluded epochs, the unbounded memory paths | 146 | PROPOSED |
 | 154 | Defaults and guards from the Monte Carlo study (M1-M5): a Noise.Grid default tied to the arc length, a warning when one pool group mixes spectra, a hint for a drifting level, a near-unit-root warning, the formal errors' plug-in optimism documented | 146 | PROPOSED |
 | 155 | Speed without loss of precision (P1-P3): the Toeplitz law whitened through its structure (Levinson / Gohberg-Semencul) instead of a dense factor and an explicit inverse per arc, the O(N^2) lag loop by FFT, the per-axis repeats | 146 | PROPOSED |
@@ -11923,3 +11924,67 @@ same commit: GREEN 757 / 757, 229 s.
 **Closure (2026-10-18).** WP-150 DONE: PR #195 merged as de7b2ab (the loop's record step after the
 merge: the ledger row, this note; no code change, no version -- 6.28.0 stays, 769 declared / 757
 run). Next, user (2026-10-18): "Continue with 152 and 151" -- WP-152 (§12.86) and WP-151 (§12.87).
+
+### 12.86 WP-152 — the noise estimator under a robust influence and with excluded rows (2026-10-18, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 152 | The noise-estimator findings N1-N4 of §12.84, each reproduced before its fix, each with a test that fails without it: (N1) the bins' stop test reads the change of the law's SHAPE, alpha2 / abar -- under a robust influence every bin settles at the truncation factor tau, and max abs(alpha2 - 1) never met the rule (IGG3 did not converge on clean data); a bin held by FreezeRedundancy takes abar and keeps its share of the shape (holding 1, it moved by 1 / abar per pass); (N2) a held arc is not divided by tau (it grew 2.7 % per pass); (N2b, found by N2's reproduction) an arc whose denominator is at rounding level -- a zero redundancy rounded positive -- is held, not clamped to 1e-8; (N4) the sweep deletes an arc's excluded rows by the nugget it deletes rejected epochs with, per axis; (N3) tau stays the white-noise value -- not corrected, documented (a model decision); version 6.29.0 (a changed stop rule: a minor) | 146 | OPEN (2026-10-18) |
+
+**The user's request (2026-10-18):** "Continue with 152 and 151. Do the closure for 150 at the same time".
+
+**Reproductions (tier A, main de7b2ab + the WP-150 closure, before any fix).**
+- **N1 -- reproduced.** Clean data (the review's Monte Carlo base scenario, seed 3), Pool "stream":
+  Robust "none" converged in 14 passes; "igg3" not converged after 30, bins 1.72 of their bound,
+  max abs(alpha2 - 1) 0.043 at the end, tau 0.9733. The test fixture (test_vcePolicy colourFixture):
+  30 passes, bins 1.43.
+- **N2 -- reproduced, and worse.** Two 'diag' "scale" streams with arc factors, 5 days; stream a
+  carries an arc bias and drift, and its day-5 arc has 2 rows (no redundancy). Robust "none": the arc
+  is held at 1, converged in 3 passes. IGG3: the arc's denominator came out +1e-17, NOT held --
+  0 / 0+ clamped to ClampEps, factor 9.8e-9 (1e8 times the weight), then x 1 / tau per pass
+  (9.84e-9, 1.010e-8, 1.038e-8, ... with resets at the clamp), 12 passes, not converged.
+- **N4 -- reproduced.** A 'diag' "scale" stream with every 10th row excluded: level 0.9261; the
+  oracle (the same stream with those rows REMOVED) 0.9771; x 1.3e-3 to 2.8e-3 off the oracle.
+
+**The fixes (tier A).**
+- **N1** psdVCE: abar = sum_j c_j alpha2_j S_j / sum_j c_j S_j over the free bins (c the hatACV
+  r(0) weights) -- the level the caller's r(0) = 1 renormalisation removes; .dev = abs(alpha2 /
+  abar - 1), 0 on a held bin; a held bin takes abar (it took 1: under IGG3 the renormalisation moved
+  it by 1 / tau per pass). Output .abar. Smooth > 0 keeps its shape measure (WP-131). The lane case
+  now converges in 18 passes (none: 15). Tests: test_ellmer
+  `test_psdVCE_common_factor_is_not_a_shape_change` (Q = tau T: maxDev 0, the held bin's share of
+  the shape exact to 1e-12), test_vcePolicy `testRobustJointLoopConvergesOnCleanData` (both runs
+  converge, the same lag-1 correlation to 0.03); three psdVCE tests updated to the new measure (the
+  freeze test now expects the held bin at the common factor).
+- **N2** adjustVCEjoint: the truncation step is one local function, `truncated`, which divides a
+  stream's factors by tau except on its held arcs (the pooled level holds none). Test:
+  test_vcePolicy `testHeldArcKeepsItsFactorUnderRobust` (the held arc's factor 1 on every pass,
+  converged, Robust none and igg3).
+- **N2b** arcVarianceFactors: an arc is held unless its denominator exceeds sqrt(eps) of the
+  group's largest (it was > 0). Test: test_ellmer
+  `test_arcVarianceFactors_holds_a_redundancy_at_rounding`.
+- **N4** adjustVCEjoint oneArc: excluded rows join the deletion nugget (`deletedFactor`, 1e12 x
+  their variance, the loader's q where it set one); the multi-axis branch builds one factor per
+  deletion pattern, so a partly excluded epoch is deleted on its excluded axes only; the scalar
+  branch passes Nugget / LawW too. Test: test_vcePolicy `testExcludedRowsAreDeletedFromTheSweep`
+  (excluded = removed: levels to 1e-10, measured 5.7e-14; x to 1e-10, measured 3.8e-15; the dof).
+- **N3 -- not fixed, documented.** tau is the white-noise truncation factor; on a coloured stream the
+  deletion lowers the Helmert ratio less (mirror: 0.983 / 0.9955 / 0.998 at phi 0.5 / 0.9 / 0.98),
+  so a robust run's level and hard sigma0 read 1-2.5 % high there. The stop rule no longer depends on
+  tau (N1). A coloured tau needs a model of how a deletion propagates through the law -- the
+  user's decision; adjustVCEjoint's help says it.
+
+Every new test fails on the unfixed source (run with the fixes stashed): the five new ones and the
+three updated psdVCE tests.
+
+**Docs:** psdVCE (.abar, .dev / .maxDev, FreezeRedundancy, ACCURACY), arcVarianceFactors (the held
+rule), adjustVCEjoint (history.maxDev, the robust level's N3 limit, the log line), Results
+(convergence()'s maxDev, plot "convergence"), RELEASE_NOTES; version 6.29.0.
+
+**Length ratchet:** adjustVCEjoint's truncation step moved into the local function `truncated`
+(N2's rule in one named place), so its body fell from 286 to 281 code lines; the ceiling in
+long_functions.csv follows (the audit asks for it).
+
+**Gates (tier A):** `ci_gate` GREEN 762 / 762, 27 / 27, inventory `lsqvce:internal:testProbe` only;
+Linux audit CLEAN, selftest every fault caught. Tests 774 declared / 762 run.
+

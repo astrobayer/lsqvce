@@ -112,11 +112,17 @@ function out = arcVarianceFactors(Q, T, sigma2, opt)
 %
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:arcVarianceFactors:badMean          [warning] The normalising mean of the arc factors is X, which cannot scale anyt...
-%     lsqvce:arcVarianceFactors:held             [warning] arcs without a positive redundancy keep their
-%                                                factor this pass (WP-134) -- once per run
+%     lsqvce:arcVarianceFactors:held             [warning] arcs without a redundancy above rounding
+%                                                (sqrt(eps) of the group's largest; WP-152) keep
+%                                                their factor this pass (WP-134) -- once per run
 %
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-152 (review 12.84): an arc is
+%   held when its denominator is not above rounding, sqrt(eps) of the group's
+%   largest -- a zero redundancy that rounding made positive was clamped to
+%   ClampEps (1e8 times the weight). With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: one options block: ClampEps
 %   had a second one after the example, which had lost its last line to it.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -183,21 +189,27 @@ end
     % probe estimate of it can be <= 0 on a short arc with locals (15-81 % of
     % runs at a mean per-arc redundancy 0.33-0.5). There is nothing to estimate
     % from: the arc is HELD (alpha2 = 1), as psdVCE holds such a bin.
-    ok          = isfinite(num) & isfinite(den) & den > 0;
+    % WP-152 (review 12.84): "positive" means above rounding -- sqrt(eps) of
+    % the group's largest denominator. An arc with as many locals as rows has a
+    % redundancy of ZERO, which rounding makes +-1e-17: a positive one passed,
+    % 0 / 0+ was clamped to ClampEps, and the arc took 1e8 times the weight
+    % (measured: 9.8e-9 under IGG3, held at 1 when the sign came out negative)
+    fin         = isfinite(num) & isfinite(den);
+    ok          = fin & den > sqrt(eps) * max([0; abs(den(fin))]);
     held        = ~ok;
     alpha2(ok)  = num(ok) ./ den(ok);
     alpha2(~isfinite(alpha2)) = 1;
-    noRed = isfinite(num) & isfinite(den) & den <= 0;
+    noRed = fin & ~ok;
     if any(noRed)
         lsqvce.util.log.warnOnce('lsqvce:arcVarianceFactors:held', ...
-            ['%d of %d arcs have no positive redundancy estimate (short arcs with local ' ...
+            ['%d of %d arcs have no redundancy above rounding (short arcs with local ' ...
              'parameters, or too few probes): their factors are held this pass.'], ...
             nnz(noRed), M);
     end
 
     % ---- gamma detour, then normalise                       (6.5.28-6.5.30) --
     gamma2 = alpha2 .* sigma2;
-    okP    = isfinite(num) & isfinite(den) & den > 0 & isfinite(sigma2);
+    okP    = ok & isfinite(sigma2);
     pooled = NaN;                                % WP-126: one component over the group
     if any(okP), pooled = sum(num(okP) .* sigma2(okP)) / sum(den(okP)); end
     gamma  = sqrt(abs(gamma2));                  % magnitudes for the mean

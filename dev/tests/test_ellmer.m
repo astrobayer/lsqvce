@@ -456,6 +456,26 @@ function test_arcVarianceFactors_clamps_negative_sigma2(tc)
     verifyTrue(tc, all(a.sigma2 > 0), 'no negative factor may leave');
 end
 
+function test_arcVarianceFactors_holds_a_redundancy_at_rounding(tc)
+% categories: robustness, precision
+    % WP-152 (review 12.84). An arc with as many locals as rows has a ZERO
+    % redundancy, which rounding returns as +-1e-17. A negative one was held
+    % (WP-134); a positive one passed, 0 / 0+ was clamped to ClampEps and the
+    % arc took 1e8 times the weight (measured 9.8e-9 in a fit under IGG3).
+    % "Positive" now means above sqrt(eps) of the group's largest denominator.
+    num = [400 380 3e-17];  den = [398 401 2e-17];  sig2 = [1; 1.2; 1.1];
+    muteWarn(tc, 'lsqvce:arcVarianceFactors:held');      % fired on purpose (arc 3)
+    a = lsqvce.engine.arcVarianceFactors(num, den, sig2);
+    tc.verifyEqual(a.held, [false; false; true], 'the rounding-level arc is held');
+    tc.verifyEqual(a.alpha2(3), 1, 'it takes no ratio');
+    tc.verifyFalse(any(a.clamped), 'nothing is clamped');
+    % tol: 4 eps -- the pooled level of the two live arcs, one division
+    tc.verifyEqual(a.pooled, (400*1 + 380*1.2) / (398 + 401), 'RelTol', 4*eps, ...
+        'and stays out of the pooled level');
+    a2 = lsqvce.engine.arcVarianceFactors(num(1:2), den(1:2), sig2(1:2));
+    tc.verifyFalse(any(a2.held), 'healthy arcs are not held');
+end
+
 function test_arcVarianceFactors_noop_on_healthy(tc)
 % categories: precision, reference
     % F-05 regression: on healthy input the clamp is a NO-OP -- .clamped is
@@ -485,14 +505,18 @@ function test_psdVCE_freeze_redundancy_holds_weak_bins(tc)
     % R7-22: Options.Noise.FreezeRedundancy was documented ("a frequency whose
     % redundancy is below this holds its value") and reached nothing. psdVCE
     % holds a bin whose redundancy Sprior_j * sum_m T(j, m) is below the
-    % threshold: every bin's ratio is 2, bin 3's redundancy is 0.5.
-    T = [10; 10; 0.5; 10];  Q = 2 * T;  S = ones(4, 1);
+    % threshold: bin 3's redundancy is 0.5. WP-152: a held bin holds its place
+    % in the SHAPE -- it takes the free bins' common factor abar -- not its
+    % absolute amplitude, which the r(0) renormalisation would then move.
+    T = [10; 10; 0.5; 10];  Q = [2; 2; 3; 2] .* T;  S = ones(4, 1);
     free = lsqvce.engine.psdVCE(Q, T, S);
     held = lsqvce.engine.psdVCE(Q, T, S, 'FreezeRedundancy', 1);
     % tol: 1e-12 absolute -- one division of O(10) numbers
-    tc.verifyEqual(free.alpha2, [2; 2; 2; 2], 'AbsTol', 1e-12, 'without a freeze every bin updates');
+    tc.verifyEqual(free.alpha2, [2; 2; 3; 2], 'AbsTol', 1e-12, 'without a freeze every bin updates');
     % tol: as above
-    tc.verifyEqual(held.alpha2, [2; 2; 1; 2], 'AbsTol', 1e-12, 'the weak bin holds');
+    tc.verifyEqual(held.alpha2, [2; 2; 2; 2], 'AbsTol', 1e-12, 'the weak bin takes the common factor');
+    % tol: as above
+    tc.verifyEqual(held.abar, 2, 'AbsTol', 1e-12);
     tc.verifyEqual(held.frozen, [false; false; true; false]);
     % the redundancy, not the bare denominator: the same bin with a 4x prior is free
     tc.verifyFalse(any(lsqvce.engine.psdVCE(Q, T, [1; 1; 4; 1], 'FreezeRedundancy', 1).frozen));
@@ -522,7 +546,9 @@ function test_psdVCE_smoothed_fixed_point_settles(tc)
     tc.verifyLessThan(p.maxDev, 1e-8, 'the smoothed shape has settled');
     tc.verifyGreaterThan(max(abs(p.alpha2 - 1)), 0.1, 'though alpha2 stays away from 1');
     p0 = lsqvce.engine.psdVCE(Q, T, S);
-    tc.verifyEqual(p0.maxDev, max(abs(p0.alpha2 - 1)), 'Smooth 0 keeps max|alpha2 - 1|');
+    % tol: eps-level -- the same quotients (WP-152: the shape change at Smooth 0 too)
+    tc.verifyEqual(p0.maxDev, max(abs(p0.alpha2 / p0.abar - 1)), 'AbsTol', 1e-15, ...
+        'Smooth 0: max|alpha2 / abar - 1|');
 end
 
 function test_psdVCE_reports_each_bins_deviation_and_redundancy(tc)
@@ -530,8 +556,9 @@ function test_psdVCE_reports_each_bins_deviation_and_redundancy(tc)
     % WP-147: the joint loop's stop rule reads each bin's deviation against
     % its own redundancy, so psdVCE returns both per bin. The redundancy is
     % the number FreezeRedundancy already compared (Sprior_j * sum_m T(j, m));
-    % .dev is abs(alpha2 - 1), 0 on a frozen or unusable bin, its maximum
-    % .maxDev; with Smooth > 0 it is the change of shape .maxDev reports.
+    % .dev is abs(alpha2 / abar - 1) (WP-152), 0 on a frozen or unusable bin,
+    % its maximum .maxDev; with Smooth > 0 it is the change of shape .maxDev
+    % reports.
     rs = RandStream('mt19937ar', 'Seed', 147);
     L = 12;  M = 5;
     T = rand(rs, L, M);  T(4, :) = 0;              % bin 4: no denominator
@@ -541,13 +568,41 @@ function test_psdVCE_reports_each_bins_deviation_and_redundancy(tc)
     % tol: the same products and sums, eps-level
     tc.verifyEqual(p.redundancy([1:3 5:L]), S([1:3 5:L]) .* sum(T([1:3 5:L], :), 2), 'RelTol', 1e-14);
     tc.verifyEqual(p.redundancy(4), 0, 'an unusable bin has no redundancy');
-    tc.verifyEqual(p.dev(~p.frozen), abs(p.alpha2(~p.frozen) - 1));
+    tc.verifyEqual(p.dev(~p.frozen), abs(p.alpha2(~p.frozen) / p.abar - 1));
     tc.verifyEqual(p.dev(p.frozen), zeros(nnz(p.frozen), 1), 'a frozen bin does not move');
     tc.verifyTrue(any(p.frozen) && any(~p.frozen), 'the fixture freezes some bins, not all');
     tc.verifyEqual(p.maxDev, max(p.dev));
     ps = lsqvce.engine.psdVCE(Q, T, S, 'Smooth', 1);
     tc.verifyEqual(ps.maxDev, max(ps.dev), 'Smooth > 0: the shape change, bin by bin');
     tc.verifyNotEqual(ps.dev, abs(ps.alpha2 - 1), 'and not abs(alpha2 - 1)');
+end
+
+function test_psdVCE_common_factor_is_not_a_shape_change(tc)
+% categories: precision, robustness
+    % WP-152 (review 12.84, N1). Under a robust influence the sweep deletes the
+    % rejected epochs, so at the joint loop's fixed point EVERY bin's Helmert
+    % ratio is the truncation factor tau (0.9733 for IGG3): the level, which the
+    % caller renormalises away and divides by tau. max|alpha2 - 1| = 0.027 then
+    % kept the stop rule unmet forever (measured: 30 passes, bins 1.72 of their
+    % bound, against 14 passes without the influence). A common factor is not
+    % a change of shape: .maxDev is 0, and a held bin takes it, so after the
+    % r(0) = 1 renormalisation the shape -- the held bin included -- is
+    % exactly the prior's (it grew by 1 / tau per pass when it held 1).
+    rs = RandStream('mt19937ar', 'Seed', 152);
+    L = 9;  M = 4;
+    T = 0.5 + rand(rs, L, M);  T(5, :) = 1e-3;          % bin 5: below FreezeRedundancy 1
+    S = 0.5 + rand(rs, L, 1);
+    tau = 0.9733;
+    p = lsqvce.engine.psdVCE(tau * T, T, S, 'FreezeRedundancy', 1);
+    tc.verifyTrue(p.frozen(5) && nnz(p.frozen) == 1, 'the fixture holds bin 5 alone');
+    % tol: 1e-12 -- quotients of the same sums
+    tc.verifyEqual(p.abar, tau, 'RelTol', 1e-12, 'the common factor is tau');
+    % tol: as above
+    tc.verifyLessThan(p.maxDev, 1e-12, 'a common factor is no change of shape');
+    c = 2 * ones(L, 1);  c([1 L]) = 1;
+    % tol: 1e-12 -- the renormalised shape is the prior's, the held bin included
+    tc.verifyEqual(p.Shat / (c.' * p.Shat), S / (c.' * S), 'RelTol', 1e-12, ...
+        'the held bin keeps its share of the shape');
 end
 
 function test_psdVCE_rejects_bad_shapes(tc)

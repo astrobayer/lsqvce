@@ -186,7 +186,13 @@ OPTIONS (Name/Value)
            that solve, sigma*sigma0 stayed 0.83 -- sigma0 gave the bias
            back).
            Mirror (mirrors/wp115/nugget.py): 0.978 / 0.976 (phi 0.5 /
-           white) before the factor. Multi-axis streams are
+           white) before the factor. tau is the white-noise value: on a
+           coloured stream the deletion lowers the Helmert ratio less
+           (mirror, review 12.84 N3: 0.983 / 0.9955 / 0.998 at phi 0.5 /
+           0.9 / 0.98), so a robust run&#x27;s level and hard sigma0 read 1-2.5 %
+           high there -- not corrected. A HELD arc (no redundancy above
+           rounding) is not divided by tau, and the bins&#x27; stop test reads
+           the change of shape, which tau does not move (WP-152). Multi-axis streams are
            weighted PER EPOCH by one chi-calibrated statistic (R7-08:
            the d descaled rows&#x27; sum of squares mapped to an equivalent
            N(0,1) deviate, so a clean 3-axis epoch is standardised like a
@@ -277,7 +283,8 @@ OPTIONS (Name/Value)
                         and every factor&#x27;s change and PriorDev&#x27;s
                         change fell below Tol
   .nIter     1x1        outer iterations actually run
-  .history   struct     .maxDev (nIter x 1, max abs(alpha2 - 1): a
+  .history   struct     .maxDev (nIter x 1, max abs(alpha2 / abar - 1),
+                        the change of the law&#x27;s shape, psdVCE: a
                         reading), .binRatio (nIter x 1, the stop
                         quantity: max over bins of the bin&#x27;s change
                         over Tol max(1, sqrt(200 / r_j)); &lt;= 1 settled),
@@ -354,6 +361,13 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-152 (review 12.84, N1/N2/N4): the
+bins&#x27; stop test reads the change of shape (a robust run&#x27;s every bin
+settles at tau, so IGG3 never converged on clean data); a held arc is not
+divided by tau (it grew 2.7 % per pass); the sweep deletes an arc&#x27;s
+EXCLUDED rows by the nugget it deletes rejected epochs with, per axis (a
+&#x27;diag&#x27; stream with 10 % excluded rows read its level 5 % low). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-17 (CEST, UTC+02:00), WP-149: a robust hard solution
 carries its truncation tau and dof also when the backend refused v&#x27;Pv, so
 the residual pass that replaces the NaN (lsqvce.engine.verdict.supersede)

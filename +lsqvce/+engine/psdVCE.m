@@ -43,25 +43,40 @@ function out = psdVCE(Q, T, Sprior, opt)
 %              variance. R7-22: Options.Noise.Smooth.
 %     'FreezeRedundancy' 1x1 >= 0, default 0.  A bin whose redundancy
 %              Sprior_j * sum_m T(j, m) (its share tr(R V_j) of the total) is
-%              below it HOLDS its amplitude (alpha2_j = 1) instead of taking a
-%              ratio of two small numbers; a bin whose denominator is zero or
-%              not finite always holds. R7-22.
+%              below it HOLDS its place in the shape instead of taking a ratio
+%              of two small numbers: it takes the common factor abar of the
+%              free bins (below), so the shape at r(0) = 1 does not move there.
+%              A bin whose denominator is zero or not finite always holds.
+%              R7-22; WP-152: it held alpha2_j = 1, i.e. its ABSOLUTE amplitude,
+%              and the r(0) renormalisation then moved it by 1 / abar every pass
+%              -- under a robust influence abar is the truncation factor tau, so
+%              a held bin grew by 2.7 % per pass without end.
 %
 %   OUTPUT
 %     out   1x1 struct
 %       .Shat    L x 1  the updated spectrum (>= 0; bins below 1e-10 x its
 %                       maximum are lifted to that, the one numerical floor)
-%       .alpha2  L x 1  the per-bin factors (>= 0); the model has settled when
-%                       they are all ~ 1
+%       .alpha2  L x 1  the per-bin factors (>= 0); a held bin carries abar.
+%                       The SHAPE has settled when they are all ~ abar
+%       .abar    1x1    the common factor of the free bins, the r(0)-weighted
+%                       mean sum_j c_j alpha2_j Sprior_j / sum_j c_j Sprior_j
+%                       (c = [1 2 ... 2 1], hatACV's r(0) weights) -- the level
+%                       change the caller's r(0) = 1 renormalisation moves into
+%                       the factors; 1 when no bin is free (WP-152)
 %       .frozen  L x 1  logical, the bins that held their value
 %       .Sprior  L x 1  the prior, as given
-%       .maxDev  1x1    max |alpha2 - 1| over EVERY bin (there is no
-%                       zero-frequency rule left to exclude one: R7-20);
-%                       with Smooth > 0 the change of the SHAPE, max |Shat./
+%       .maxDev  1x1    the change of the SHAPE, max |alpha2 / abar - 1| over
+%                       every free bin (there is no zero-frequency rule left
+%                       to exclude one: R7-20); with Smooth > 0 max |Shat./
 %                       Sprior - 1| at r(0) = 1 -- a smoothed update's fixed
-%                       point has alpha2 ~= 1 (WP-131)
+%                       point has alpha2 ~= 1 (WP-131). WP-152: it was
+%                       max |alpha2 - 1|, which a common factor keeps away from
+%                       0 -- under a robust influence every bin's ratio settles
+%                       at the truncation factor tau (0.9733 for IGG3), so the
+%                       loop could never stop; the level is not the shape's to
+%                       test (the joint loop's levelDev tests it)
 %       .dev     L x 1  the per-bin deviation .maxDev is the maximum of:
-%                       abs(alpha2 - 1), or with Smooth > 0 the bin's
+%                       abs(alpha2 / abar - 1), or with Smooth > 0 the bin's
 %                       change of shape abs(rho - 1); 0 for a frozen bin
 %                       (WP-147: the stop rule reads it bin by bin)
 %       .redundancy L x 1  the bin's redundancy Sprior_j * sum_m T(j, m), its
@@ -78,7 +93,9 @@ function out = psdVCE(Q, T, Sprior, opt)
 %   ACCURACY
 %     The update is exact arithmetic, a ratio of bin sums; the spectrum is a
 %     statistical estimate. Q == T leaves alpha2 = 1 and Shat = Sprior to
-%     1e-10 (test_ellmer (test_psdVCE_identity_when_Q_equals_T)); a smoothed
+%     1e-10 (test_ellmer (test_psdVCE_identity_when_Q_equals_T)); Q == tau T
+%     reports maxDev 0 and holds a frozen bin's share of the shape to 1e-12
+%     (test_ellmer (test_psdVCE_common_factor_is_not_a_shape_change)); a smoothed
 %     loop settles to maxDev < 1e-8 (test_ellmer
 %     (test_psdVCE_smoothed_fixed_point_settles)). The positive-component law
 %     converged 18 / 18 with the level 0.91-1.07 x the truth (HANDOVER 12.44:
@@ -91,6 +108,10 @@ function out = psdVCE(Q, T, Sprior, opt)
 %   See also LSQVCE.KERNEL.HATACV, LSQVCE.KERNEL.REDUNDANCYLAGS,
 %            LSQVCE.ENGINE.ARCVARIANCEFACTORS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-152 (review 12.84, N1): .dev and
+%   .maxDev measure the change of the shape, alpha2 / abar; a held bin takes
+%   abar and keeps its share of the shape; output .abar. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-147: .dev and .redundancy per
 %   bin, for the joint loop's stop rule. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -137,9 +158,16 @@ end
     red = zeros(L, 1);
     red(ok) = Sprior(ok) .* Tj(ok);                   % the bin's redundancy (WP-147: returned)
     frozen = ~ok | ~(red >= opt.FreezeRedundancy);
-    if opt.FreezeRedundancy > 0
-        alpha2(frozen) = 1;
-    end
+    % WP-152 (N1): the common factor of the free bins, weighted as r(0) weighs
+    % them (hatACV: c_j = 2, 1 at both ends). The caller renormalises the law
+    % to r(0) = 1 and moves abar into the factors, so abar is a LEVEL change,
+    % not a change of shape -- and a held bin takes it, which is what holding
+    % its place in the shape means
+    c = 2 * ones(L, 1);  c([1 L]) = 1;
+    wS = c .* Sprior;  free = ~frozen;
+    abar = sum(wS(free) .* alpha2(free)) / sum(wS(free));
+    if ~(isfinite(abar) && abar > 0), abar = 1; end
+    alpha2(frozen) = abar;
     if opt.Gamma == 1
         Shat = alpha2 .* Sprior;
     else
@@ -149,7 +177,8 @@ end
         Shat = smoothSpectrum(Shat, opt.Smooth);
     end
     Shat = max(Shat, 1e-10 * max(Shat));              % the ONE numerical floor, relative
-    dev = abs(alpha2 - 1);
+    dev = zeros(L, 1);
+    dev(free) = abs(alpha2(free) / abar - 1);
     if opt.Smooth > 0
         % WP-131: at the fixed point of a SMOOTHED update S = smooth(alpha2 S)
         % alpha2 is not 1 wherever the true spectrum is not smooth, so
@@ -157,13 +186,12 @@ end
         % "not converged"). The smoothed loop has settled when the SHAPE stops
         % moving: the change of S at r(0) = 1 (c the hatACV weights; the level
         % is the joint loop's levelDev).
-        c = 2 * ones(L, 1);  c([1 L]) = 1;
         in = Sprior > 0;
         rho = (Shat(in) ./ Sprior(in)) * ((c.' * Sprior) / (c.' * Shat));
         dev = zeros(L, 1);
         dev(in) = abs(rho - 1);
     end
-    out = struct('Shat', Shat, 'alpha2', alpha2, 'frozen', frozen, 'Sprior', Sprior, ...
+    out = struct('Shat', Shat, 'alpha2', alpha2, 'abar', abar, 'frozen', frozen, 'Sprior', Sprior, ...
                  'maxDev', max(dev), 'dev', dev, 'redundancy', red);
 end
 

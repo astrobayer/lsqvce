@@ -148,11 +148,17 @@ is 2060/2030 to 4 eps (test_ellmer
 
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:arcVarianceFactors:badMean          [warning] The normalising mean of the arc factors is X, which cannot scale anyt...
-  lsqvce:arcVarianceFactors:held             [warning] arcs without a positive redundancy keep their
-                                             factor this pass (WP-134) -- once per run
+  lsqvce:arcVarianceFactors:held             [warning] arcs without a redundancy above rounding
+                                             (sqrt(eps) of the group&#x27;s largest; WP-152) keep
+                                             their factor this pass (WP-134) -- once per run
 
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-152 (review 12.84): an arc is
+held when its denominator is not above rounding, sqrt(eps) of the group&#x27;s
+largest -- a zero redundancy that rounding made positive was clamped to
+ClampEps (1e8 times the weight). With assistance from Claude (Anthropic),
+model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-140: one options block: ClampEps
 had a second one after the example, which had lost its last line to it.
 With assistance from Claude (Anthropic), model Claude Opus 5.5.
