@@ -162,6 +162,10 @@ function R = gravfireOnGeneratedBundle()
     systemsData{1}.parameter(:, 11) = cellfun(@unlabel, systemsData{1}.parameter(:, 11), 'UniformOutput', false);
     save(f, 'commonData', 'myOptions', 'systemsData');
     c = onCleanup(@() delete(f));
+    % the bundle's numbers are random ("they mean nothing"): its pooled streams
+    % are white under no law, which WP-154's poolNotWhite reports -- off here
+    w = warning('off', 'lsqvce:adjustVCEjoint:poolNotWhite');
+    cw = onCleanup(@() warning(w));
     R = demo_gravfire(f, Verbose=0);
     assert(isa(R, 'lsqvce.Results'), 'demo_gravfire ran the pipeline, not its no-bundle print');
 end

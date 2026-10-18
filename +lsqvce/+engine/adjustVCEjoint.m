@@ -217,6 +217,15 @@ function out = adjustVCEjoint(accFcn, opt)
 %       .Sgroups   containers.Map  pool group -> its S; .Cgroups -> its C
 %       .sigma2    M x 1      the converged arc variance factors, ALIGNED TO
 %                             .arcKeys (the pass-1 enumeration order; WP-34)
+%       .checks    struct     the model checks of the last pass (WP-154):
+%                             .stream / .group / .whitePval / .dispersion /
+%                             .dispersionBound per
+%                             stream (the Ljung-Box p under its law; the
+%                             scatter of its arcs' levels in units of their
+%                             sampling variance, ~1 when one level fits), and
+%                             .lawGroup / .corrTime / .arcMedian per law (the
+%                             correlation time -1/log(rho_1) and the median arc,
+%                             in epochs); the warnings below read them
 %       .seed      1x1        the probe seed used (the given Seed, or the one
 %                             pinned for an unseeded run -- R7-37; passing it
 %                             back as 'Seed' replays the run)
@@ -302,6 +311,13 @@ function out = adjustVCEjoint(accFcn, opt)
 %     lsqvce:adjustVCEjoint:localNotPD           System X
 %     lsqvce:adjustVCEjoint:notConverged         [warning] The joint stochastic model did not settle in X outer iterations (last...
 %     lsqvce:adjustVCEjoint:arcFactorsDiverging  [warning] arc-factor spread grew (F-01)
+%     lsqvce:adjustVCEjoint:poolNotWhite         [warning] a pool group of >= 2 streams with a
+%                                                member not white under its law (WP-154, M2)
+%     lsqvce:adjustVCEjoint:levelVaries          [warning] a stream without arc factors whose
+%                                                arcs' levels scatter beyond their sampling
+%                                                error (WP-154, M3)
+%     lsqvce:adjustVCEjoint:memoryVsArc          [warning] a law's correlation time above
+%                                                half its median arc (WP-154, M4)
 %
 %   WHAT eq. 6.5.28 MULTIPLIES, AND WHY IT MATTERS (R6 WP-98, finding F-01)
 %     gamma2_m = alpha2_m * sigma2_m is correct only when sigma2_m is the factor
@@ -326,6 +342,12 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-154 (review 12.84, M2-M4): out.checks
+%   and three warnings for the assumptions the data can contradict -- one law
+%   for a pool group's spectra, one level for a stream's arcs, a memory short
+%   against the arcs (modelChecks); the sweep keeps the arcs' raw lag
+%   statistics (projectLags). With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-152 (review 12.84, N1/N2/N4): the
 %   bins' stop test reads the change of shape (a robust run's every bin
 %   settles at tau, so IGG3 never converged on clean data); a held arc is not
@@ -647,7 +669,7 @@ end
         % WP-34 (fixes F-02): arcs are KEYED, the factor map is pinned on the
         % PASS-1 ENUMERATION, and a skipped arc keeps its previous factor --
         % one skip can no longer shift every later arc's factor by position.
-        [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, streamOf] = ...
+        [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, streamOf, lagRaw] = ...
             sweepArcs(acc, sol, sp.UiZ, nLag, v);
         % R5 M1: a skip RATE above the threshold is a refusal, not a smaller
         % estimate. The skipped arcs keep their factors and the run continues
@@ -668,21 +690,10 @@ end
         if isempty(pinnedKeys)
             % Pass 1: pin the arc identity on the ENUMERATION (skipped arcs
             % included -- a pass-1 skip keeps the default factor 1).
-            pinnedKeys = keysAll;
-            pinnedStream = streamAll;
-            pinnedRow = rowAll;
+            [pinnedKeys, pinnedStream, pinnedRow] = deal(keysAll, streamAll, rowAll);
             s2Map = pinFactors(pinnedKeys, o.Sigma2_0);   % Sigma2_0 empty here: all ones
-        elseif ~isequal(sort(keysAll), sort(pinnedKeys))
-            missing = setdiff(pinnedKeys, keysAll);
-            newk    = setdiff(keysAll, pinnedKeys);
-            error('lsqvce:adjustVCEjoint:arcMismatch', ...
-                ['The arc key set changed between passes -- the loader must ' ...
-                 'be deterministic across passes (an arc that merely fails ' ...
-                 'its covariance is SKIPPED and kept, but one that vanishes ' ...
-                 'from the enumeration is an identity error). Missing: %s. ' ...
-                 'New: %s.'], ...
-                strjoin([missing, {'(none)'}], ', '), ...
-                strjoin([newk,    {'(none)'}], ', '));
+        else
+            sameArcs(keysAll, pinnedKeys);
         end
         if ~isempty(skips)
             for kk = 1:size(skips, 1)
@@ -780,6 +791,7 @@ end
         % is retired (WP-118 part 2, user decision 2026-10-10).
         av = struct('gamma2', nan(nArc, 1), 'sigma2', nan(nArc, 1), 'gammaBar', []);
         lvl = containers.Map('KeyType', 'char', 'ValueType', 'double');   % pooled level per stream
+        dispMap = containers.Map('KeyType', 'char', 'ValueType', 'any');      % WP-154 (M3)
         for sk = unique(streamOf(:)).'
             cols = strcmp(streamOf, sk{1});
             % R7 WP-111 part 3: the arc's component is its WHOLE covariance T, so
@@ -791,6 +803,7 @@ end
             % rejection point -- divided by its Gaussian truncation factor tau
             % (truncated; WP-125/126: lvl is the stream's pooled level)
             [g2, s2, lvl(sk{1})] = truncated(avk, tauRow(tauMap, sk), s2Applied(cols));
+            dispMap(sk{1}) = levelDispersion(avk, ta(cols));          % WP-154 (M3)
             av.gamma2(cols) = g2;  av.sigma2(cols) = s2;
             av.gammaBar(end+1) = avk.gammaBar;
         end
@@ -922,6 +935,7 @@ end
     end
 
     arcSpreadGuard(spreadHist);          % R6 WP-97 (F-01): report, never silence
+    checks = modelChecks(hist, Cmap, dispMap, lagRaw, streamOf, o);   % WP-154 (M2-M4)
 
     if o.AvgTail > 0 && numel(shatTail) >= o.AvgTail
         S = exp(mean(cat(2, shatTail{end-o.AvgTail+1:end}), 2));
@@ -960,7 +974,7 @@ end
                  'history', hist, ...
                  'arcKeys', {pinnedKeys(:)}, 'arcStreams', {pinnedStream(:)}, ...
                  'skips', {hist.skips}, ...
-                 'seed', o.Seed, ...                                   % R7-37
+                 'seed', o.Seed, 'checks', checks, ...                 % R7-37; WP-154
                  'robust', struct('influence', char(o.Influence), 'scale', rscale, ...
                                   'streams', {rstreams}, 'factor', fac, 'keys', {rkeys}, ...      % R6 WP-105
                                   'truncation', tauRow(tauMap, rstreams)));                      % R7 WP-115
@@ -1266,7 +1280,7 @@ function [uEp, keys, sizes, qEp, dEp] = epochResiduals(res)
 end
 
 %==========================================================================
-function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keyStream] = ...
+function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keyStream, lagRaw] = ...
     sweepArcs(acc, sol, UiZ, L, v)
 %SWEEPARCS  Steps 7-8: re-stream every arc and return its Helmert statistics,
 %   one COLUMN per arc (R7 WP-111 part 3):
@@ -1311,7 +1325,8 @@ function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keySt
 %   The behaviour is pinned by test_vcePolicy>testPoolStreamGivesEachStreamItsOwnLaw.
     ids    = acc.systemIDs();
     x      = sol.x(:);
-    Qb = zeros(L, 0);  Tb = zeros(L, 0);  qa = zeros(1, 0);  ta = zeros(1, 0);
+    qa = zeros(1, 0);  ta = zeros(1, 0);
+    lagRaw = struct('om', {{}}, 'sn', {{}}, 'lam', zeros(1, 0));   % WP-154: per arc, before the bins
     keys   = {};
     keysAll = {};
     rowAll  = {};
@@ -1362,8 +1377,7 @@ function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keySt
                     nArc = nArc + 1;
                     keys{end+1}     = key;                   %#ok<AGROW>
                     keyStream{end+1} = sk;                   %#ok<AGROW>
-                    qt = r(1) * lsqvce.kernel.hatACV(L, numel(om), [om sn]);   % lambda_m K' [Omega s]
-                    Qb(:, nArc) = qt(:, 1);  Tb(:, nArc) = qt(:, 2);           %#ok<AGROW>
+                    lagRaw.om{nArc} = om;  lagRaw.sn{nArc} = sn;  lagRaw.lam(nArc) = r(1);   % lambda_m
                     qa(nArc) = qw;                           %#ok<AGROW>  WP-132: the whole law,
                     ta(nArc) = tw;                           %#ok<AGROW>  no Toeplitz assumption
                 end
@@ -1373,6 +1387,136 @@ function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keySt
             lsqvce.util.log.msg('%sswept system %s\n', lsqvce.util.verbosity.banner('Joint estimation'), string(st.sysID));
         end
     end
+    [Qb, Tb] = projectLags(lagRaw, L);                % WP-154: the arcs' raw statistics are kept
+end
+
+function [Qb, Tb] = projectLags(lagRaw, L)
+%PROJECTLAGS  The bin statistics of every arc, lambda_m K' [Omega^m s^m]
+%   (LSQVCE.KERNEL.HATACV's projection form, no m x L K), one COLUMN per arc.
+%   WP-154: the sweep keeps each arc's raw lag statistics (lagRaw), whose
+%   lengths the model checks read (the arcs' median, M4).
+    M = numel(lagRaw.om);
+    Qb = zeros(L, M);  Tb = zeros(L, M);
+    for a = 1:M
+        qt = lagRaw.lam(a) * lsqvce.kernel.hatACV(L, numel(lagRaw.om{a}), [lagRaw.om{a} lagRaw.sn{a}]);
+        Qb(:, a) = qt(:, 1);  Tb(:, a) = qt(:, 2);
+    end
+end
+
+function sameArcs(keysAll, pinnedKeys)
+%SAMEARCS  Refuse a pass whose arc key set differs from pass 1's (WP-34).
+%   ERRORS  lsqvce:adjustVCEjoint:arcMismatch
+    if isequal(sort(keysAll), sort(pinnedKeys)), return, end
+    missing = setdiff(pinnedKeys, keysAll);
+    newk    = setdiff(keysAll, pinnedKeys);
+    error('lsqvce:adjustVCEjoint:arcMismatch', ...
+        ['The arc key set changed between passes -- the loader must ' ...
+         'be deterministic across passes (an arc that merely fails ' ...
+         'its covariance is SKIPPED and kept, but one that vanishes ' ...
+         'from the enumeration is an identity error). Missing: %s. ' ...
+         'New: %s.'], ...
+        strjoin([missing, {'(none)'}], ', '), ...
+        strjoin([newk,    {'(none)'}], ', '));
+end
+
+function Dt = levelDispersion(avk, ta)
+%LEVELDISPERSION  WP-154 (M3): the scatter of a stream's per-arc Helmert
+%   ratios alpha2_m about their redundancy-weighted mean, in units of the
+%   sampling variance 2 / r_m of a ratio of redundancy r_m (Gaussian):
+%   D = sum_m (alpha2_m / abar - 1)^2 r_m / 2 / (M - 1), about 1 for a stream
+%   whose level is the same on every arc (chi^2_{M-1} / (M - 1) for white
+%   noise). Its bound: the 99.9 % point of that, at least 4 -- a coloured
+%   stream's ratios overlap and scatter more (MEASURED on 12 arcs of 256
+%   epochs, AR(1) 0.5: D 0.35-1.42 homogeneous, 3.2-5.0 for levels 1 / 1.1 /
+%   1.2 by day, ~120 for 0.5 / 1 / 2).
+%   OUTPUT  Dt  1x2 [D, bound]; [NaN NaN] below 3 usable arcs
+    a = avk.alpha2(:);  r = ta(:);
+    ok = ~avk.held(:) & isfinite(a) & isfinite(r) & r > 0;
+    Dt = [NaN NaN];
+    M = nnz(ok);
+    if M < 3, return, end
+    abar = sum(a(ok) .* r(ok)) / sum(r(ok));
+    D = sum((a(ok) / abar - 1).^2 .* r(ok) / 2) / (M - 1);
+    Dt = [D, max(4, 2 * gammaincinv(0.999, (M - 1) / 2) / (M - 1))];
+end
+
+function checks = modelChecks(hist, Cmap, dispMap, lagRaw, streamOf, o)
+%MODELCHECKS  The model assumptions the data can contradict (WP-154, review
+%   12.84 M2-M4), read after the loop; each warns once and is reported in
+%   out.checks (one row per stream / group):
+%     M2 a pool group of two or more "law" streams whose member is not white
+%        under the group's law (Ljung-Box p < 1e-3, the last pass): one law
+%        for different spectra -- measured eff 36, levels +96 % / -22 %
+%     M3 a stream without arc factors whose arcs' levels scatter beyond their
+%        sampling error (levelDispersion above its bound): a level that changes
+%        from arc to arc -- measured eff 4.5, the level 1.33 x the truth (0.5 /
+%        1 / 2 by day); levels 1 / 1.1 / 1.2 by day are flagged too (D 3.3-4.9
+%        against the bound 4), a homogeneous stream reaches 1.4. Only a stream
+%        white under its law is judged: the bound is the sampling variance of
+%        whitened residuals, and a misfit law (a pooled stream, M2) scatters
+%        the ratios with no change of level
+%     M4 a law whose correlation time -1 / log(rho_1) exceeds half the median
+%        arc of its group: the arcs' locals absorb the long memory. MEASURED
+%        on 256-epoch arcs (Grid 60, Smooth 1): phi 0.99 (true 100 epochs,
+%        estimated 59-103) level 0.976 -- not flagged; phi 0.995 (200,
+%        estimated 138-202) level 0.88 -- flagged
+%   OUTPUT  checks  struct .stream, .group, .whitePval, .dispersion, .dispersionBound (S x 1),
+%                   .lawGroup, .corrTime, .arcMedian (G x 1)
+    streams = hist.streams(:);
+    S = numel(streams);
+    grp = cellfun(@(sk) groupKeyOf(o.Pool, sk), streams, 'UniformOutput', false);
+    pol = cellfun(@(sk) policyOf(o.Estimate, sk), streams, 'UniformOutput', false);
+    p = nan(S, 1);  if ~isempty(hist.whitePval), p = hist.whitePval(end, :).'; end
+    D = nan(S, 1);  Dmax = nan(S, 1);
+    for s = 1:S
+        if isKey(dispMap, streams{s}), Dt = dispMap(streams{s});  D(s) = Dt(1);  Dmax(s) = Dt(2); end
+    end
+    law = strcmp(pol, 'law');
+    for g = unique(grp(law)).'
+        in = law & strcmp(grp, g{1});
+        bad = find(in & p < 1e-3);
+        if nnz(in) >= 2 && ~isempty(bad)
+            lsqvce.util.log.warnOnce('lsqvce:adjustVCEjoint:poolNotWhite', ...
+                ['Pool group %s shares one law among %d streams, and %s is not white under it ' ...
+                 '(Ljung-Box p = %.2g): the law does not fit that stream -- streams of different ' ...
+                 'spectra in one group (which biases both levels and the formal errors), or ' ...
+                 'something unmodelled in it (an event, a drift). Compare Pool = "stream" ' ...
+                 '(R.noise.checks).'], g{1}, nnz(in), streams{bad(1)}, p(bad(1)));
+        end
+    end
+    noAF = ~strcmp(pol, 'none') & ~cellfun(@(sk) arcFactorsOf(o.ArcFactors, sk), streams);
+    % only a WHITE stream: the bound is the sampling variance of whitened
+    % residuals, and a law that does not fit (a pooled group's stream, M2)
+    % scatters its arcs' ratios without any change of level (D 4.6-6.9 seen)
+    bad = find(noAF & D > Dmax & p >= 1e-3);
+    if ~isempty(bad)
+        lsqvce.util.log.warnOnce('lsqvce:adjustVCEjoint:levelVaries', ...
+            ['Stream %s carries one level for all its arcs, but the arcs'' levels scatter %.3g ' ...
+             'times their sampling variance (bound %.3g): the level changes from arc to arc (or day to ' ...
+             'day). Give the stream arc factors (ArcFactors = true, or arcFactors on its ' ...
+             'covariance spec) (R.noise.checks).'], streams{bad(1)}, D(bad(1)), Dmax(bad(1)));
+    end
+    gk = Cmap.keys;  G = numel(gk);
+    tau = nan(G, 1);  mMed = nan(G, 1);
+    arcGrp = cellfun(@(sk) groupKeyOf(o.Pool, sk), streamOf(:), 'UniformOutput', false);
+    for gi = 1:G
+        Cg = Cmap(gk{gi});
+        m = cellfun(@numel, lagRaw.om(strcmp(arcGrp, gk{gi})));
+        if numel(Cg) < 2 || isempty(m) || ~(Cg(2) > 0 && Cg(2) < Cg(1)), continue, end
+        tau(gi) = -1 / log(Cg(2) / Cg(1));  mMed(gi) = median(m);
+    end
+    bad = find(tau > mMed / 2);
+    if ~isempty(bad)
+        lsqvce.util.log.warnOnce('lsqvce:adjustVCEjoint:memoryVsArc', ...
+            ['The law of %s has a correlation time of %.3g epochs, more than half of its ' ...
+             'median arc (%d epochs): the arcs'' local parameters absorb the long memory and ' ...
+             'its level comes out low (measured: -12 %% at 200 against 256 epochs). Longer ' ...
+             'arcs, or a law that models the low frequencies, read it (R.noise.checks).'], ...
+             gk{bad(1)}, tau(bad(1)), round(mMed(bad(1))));
+    end
+    checks = struct('stream', {streams}, 'group', {grp}, 'whitePval', p, 'dispersion', D, ...
+                    'dispersionBound', Dmax, ...
+                    'lawGroup', {gk(:)}, 'corrTime', tau, 'arcMedian', mMed);
 end
 
 %==========================================================================

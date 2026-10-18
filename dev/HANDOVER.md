@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-153 DONE (PR #200, merge a81ab87; CI GREEN on ed6c53c in the first round: ci_gate 768/768, inventory lsqvce:internal:testProbe only): the closure in §12.88; version 6.31.0. Next: WP-154.
+Last substantive update: 2026-10-18 — WP-154 OPEN (tier A; model Claude Opus 5.5; user: "Please continue"): the closed-loop findings of §12.84 reproduced and acted on -- Noise.Smooth defaults to 1 (measured better in x, formal errors and passes; the review's arc-length grid was measured and withdrawn: it biased the level low at high phi), three model checks warn (pooled spectra, a level varying by arc, long memory against short arcs; R.noise.checks), the plug-in formal errors documented; version 6.32.0; §12.89.
+Preceding entry: Last substantive update: 2026-10-18 — WP-153 DONE (PR #200, merge a81ab87; CI GREEN on ed6c53c in the first round: ci_gate 768/768, inventory lsqvce:internal:testProbe only): the closure in §12.88; version 6.31.0. Next: WP-154.
 Preceding entry: Last substantive update: 2026-10-18 — WP-153 OPEN (tier A; model Claude Opus 5.5; user: "Go ahead"): the covariance findings of §12.84 reproduced and fixed -- a PSD grid with a non-negligible band below f(1) refused (r(0) was 34 % low, silently), excluded rows of 'var' laws and partly excluded epochs deleted exactly (x was 0.35 sd off), maxDenseArc bounds the MA start-up and the nugget, a d = 1 Cep is sigmas (stated), the Cholesky composition kept and documented (user decision); version 6.31.0; order after it: 154, 156 (the robust variance redesign, option 4), 155; §12.88.
 Preceding entry: Last substantive update: 2026-10-18 — WP-152 and WP-151 DONE (PR #197, merge 918b818; PR #198, merge ec45b46; CI GREEN in the first round on 65c48a0 and 8bab1b4: ci_gate 762/762 and 764/764, inventory lsqvce:internal:testProbe only; main's push CI on ec45b46 GREEN): the closures in §12.86 and §12.87, one HANDOVER-only PR; version 6.30.0. Open: WP-153..155 PROPOSED (§12.84), WP-152 N3 a model decision for the user.
 Preceding entry: Last substantive update: 2026-10-18 — WP-151 OPEN (tier A; model Claude Opus 5.5; user: "Continue with 152 and 151"): the solve-core findings of §12.84 reproduced and fixed -- local rank decisions and solves on the Jacobi-equilibrated block (a t^2 local in seconds was cut as rank-deficient on BOTH backends, x 10.7 sd off), the normal backend's cancellation guard counts against the l'Pl before the local elimination (v'Pv was 7.8 % / 1000 % off without a warning), the help's memory and datum claims; version 6.30.0; stacked on WP-152; §12.87.
@@ -11646,7 +11647,7 @@ observation 1). No package is open; the next step is the user's.
 | 151 | The solve core (S1-S3): the local rank tests on the equilibrated block, a guard for the Schur step's cancellation of l'Pl, the help's memory claims | 146 | OPENED 2026-10-18 -- its row and status live in §12.87 |
 | 152 | The noise estimator (N1-N4): the robust stop rule and the truncation factor tau (white value on coloured streams), held arcs under IGG3, excluded rows in the sweep | 146 | OPENED 2026-10-18 -- its row and status live in §12.86 |
 | 153 | Covariance and whitening (C1-C6): a PSD grid without f = 0, the d = 1 Cep shape, the frame-dependent Cholesky composition of a full Cep, WP-148's exact deletion for 'var' and partly excluded epochs, the unbounded memory paths | 146 | OPENED 2026-10-18 -- its row and status live in §12.88 |
-| 154 | Defaults and guards from the Monte Carlo study (M1-M5): a Noise.Grid default tied to the arc length, a warning when one pool group mixes spectra, a hint for a drifting level, a near-unit-root warning, the formal errors' plug-in optimism documented | 146 | PROPOSED |
+| 154 | Defaults and guards from the Monte Carlo study (M1-M5): a Noise.Grid default tied to the arc length, a warning when one pool group mixes spectra, a hint for a drifting level, a near-unit-root warning, the formal errors' plug-in optimism documented | 146 | OPENED 2026-10-18 -- its row and status live in §12.89 |
 | 155 | Speed without loss of precision (P1-P3): the Toeplitz law whitened through its structure (Levinson / Gohberg-Semencul) instead of a dense factor and an explicit inverse per arc, the O(N^2) lag loop by FFT, the per-axis repeats | 146 | PROPOSED |
 
 **The user's request (2026-10-17):** "Review the core calculation routines needed by fit. Ensure
@@ -12166,3 +12167,100 @@ merge: the ledger row, this note; no code change -- 6.31.0 stays, 780 declared /
 and not changed: the joint sweep's per-axis deletion is approximate for a full Cep's partly excluded
 epoch. Next, user (2026-10-18): "Please continue" -- WP-154 (§12.89), then WP-156 (the robust
 variance redesign), WP-155.
+
+### 12.89 WP-154 — defaults and guards from the closed-loop study (2026-10-18, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 154 | The closed-loop findings M1-M5 of §12.84, each reproduced on the current tree first: (M1) Noise.Smooth defaults to 1 -- the review's grid tied to the arc length was implemented, measured, and withdrawn (it biased the level low at high phi); (M2) a pool group of >= 2 streams with a member not white under its law warns (lsqvce:adjustVCEjoint:poolNotWhite); (M3) a stream without arc factors whose arcs' levels scatter beyond their sampling variance warns (levelVaries); (M4) a law whose correlation time exceeds half its median arc warns (memoryVsArc); R.noise.checks carries the evidence; (M5) the formal errors' plug-in optimism documented (fit's ACCURACY, the Manual); version 6.32.0 (a changed default, three new warnings: a minor) | 146 | OPEN (2026-10-18) |
+
+**The user's request (2026-10-18):** "#200 is merged. Please continue" -- WP-154 next in the order
+agreed (153, 154, 156, 155).
+
+**Reproductions (tier A, main a81ab87 + the WP-153 closure; the review's Monte Carlo harness, 3 days
+x 4 arcs x 256 epochs, 10 seeds; eff = x's variance / the oracle's that knows the true covariance).**
+
+| scenario | eff | formal / oracle sigma | level / truth (stream b) |
+|---|---|---|---|
+| base, Grid 60 (AR(1) 0.5) | 1.098 | 1.161 | 1.002 |
+| Grid 16 | 1.037 | 1.028 | 1.001 |
+| phi 0.98 / 0.99 / 0.995 | 1.120 / 1.228 / 1.162 | | 0.993 / 0.977 / 0.880 |
+| two spectra in one pool group | 36.2 | | a 1.963, b 0.775 |
+| one spectrum in one pool group | 1.039 | | 0.999 |
+| level 0.5 / 1 / 2 by day, no arc factors | 4.507 | | 1.330 |
+
+**M1 -- the default, measured twice.** The review proposed bins tied to the arc length (~m/16, at
+most 60). Implemented as Noise.Grid "auto" and measured at high phi (Grid 16 / 32 / 60, 10 seeds):
+eff 1.00-1.17 / 0.95-1.09 / 1.12-1.23, but the level 0.875 / 0.948 / 0.993 at phi 0.98 and 0.826 /
+0.909 / 0.977 at phi 0.99 -- a coarse grid cannot hold a sharp low-frequency peak, and its streams
+came out non-white (p down to 1e-20). A new silent level bias is not a default; "auto" was removed
+again. The review's other proposal, smoothing, at Grid 60:
+
+| phi | Smooth 0: eff / sx/so / level | Smooth 1 | Smooth 2 |
+|---|---|---|---|
+| 0.5 | 1.098 / 1.161 / 1.002 | 1.015 / 1.005 / 1.000 | 1.036 / 0.962 / 0.999 |
+| 0.9 | 1.158 / 1.255 / 1.025 | 1.035 / 1.058 / 1.019 | 1.057 / 1.010 / 1.012 |
+| 0.98 | 1.120 / 1.265 / 0.993 | 0.984 / 1.047 / 0.973 | 0.991 / 0.982 / 0.976 |
+| 0.99 | 1.228 / 1.186 / 0.977 | 1.108 / 1.004 / 0.976 | 1.126 / 0.947 / 0.982 |
+
+Smooth 1: better x, honest formal errors, the levels as unbiased, 5-7 passes instead of 11-13;
+Smooth 2's formal errors turn optimistic at high phi (0.947). On 2048-epoch arcs (2 days x 2 arcs,
+8 seeds): eff 1.005 / 1.003 against 0.992 / 1.011 (phi 0.5 / 0.9), the same levels, 4-4.5 passes
+against 8. **Noise.Smooth = 1** is the default (Options); the engine's own default stays 0 for direct
+callers. Test: test_vcePolicy `testNoiseSmoothDefaultsToOne` (the default reaches the engine; the
+colour fixture settles sooner under it, on the same law to 0.03).
+
+**M2-M4 -- the checks (adjustVCEjoint `modelChecks`, after the loop; `out.checks`, R.noise.checks).**
+Calibrated on the scenarios above under the new default (4 seeds each):
+- **M2** a pool group of >= 2 "law" streams with a member at Ljung-Box p < 1e-3 (the last pass):
+  two spectra p 1e-70..1e-59, one shared spectrum p >= 0.88, single streams at phi 0.98-0.995 p >=
+  0.19 (they are not checked -- only multi-stream groups). Test: `testPoolGroupOfDifferentSpectraWarns`.
+- **M3** `levelDispersion`: the arcs' Helmert ratios about their redundancy-weighted mean in units of
+  their sampling variance 2 / r_m (chi^2_{M-1}/(M-1) for white noise), bound max(4, its 99.9 % point):
+  homogeneous 0.33-1.39, levels 1 / 1.1 / 1.2 by day 3.3-4.9 (flagged), 0.5 / 1 / 2 112-127. Test:
+  `testDriftingLevelWarnsWithoutArcFactors` (one arc of three 3 x in sigma, arc factors off).
+- **M4** the correlation time -1/log(rho_1) of the estimated law against its group's median arc,
+  bound one half: phi 0.98 38.9-55.7 (true 49.5), 0.99 58.9-103 (99.5; level 0.976 -- not flagged),
+  0.995 138-202 (199.5; level 0.88 -- flagged). A third flagged phi 0.99 too, whose level is fine.
+  Test: `testLongMemoryAgainstShortArcsWarns` (phi 0.998 flagged, 0.5 not).
+- **M5** fit's ACCURACY and the Manual (05) state the formal errors' plug-in optimism.
+
+Every new test fails on the unfixed source (run with the fixes stashed). adjustVCEjoint's body fell
+to 273 code lines (the pass-1 pinning into `sameArcs`), the ceiling follows.
+
+**A correction to the WP-151 and WP-153 notes.** The "switched-off warnings" in the shared MATLAB
+bridge (lsqvce:normalEq:cancellation, lsqvce:psd2acv:aboveNyquist) were not another session's state:
+the whole bridge was at `warning('off','all')`, left by one of THIS session's diagnostic calls that
+switched warnings off and errored before restoring them (the first rv_n2 run). Restored to the
+default on 2026-10-18; diagnostic calls restore the state through onCleanup since. The detached
+ci_gate runs were never affected.
+
+**Docs:** Options (Smooth 1 and why), adjustVCEjoint (out.checks, the three warnings), fit (R.noise.checks,
+ACCURACY: plug-in), the API reference (options: Smooth), the Manual (05: the grid, the three checks,
+the plug-in errors), the catalogue (three warnings), RELEASE_NOTES; version 6.32.0.
+
+**Two RED gate rounds, and what they changed.**
+- Round 1: `testEllmerThroughFitReproducesDirect` compared fit (Options: Smooth 1) with a direct
+  engine call (its own default 0) -- the direct call now takes `opts.Noise.Smooth`. And the new
+  warnings reached the inventory from the existing fixtures. poolNotWhite fired where a fixture
+  pools streams of different physics under the default Pool "all" (synthLoader's ARMA position
+  with a white KBR, p 1e-122..1e-21; the GRACE demo loader's four streams, p 0..1e-28): true, and
+  muted in exactly those tests with that reason (five in test_fit, two in test_errorDoctrine,
+  test_vcePolicy's shared pooled run) -- located by a run with the ids as errors. levelVaries fired
+  on two of the same streams (D 6.9 and 4.6): a pooled law that does not fit scatters the arcs'
+  ratios with no change of level (synthLoader draws each day's noise as one homogeneous series),
+  so M3 now judges only a stream white under its law (p >= 1e-3), which its bound assumes.
+- Round 2: the shared run's class-wide mute silenced `testPoolGroupOfDifferentSpectraWarns` too
+  (now off around that one fit); demo_sensors' bad-day run carries a planted 6-sigma event on
+  C|KBR, which makes the stream non-white under the KBR group's law -- poolNotWhite was right, its
+  message blamed different spectra only. The message names both causes now (different spectra,
+  or an unmodelled event / drift), and the demo switches the check off for that one run with the
+  reason (STEP 5 removes the event and runs with it on). demo_gravfire's generated bundle is random
+  numbers: off around that example run in test_examples.
+- Observation for the user: the default Pool "all" puts streams of different physics in one law,
+  and the Manual says never to; poolNotWhite now says so at run time. Whether the default should
+  become "stream" is a decision of its own.
+
+**Gates (tier A):** `ci_gate` GREEN 772 / 772, 27 / 27, inventory `lsqvce:internal:testProbe` only;
+Linux audit CLEAN, selftest every fault caught. Tests 784 declared / 772 run.
+

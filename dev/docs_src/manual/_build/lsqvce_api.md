@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.31.0 — API Reference"
+title: "lsqvce 6.32.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -481,7 +481,7 @@ is merged onto the defaults; an unknown field is refused
 |---|---|---|
 | `Grid` | 60 | spectral bins of the estimated law between 0 and Nyquist (its resolution), an integer ≥ 2; the law is exact at every lag of every arc whatever the Grid |
 | `Whitener` | `"toeplitz"` | how every `psd` law (the estimated one and the declared ones) whitens an arc: exact Toeplitz Cholesky over the whole arc, or a fitted AR / ARMA filter (`"ar"`, `"arma"`; any case; another value is refused, `lsqvce:Options:badWhitener`) |
-| `Smooth` | 0 | moving-average half-width on the estimated spectrum (0 = none) |
+| `Smooth` | 1 | moving-average half-width on the estimated spectrum, in bins (0 = none). The default 1 (it was 0) was measured better on short and long arcs: x's variance 1.02–1.11 × an oracle that knows the true covariance (0: 1.10–1.23), formal errors within 6 % of the oracle's (0: 16–27 % too large), unbiased levels, half the passes |
 | `FreezeRedundancy` | 1 | a bin whose redundancy is below this keeps its value instead of being updated |
 | `SkipThreshold` | 0.2 | the share of skipped arcs of a stream above which a pass is refused |
 
@@ -708,7 +708,8 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
     Name, Value          any property of lsqvce.Options
   OUTPUT
     R      1x1 lsqvce.Results   x, sigma0, sol (Cxx, dof, vtv), diag, acc, history,
-                                noise (S, Sgroups, C, Cgroups, stream, model, priors), stopReason,
+                                noise (S, Sgroups, C, Cgroups, stream, model, priors,
+                                checks -- the model checks, WP-154), stopReason,
                                 meta (options as resolved, warnings, seeds, version);
                                 methods report, summary, convergence, residuals,
                                 contribution, compare, plot, toTable, coefficients
@@ -720,6 +721,13 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
     model LSQVCE.ENGINE.ADJUSTVCEJOINT's -- see theirs. End to end, the
     matrix kind (data.A / .l / .p) reproduces the dense normal equations to
     1e-12 relative (test_fit). WP-138.
+    THE FORMAL ERRORS OF AN ESTIMATED NOISE MODEL ARE PLUG-IN (WP-154, M5):
+    R.sol.Cxx treats the estimated covariance as known. Measured in the
+    review's closed loop (HANDOVER 12.84): their optimism is 3-13 % in sigma
+    on short or few arcs (256 epochs, 12 arcs) and ~0 on long records; the
+    estimator's own variance adds 4-10 % to x's (eff 1.04-1.10 against the
+    oracle that knows the true covariance). Read them as a floor on short
+    records; R.noise.checks says when the model's assumptions fail.
 
   ERRORS
     Your declaration is wrong (raised BEFORE any data is read):
@@ -915,7 +923,21 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT: 12 knobs and 5 groups.
                                                   densely, maxDenseArc), and
                                                   "ar" approximates the
                                                   estimated shape
-                 Smooth 0                         moving average on the PSD
+                 Smooth 1                         moving average on the PSD,
+                                                  half-width in bins (WP-154:
+                                                  the default is 1, it was 0)
+                                                  -- MEASURED in the review's
+                                                  closed loop (256-epoch arcs,
+                                                  AR(1) 0.5..0.99, 10 seeds):
+                                                  x's variance 1.02-1.11 x the
+                                                  oracle's (0: 1.10-1.23), the
+                                                  formal sigma 1.00-1.06 x
+                                                  (0: 1.16-1.27), the levels
+                                                  as unbiased, half the passes;
+                                                  2048-epoch arcs unchanged.
+                                                  Fewer bins instead (16 / 32)
+                                                  biased the level low at high
+                                                  phi (-12 % / -5 % at 0.98)
                  FreezeRedundancy 1               components below it hold
                  SkipThreshold 0.2                skip RATE of ONE stream's arcs
                                                   that refuses the pass
@@ -1397,6 +1419,9 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:adjustVCEjoint:arcFactorsDiverging` | engine.adjustVCEjoint | warning | v5.3 |
 | `lsqvce:adjustVCEjoint:notPD` | engine.adjustVCEjoint | error | v4.0 |
 | `lsqvce:adjustVCEjoint:skipThreshold` | engine.adjustVCEjoint | error | v4.0 |
+| `lsqvce:adjustVCEjoint:levelVaries` | engine.adjustVCEjoint | warning | v6.32.0 |
+| `lsqvce:adjustVCEjoint:memoryVsArc` | engine.adjustVCEjoint | warning | v6.32.0 |
+| `lsqvce:adjustVCEjoint:poolNotWhite` | engine.adjustVCEjoint | warning | v6.32.0 |
 | `lsqvce:applyReg:badLambda` | engine.applyRegularisation | error | v4.0 |
 | `lsqvce:applyReg:badRegMatrix` | engine.applyRegularisation | error | v4.0 |
 | `lsqvce:applyReg:notPD` | engine.applyRegularisation | error | v4.0 |

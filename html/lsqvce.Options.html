@@ -136,7 +136,21 @@ GROUPS (structs; set fields one at a time or give a whole struct)
                                                 densely, maxDenseArc), and
                                                 &quot;ar&quot; approximates the
                                                 estimated shape (WP-134)
-               Smooth 0                         moving average on the PSD
+               Smooth 1                         moving average on the PSD,
+                                                half-width in bins (WP-154:
+                                                the default is 1, it was 0)
+                                                -- MEASURED in the review&#x27;s
+                                                closed loop (256-epoch arcs,
+                                                AR(1) 0.5..0.99, 10 seeds):
+                                                x&#x27;s variance 1.02-1.11 x the
+                                                oracle&#x27;s (0: 1.10-1.23), the
+                                                formal sigma 1.00-1.06 x
+                                                (0: 1.16-1.27), the levels
+                                                as unbiased, half the passes;
+                                                2048-epoch arcs unchanged.
+                                                Fewer bins instead (16 / 32)
+                                                biased the level low at high
+                                                phi (-12 % / -5 % at 0.98)
                FreezeRedundancy 1               components below it hold
                SkipThreshold 0.2                skip RATE of ONE stream&#x27;s arcs
                                                 that refuses the pass
@@ -181,6 +195,11 @@ lsqvce:Options:badTarget     engineArgs target is unknown</pre>
 
 See also LSQVCE.FIT, LSQVCE.RESULTS, the API reference, RELEASE_NOTES.md
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-154 (review 12.84, M1): Noise.Smooth
+defaults to 1 (it was 0): measured better in x, formal errors and passes,
+the levels as unbiased; a Grid tied to the arc length was measured too and
+biased the level low at high phi. With assistance from Claude (Anthropic),
+model Claude Opus 5.5.
 Updated 2026-10-16 (CEST, UTC+02:00), WP-147: Tolerance states the
 bins&#x27; stop rule; the noise ctx carries binRatio and xStep. With
 assistance from Claude (Anthropic), model Claude Opus 5.5.

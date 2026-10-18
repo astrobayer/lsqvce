@@ -50,7 +50,12 @@ function setupOnce(tc)
     tc.TestData.data = data;
     % ONE shared run per model (the rebuild-per-test lesson of the old suite)
     tc.TestData.Rv = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    % the pooled run puts the demo's four streams of different physics in one
+    % group (Pool "all"), which WP-154's check reports -- off for this run only
+    % (a class-wide mute silenced testPoolGroupOfDifferentSpectraWarns too)
+    wp = warning('off', 'lsqvce:adjustVCEjoint:poolNotWhite');
     tc.TestData.Rp = lsqvce.fit(data, lsqvce.Options(Estimate="noise", ArcFactors=false, MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    warning(wp);
 end
 
 %% ---------------------------------------------------------------- history
@@ -1568,6 +1573,92 @@ function D = excludedDay(ot, A, la, lb, t, ex, d, exclude)
         A = A(~ex, :);  l = l(~ex);  tt = tt(~ex);
     end
     D = struct('A', {{A}}, 'B', {{zeros(size(A, 1), 0)}}, 'l', {{l}}, 't', {{tt}});
+end
+
+function testNoiseSmoothDefaultsToOne(tc)
+% categories: contract, precision
+    % WP-154 (review 12.84, M1). Noise.Smooth defaults to 1. MEASURED in the
+    % review's closed loop (3 days x 4 arcs x 256 epochs, AR(1) 0.5 .. 0.99,
+    % 10 seeds): x's variance 1.02-1.11 x the oracle's (Smooth 0: 1.10-1.23),
+    % the formal sigma 1.00-1.06 x (0: 1.16-1.27), the levels as unbiased, half
+    % the passes; 2048-epoch arcs unchanged. The grid tied to the arc length,
+    % proposed by the review, biased the level low at high phi (16 bins: -12 %
+    % at 0.98) and is not the default. Pinned here: the default reaches the
+    % engine, and on the colour fixture the default run settles in fewer passes
+    % than Smooth 0 on the same law.
+    o = lsqvce.Options();
+    tc.verifyEqual(o.Noise.Smooth, 1);
+    tc.verifyEqual(o.Noise.Grid, 60, 'the grid stays 60');
+    a = o.engineArgs('adjustVCEjoint');
+    k = find(strcmp(a.nv(1:2:end), 'Smooth'));
+    tc.verifyEqual(a.nv{2*k}, 1, 'the default reaches the joint estimator');
+    data = colourFixture(0.2, 0.5);
+    base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 30, 'Verbose', false};
+    R1 = lsqvce.fit(data, lsqvce.Options(base{:}));
+    R0 = lsqvce.fit(data, lsqvce.Options(base{:}, 'Noise', struct('Smooth', 0)));
+    tc.verifyTrue(R1.converged && R0.converged);
+    tc.verifyLessThan(R1.history.nIter, R0.history.nIter, sprintf( ...
+        'Smooth 1 settles sooner (%d passes, Smooth 0: %d)', R1.history.nIter, R0.history.nIter));
+    for st = {'x1|a', 'x1|b'}
+        C1 = R1.noise.Cgroups(st{1});  C0 = R0.noise.Cgroups(st{1});
+        % tol: 0.03 on a lag-1 correlation -- the planted 0.2 / 0.5 are read to
+        % 0.08 (testPoolStreamGivesEachStreamItsOwnLaw); the two smoothings agree
+        % far inside that
+        tc.verifyEqual(C1(2) / C1(1), C0(2) / C0(1), 'AbsTol', 0.03, sprintf('%s: the same law', st{1}));
+    end
+end
+
+function testPoolGroupOfDifferentSpectraWarns(tc)
+% categories: robustness, contract
+    % WP-154 (review 12.84, M2). One pool group shares one law: two streams of
+    % different spectra in it bias both levels and the formal errors (measured
+    % eff 36, levels 1.96 / 0.78, formal errors 4.85 x too large) -- silently.
+    % A member not white under the group's law (Ljung-Box p < 1e-3, the last
+    % pass; measured p ~ 1e-60 against >= 0.88 for one shared spectrum) warns.
+    R = verifyWarning(tc, @() lsqvce.fit(colourFixture(0, 0.9), lsqvce.Options(Estimate="noise", ...
+            Pool="all", MaxPasses=30, Verbose=false)), 'lsqvce:adjustVCEjoint:poolNotWhite');
+    tc.verifyLessThan(min(R.noise.checks.whitePval), 1e-3, 'the checks carry the evidence');
+    R = lsqvce.fit(colourFixture(0.5, 0.5), lsqvce.Options(Estimate="noise", Pool="all", ...
+            MaxPasses=30, Verbose=false));
+    tc.verifyFalse(any(strcmp(R.meta.warnings, 'lsqvce:adjustVCEjoint:poolNotWhite')), ...
+        'one spectrum shared by the group does not warn');
+end
+
+function testDriftingLevelWarnsWithoutArcFactors(tc)
+% categories: robustness, contract
+    % WP-154 (review 12.84, M3). A stream without arc factors carries one level
+    % for all its arcs; when the level changes from arc to arc the estimate is
+    % a compromise (measured: levels 0.5 / 1 / 2 by day, eff 4.5, the level
+    % 1.33 x the truth) -- silently. The arcs' Helmert ratios then scatter far
+    % beyond their sampling variance (dispersion ~120 against the bound 4; a
+    % homogeneous stream reaches 1.4): it warns and names arc factors.
+    data = arcFactorFixture(3);                        % arc 2 of every day 3 x in sigma
+    data.systems.covariance.a.arcFactors = false;
+    R = verifyWarning(tc, @() lsqvce.fit(data, lsqvce.Options(Estimate="noise", MaxPasses=30, ...
+            Verbose=false)), 'lsqvce:adjustVCEjoint:levelVaries');
+    tc.verifyGreaterThan(R.noise.checks.dispersion(1), R.noise.checks.dispersionBound(1));
+    data = arcFactorFixture(1);
+    data.systems.covariance.a.arcFactors = false;
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", MaxPasses=30, Verbose=false));
+    tc.verifyFalse(any(strcmp(R.meta.warnings, 'lsqvce:adjustVCEjoint:levelVaries')), ...
+        'one level for homogeneous arcs does not warn');
+    tc.verifyLessThan(R.noise.checks.dispersion(1), R.noise.checks.dispersionBound(1));
+end
+
+function testLongMemoryAgainstShortArcsWarns(tc)
+% categories: robustness, contract
+    % WP-154 (review 12.84, M4). The per-arc local parameters absorb the low
+    % frequencies of a law whose memory is long against the arcs: measured on
+    % 256-epoch arcs, phi 0.995 (correlation time 200 epochs) read the level
+    % 0.88 x the truth, phi 0.999 0.76 -- silently. A correlation time above
+    % half the median arc warns.
+    R = verifyWarning(tc, @() lsqvce.fit(colourFixture(0.998, 0.5), lsqvce.Options(Estimate="noise", ...
+            Pool="stream", MaxPasses=30, Verbose=false)), 'lsqvce:adjustVCEjoint:memoryVsArc');
+    c = R.noise.checks;
+    k = strcmp(c.lawGroup, 'x1|a');
+    tc.verifyGreaterThan(c.corrTime(k), c.arcMedian(k) / 2, 'the checks carry the evidence');
+    k = strcmp(c.lawGroup, 'x1|b');
+    tc.verifyLessThan(c.corrTime(k), c.arcMedian(k) / 2, 'the short-memory stream is not flagged');
 end
 
 function data = levelFixture(phi, seed)

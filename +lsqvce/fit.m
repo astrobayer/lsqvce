@@ -63,7 +63,8 @@ function R = fit(data, opts, nv)
 %     Name, Value          any property of lsqvce.Options
 %   OUTPUT
 %     R      1x1 lsqvce.Results   x, sigma0, sol (Cxx, dof, vtv), diag, acc, history,
-%                                 noise (S, Sgroups, C, Cgroups, stream, model, priors), stopReason,
+%                                 noise (S, Sgroups, C, Cgroups, stream, model, priors,
+%                                 checks -- the model checks, WP-154), stopReason,
 %                                 meta (options as resolved, warnings, seeds, version);
 %                                 methods report, summary, convergence, residuals,
 %                                 contribution, compare, plot, toTable, coefficients
@@ -75,6 +76,13 @@ function R = fit(data, opts, nv)
 %     model LSQVCE.ENGINE.ADJUSTVCEJOINT's -- see theirs. End to end, the
 %     matrix kind (data.A / .l / .p) reproduces the dense normal equations to
 %     1e-12 relative (test_fit). WP-138.
+%     THE FORMAL ERRORS OF AN ESTIMATED NOISE MODEL ARE PLUG-IN (WP-154, M5):
+%     R.sol.Cxx treats the estimated covariance as known. Measured in the
+%     review's closed loop (HANDOVER 12.84): their optimism is 3-13 % in sigma
+%     on short or few arcs (256 epochs, 12 arcs) and ~0 on long records; the
+%     estimator's own variance adds 4-10 % to x's (eff 1.04-1.10 against the
+%     oracle that knows the true covariance). Read them as a floor on short
+%     records; R.noise.checks says when the model's assumptions fail.
 %
 %   ERRORS
 %     Your declaration is wrong (raised BEFORE any data is read):
@@ -168,6 +176,10 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-154 (review 12.84, M2-M5): R.noise
+%   carries the joint estimator's model checks (.checks); ACCURACY states the
+%   formal errors' plug-in optimism. With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A6): a prior group with
 %   estimate "scale" is updated also when the normal backend refuses a
 %   cancelled v'Pv (N^-1 from the cofactor). With assistance from Claude
@@ -508,7 +520,8 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups, froms)
     % arcKeys is a CELL: braces keep struct() from expanding it into a struct
     % ARRAY (the API reference, chapter The data struct pitfall -- it bit this very line in L3 r1).
     noise = struct('S', out.S, 'C', out.C, 'sigma2', out.sigma2, 'arcKeys', {out.arcKeys}, ...
-                   'Sgroups', out.Sgroups, 'Cgroups', out.Cgroups);   % R5 M3 3d: one law per pool group
+                   'Sgroups', out.Sgroups, 'Cgroups', out.Cgroups, ...   % R5 M3 3d: one law per pool group
+                   'checks', out.checks);                                % WP-154: the model checks
     % R5 M4 4b: the per-stream summary every model shares -- .stream (keys),
     % .model{k}.sigma = the stream's LEVEL (declared sigma x its estimated
     % factor) and its law (the pool group's C); what the separate mode's

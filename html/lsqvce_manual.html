@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.31.0 — User Manual</title>
+  <title>lsqvce 6.32.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.31.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.32.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1033,7 +1033,10 @@ variance; off for few or short arcs</td>
 <tr class="odd">
 <td><code>Noise.Grid</code></td>
 <td>the spectral resolution of the estimated law; finer grids resolve
-narrow spectral features but give each bin less redundancy per pass</td>
+narrow spectral features but give each bin less redundancy per pass.
+Keep 60 with the default <code>Smooth = 1</code>. Fewer bins cut the
+estimator’s variance too, but bias the level low when the spectrum has a
+sharp low-frequency peak (16 bins: −12 % at AR(0.98))</td>
 </tr>
 <tr class="even">
 <td><code>Noise.Whitener</code></td>
@@ -1082,6 +1085,51 @@ detects short-lag correlation, periodic terms and excess low-frequency
 noise; a correlation that exists only at one long lag (an echo, a
 repeat-track pattern) is invisible to it — test for that with
 <code>R.systematic('Lags', L)</code>.</p>
+<p>Three assumptions of the model can be contradicted by the data, and
+the loop checks them after convergence (<code>R.noise.checks</code>, one
+warning each):</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>warning</th>
+<th>what the data say</th>
+<th>what to do</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>lsqvce:adjustVCEjoint:poolNotWhite</code></td>
+<td>a stream of a pool group is not white under the group’s shared law.
+Either the group mixes spectra, which biases both levels and the formal
+errors, or the stream has something unmodelled in it (an event, a
+drift)</td>
+<td>compare <code>Pool = "stream"</code>; regroup, or find the
+event</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:adjustVCEjoint:levelVaries</code></td>
+<td>a stream’s arcs scatter far beyond their sampling error around one
+level: the level changes from arc to arc or day to day</td>
+<td>arc factors for that stream</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:adjustVCEjoint:memoryVsArc</code></td>
+<td>the estimated correlation time exceeds half the median arc: the
+arcs’ local parameters absorb the long memory, and the level comes out
+low (−12 % at a correlation time of 200 against 256-epoch arcs)</td>
+<td>longer arcs, or a law that models the low frequencies</td>
+</tr>
+</tbody>
+</table>
+<p>The formal errors of an estimated noise model are <em>plug-in</em>:
+<code>R.sol.Cxx</code> treats the estimated covariance as known. On
+short or few arcs they are 3–13 % optimistic in σ; on long records the
+optimism is negligible.</p>
 <p>Arcs can be skipped in a pass: <code>gap</code> (no data) or
 <code>nonPD</code> (the arc’s covariance is not positive definite — a
 mis-scaled <code>Cep</code> produces exactly this). A skipped arc keeps

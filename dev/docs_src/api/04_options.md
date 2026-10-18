@@ -62,7 +62,7 @@ is merged onto the defaults; an unknown field is refused
 |---|---|---|
 | `Grid` | 60 | spectral bins of the estimated law between 0 and Nyquist (its resolution), an integer ≥ 2; the law is exact at every lag of every arc whatever the Grid |
 | `Whitener` | `"toeplitz"` | how every `psd` law (the estimated one and the declared ones) whitens an arc: exact Toeplitz Cholesky over the whole arc, or a fitted AR / ARMA filter (`"ar"`, `"arma"`; any case; another value is refused, `lsqvce:Options:badWhitener`) |
-| `Smooth` | 0 | moving-average half-width on the estimated spectrum (0 = none) |
+| `Smooth` | 1 | moving-average half-width on the estimated spectrum, in bins (0 = none). The default 1 (it was 0) was measured better on short and long arcs: x's variance 1.02–1.11 × an oracle that knows the true covariance (0: 1.10–1.23), formal errors within 6 % of the oracle's (0: 16–27 % too large), unbiased levels, half the passes |
 | `FreezeRedundancy` | 1 | a bin whose redundancy is below this keeps its value instead of being updated |
 | `SkipThreshold` | 0.2 | the share of skipped arcs of a stream above which a pass is refused |
 

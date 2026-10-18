@@ -1,5 +1,26 @@
 # lsqvce release notes
 
+## 6.32.0 — 2026-10-18 (WP-154: defaults and guards from the closed-loop study)
+
+From the Monte Carlo study of the review of the core calculation (HANDOVER §12.84).
+
+- `Noise.Smooth` now defaults to 1 (it was 0). In the closed loop (256-epoch arcs, AR(1) from
+  0.5 to 0.99), x's variance fell from 1.10–1.23 to 1.02–1.11 times that of an oracle that knows
+  the true covariance. The formal errors moved from 16–27 % too large to within 6 % of the
+  oracle's, the levels stayed unbiased, and runs needed half the passes. Results on 2048-epoch
+  arcs are unchanged. The review's other proposal, fewer bins for short arcs, was measured too
+  and biased the level low at high φ; `Noise.Grid` stays 60.
+- Three new warnings, raised after convergence when the data contradict an assumption of the
+  model. The evidence is in the new `R.noise.checks`.
+  - `lsqvce:adjustVCEjoint:poolNotWhite`: one pool group mixes different spectra. This was
+    measured at efficiency 36, with the two levels +96 % / −22 % off.
+  - `lsqvce:adjustVCEjoint:levelVaries`: a stream's level changes from arc to arc and the stream
+    has no arc factors. This was measured at efficiency 4.5, with the level 1.33 times the truth.
+  - `lsqvce:adjustVCEjoint:memoryVsArc`: the noise memory is long compared with the arcs, so the
+    level comes out low (−12 % at a correlation time of 200 epochs on 256-epoch arcs).
+- Documented: the formal errors of an estimated noise model are plug-in, 3–13 % optimistic on
+  short or few arcs.
+
 ## 6.31.0 — 2026-10-18 (WP-153: covariance and whitening)
 
 Corrections to the covariance layer found by the review of the core calculation (HANDOVER §12.84).
