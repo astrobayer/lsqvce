@@ -1431,6 +1431,145 @@ function testRobustLevelOfACleanStreamIsUnbiased(tc)
         'RelTol', 1e-10, 'the truncation factor of IGG3''s k1 = 3, per stream');
 end
 
+function testRobustJointLoopConvergesOnCleanData(tc)
+% categories: robustness, reference
+    % WP-152 (review 12.84, N1). Under a robust influence every bin's Helmert
+    % ratio settles at the truncation factor tau, not 1 -- a level the law's
+    % renormalisation removes -- and the bins' stop test read max|alpha2 - 1|:
+    % IGG3 on CLEAN data never converged (measured 30 passes, bins 1.72 of
+    % their bound; Robust "none" 14). The test reads the change of shape now.
+    % Clean data: the robust run must stop as the plain one does, on the same
+    % law.
+    data = colourFixture(0.2, 0.5);
+    base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 30, 'Verbose', false};
+    Rp = lsqvce.fit(data, lsqvce.Options(base{:}));
+    Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', "igg3"));
+    tc.verifyTrue(Rp.converged, 'the plain loop converges');
+    tc.verifyTrue(Rr.converged, sprintf(['the robust loop converges on clean data (%d passes, ' ...
+        'bins %.2f of their bound at the end)'], Rr.history.nIter, Rr.history.binRatio(end)));
+    for st = {'x1|a', 'x1|b'}
+        Cp = Rp.noise.Cgroups(st{1});  Cr = Rr.noise.Cgroups(st{1});
+        % tol: 0.03 on a lag-1 correlation -- the two runs differ by the ~0.3 %
+        % of epochs IGG3 rejects on clean data, far inside the 0.08 bound of the
+        % planted colour (testPoolStreamGivesEachStreamItsOwnLaw)
+        tc.verifyEqual(Cr(2) / Cr(1), Cp(2) / Cp(1), 'AbsTol', 0.03, sprintf('%s: the same law', st{1}));
+    end
+end
+
+function testHeldArcKeepsItsFactorUnderRobust(tc)
+% categories: robustness, contract
+    % WP-152 (review 12.84, N2). An arc with as many local parameters as rows
+    % has no redundancy: arcVarianceFactors HOLDS it (alpha2 = 1). Under a
+    % robust influence the joint loop divided every arc's factor by tau --
+    % the held arc's too, which took no ratio and carries no truncation -- so
+    % it grew by 1 / tau = 2.7 % per pass and the loop never settled. Worse,
+    % rounding made its zero denominator +1e-17 under IGG3: not held at all,
+    % clamped to 1e-8, 1e8 times the weight (measured: 9.8e-9, growing
+    % 2.7 % per pass, 12 passes, not converged). The held arc's factor must
+    % stay 1 on every pass, with and without the influence.
+    muteWarn(tc, 'lsqvce:arcVarianceFactors:held');      % the held arc, on purpose
+    data = heldArcFixture();
+    for rb = ["none", "igg3"]
+        trail = containers.Map('KeyType', 'double', 'ValueType', 'any');
+        R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=true, ...
+                MaxPasses=12, Robust=rb, Verbose=false, OnPass=@(ctx) keepSigma2(trail, ctx)));
+        tc.verifyTrue(R.converged, sprintf('Robust %s converges', rb));
+        k = find(strcmp(R.noise.arcKeys, 's1_a_d5_a1'), 1);
+        f = cellfun(@(s) s(k), values(trail));
+        % tol: 4 eps -- the clamp path multiplies and divides by gammaBar^2
+        tc.verifyEqual(f, ones(size(f)), 'RelTol', 4*eps, ...
+            sprintf('Robust %s: the held arc''s factor stays 1, pass by pass', rb));
+    end
+end
+
+function testExcludedRowsAreDeletedFromTheSweep(tc)
+% categories: reference, precision
+    % WP-152 (review 12.84, N4). An EXCLUDED row (weight 0, zero in A and l) is
+    % not an observation. Under a 'diag' law the loader leaves it a zero row
+    % without a nugget (independent epochs need none for the SOLVE), and the
+    % joint sweep counted it with a zero residual and full redundancy: 10 % of
+    % stream a excluded gave its level 0.926 against 0.977 with the rows
+    % removed. THE ORACLE: the same stream with those rows REMOVED -- for
+    % independent epochs exclusion and removal are the same estimator, so the
+    % levels, x and dof agree to rounding.
+    R = cell(1, 2);
+    for mode = 1:2
+        R{mode} = lsqvce.fit(excludedFixture(mode == 1), lsqvce.Options(Estimate="noise", ...
+                    Pool="stream", ArcFactors=false, MaxPasses=20, Seed=1, Verbose=false));
+    end
+    Tx = R{1}.summary();  Tr = R{2}.summary();
+    % tol: 1e-10 -- the same estimator, the deleted rows' nugget leaves 1e-12
+    % of their weight (measured 5.7e-14)
+    tc.verifyEqual(Tx.sigma, Tr.sigma, 'RelTol', 1e-10, 'excluded = removed: the levels');
+    % tol: 1e-10 of x's unit -- as above (measured 3.8e-15)
+    tc.verifyEqual(R{1}.x, R{2}.x, 'AbsTol', 1e-10, 'excluded = removed: x');
+    tc.verifyEqual(R{1}.sol.dof, R{2}.sol.dof, 'excluded = removed: the dof');
+end
+
+function keep = keepSigma2(trail, ctx)
+%KEEPSIGMA2  OnPass hook: record ctx.sigma2 under the pass number.
+    trail(ctx.pass) = ctx.sigma2(:).';  keep = true;
+end
+
+function data = heldArcFixture()
+%HELDARCFIXTURE  Two 'diag' "scale" streams with arc factors, 5 days x 1 arc x
+%   400 epochs; stream a has an arc bias and drift (localParams 'arc'), and
+%   its day-5 arc has 2 rows: as many locals as rows, no redundancy (WP-152).
+    m = 400;  t = (0:m-1).' * 5;  A = [sin(2*pi*t/3000), cos(2*pi*t/3000), ones(m, 1)];
+    rs = RandStream('mt19937ar', 'Seed', 52);
+    la = randn(rs, m, 1);  lb = randn(rs, m, 1);
+    data = struct();
+    data.commonParams = {'common','c1';'common','c2';'common','c3'};
+    data.days = 1:5;
+    spec = struct('type', 'diag', 'sigma', 1, 'estimate', "scale", 'arcFactors', true);
+    data.systems = struct('buildDay', @(d, ot) heldArcDay(ot, A, la, lb, t, d), ...
+        'covariance', struct('a', spec, 'b', spec), 'arcs', 1, 'id', 1, 'name', 'held', ...
+        'localParams', {{'arc','bias';'arc','drift'}});
+end
+
+function D = heldArcDay(ot, A, la, lb, t, d)
+%HELDARCDAY  One (day, stream) of heldArcFixture.
+    l = la;  if strcmp(ot, 'b'), l = lb; end
+    l = A * [1; 2; 3] + circshift(l, 37 * d);          % a different noise draw per day
+    B = zeros(numel(t), 10);                            % nl = 2 per arc x 5 days
+    if strcmp(ot, 'a'), B(:, 2*d-1:2*d) = [ones(size(t)), t / 1e3]; end
+    if d == 5                                           % the short arc: 2 rows, 2 locals
+        A = A(1:2, :);  l = l(1:2);  t = t(1:2);  B = B(1:2, :);
+    end
+    D = struct('A', {{A}}, 'B', {{B}}, 'l', {{l}}, 't', {{t + 86400 * d}});
+end
+
+function data = excludedFixture(exclude)
+%EXCLUDEDFIXTURE  Two 'diag' "scale" streams, 4 days x 1 arc x 512 epochs;
+%   every 10th row of stream a EXCLUDED (exclude = true) or REMOVED (WP-152).
+    m = 512;  t = (0:m-1).' * 5;  A = [sin(2*pi*t/3000), cos(2*pi*t/3000), ones(m, 1)];
+    rs = RandStream('mt19937ar', 'Seed', 44);
+    la = randn(rs, m, 1);  lb = randn(rs, m, 1);
+    ex = false(m, 1);  ex(1:10:end) = true;
+    data = struct();
+    data.commonParams = {'common','c1';'common','c2';'common','c3'};
+    data.days = 1:4;
+    spec = struct('type', 'diag', 'sigma', 1, 'estimate', "scale", 'arcFactors', false);
+    data.systems = struct('buildDay', @(d, ot) excludedDay(ot, A, la, lb, t, ex, d, exclude), ...
+        'covariance', struct('a', spec, 'b', spec), 'arcs', 1, 'id', 1, 'name', 'ex');
+end
+
+function D = excludedDay(ot, A, la, lb, t, ex, d, exclude)
+%EXCLUDEDDAY  One (day, stream) of excludedFixture.
+    l = la;  if strcmp(ot, 'b'), l = lb; end
+    l = A * [1; 2; 3] + circshift(l, 37 * d);
+    tt = t + 86400 * d;
+    if strcmp(ot, 'a') && exclude
+        A(ex, :) = 0;  l(ex) = 0;                       % an excluded row carries weight 0
+        D = struct('A', {{A}}, 'B', {{zeros(size(A, 1), 0)}}, 'l', {{l}}, 't', {{tt}}, 'excluded', {{ex}});
+        return
+    end
+    if strcmp(ot, 'a')
+        A = A(~ex, :);  l = l(~ex);  tt = tt(~ex);
+    end
+    D = struct('A', {{A}}, 'B', {{zeros(size(A, 1), 0)}}, 'l', {{l}}, 't', {{tt}});
+end
+
 function data = levelFixture(phi, seed)
 %LEVELFIXTURE  Two CLEAN AR(1) streams, unit innovations, the TRUE law declared
 %   ('arma', estimate "scale": only the level is free, and it is 1), 3 days x

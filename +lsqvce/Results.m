@@ -155,6 +155,9 @@ classdef Results < handle
 %   (Backend "normal", a tight fit) sigma0 and sol.Cxx are the verdict's
 %   residual pass (lsqvce.engine.verdict.supersede), not NaN. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-152: convergence()'s maxDev and
+%   plot("convergence") name the change of the law's shape. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-17 (CEST, UTC+02:00), WP-150 (F5): snoop() on a
 %   Gauss-Newton fit returns estimates, not increments. With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
@@ -331,7 +334,7 @@ classdef Results < handle
         %   fh = R.plot("contribution")  information share per stream
         %   fh = R.plot("psd")           the estimated spectral shape(s), and the
         %                                per-stream level (Estimate "noise" only)
-        %   fh = R.plot("convergence")   the pass record (max|alpha2-1|, whiteness)
+        %   fh = R.plot("convergence")   the pass record (shape change, whiteness)
         %   fh = R.plot(kind, Stream=key, Visible=false)
         %   Replaces the v4 plot hooks (plotPostSolve / plotPostModel,
         %   ShowSeconds / ExportDir): nothing is exported by the toolbox --
@@ -753,8 +756,9 @@ classdef Results < handle
         %                how far the stream levels sit from their declaration --
         %                a reading, not the stop rule), nWhite (streams declared
         %                white), minWhitePval (worst stream this pass), converged
-        %                (logical, only the last row can be true), maxDev (max
-        %                |alpha^2 - 1| over the spectral bins -- a reading),
+        %                (logical, only the last row can be true), maxDev (the
+        %                change of the law's shape, max |alpha^2 / abar - 1| over
+        %                the spectral bins, WP-152 -- a reading),
         %                levelDev (max relative change of an arc's variance
         %                factor; the stop rule compares it with Tolerance),
         %                binRatio (the bins' stop quantity: the largest change

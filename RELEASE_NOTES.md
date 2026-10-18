@@ -1,5 +1,26 @@
 # lsqvce release notes
 
+## 6.29.0 — 2026-10-18 (WP-152: the noise estimator under a robust influence and with excluded rows)
+
+Corrections to the joint noise estimator (`Estimate = "noise"`) found by the review of the core
+calculation (HANDOVER §12.84).
+
+- The stop rule for the spectral law now tests the change of the law's *shape*. Under a robust
+  influence every bin's ratio settles at the truncation factor (0.9733 for IGG3) instead of 1. The
+  old test read that common factor as movement, so IGG3 did not converge even on clean data
+  (measured: 30 passes, not converged; 18 passes now, against 15 with `Robust = "none"`). A bin held
+  for low redundancy (`Noise.FreezeRedundancy`) keeps its share of the shape. Before, it kept its
+  absolute value, so each renormalisation moved it. `R.history.maxDev` reports the shape change.
+- An arc without redundancy (as many local parameters as rows) is held at its factor on every pass.
+  Under a robust influence the old code divided it by the truncation factor each pass, so it grew
+  2.7 % per pass and the run never converged. When rounding made the arc's zero redundancy slightly
+  positive, it was not held at all: it was given 10⁸ times the weight.
+- Rows a `buildDay` marks `excluded` are now deleted from the noise estimate. They are already out
+  of the solve. Under a `diag` or `var` law the old estimator counted each excluded row as an
+  observation with a zero residual: a stream with 10 % excluded rows came back with its level 5 %
+  low and x shifted by 1e-3. The estimate now equals the one with those rows removed (to 6e-14).
+  Epochs with only some axes excluded are deleted per axis.
+
 ## 6.28.0 — 2026-10-17 (WP-150: the wrong verdicts at the front door)
 
 Corrections found by the review of the core calculation (HANDOVER §12.84). Each one returned a

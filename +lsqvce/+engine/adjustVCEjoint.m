@@ -146,7 +146,13 @@ function out = adjustVCEjoint(accFcn, opt)
 %              that solve, sigma*sigma0 stayed 0.83 -- sigma0 gave the bias
 %              back).
 %              Mirror (mirrors/wp115/nugget.py): 0.978 / 0.976 (phi 0.5 /
-%              white) before the factor. Multi-axis streams are
+%              white) before the factor. tau is the white-noise value: on a
+%              coloured stream the deletion lowers the Helmert ratio less
+%              (mirror, review 12.84 N3: 0.983 / 0.9955 / 0.998 at phi 0.5 /
+%              0.9 / 0.98), so a robust run's level and hard sigma0 read 1-2.5 %
+%              high there -- not corrected. A HELD arc (no redundancy above
+%              rounding) is not divided by tau, and the bins' stop test reads
+%              the change of shape, which tau does not move (WP-152). Multi-axis streams are
 %              weighted PER EPOCH by one chi-calibrated statistic (R7-08:
 %              the d descaled rows' sum of squares mapped to an equivalent
 %              N(0,1) deviate, so a clean 3-axis epoch is standardised like a
@@ -238,7 +244,8 @@ function out = adjustVCEjoint(accFcn, opt)
 %                             and every factor's change and PriorDev's
 %                             change fell below Tol
 %       .nIter     1x1        outer iterations actually run
-%       .history   struct     .maxDev (nIter x 1, max abs(alpha2 - 1): a
+%       .history   struct     .maxDev (nIter x 1, max abs(alpha2 / abar - 1),
+%                             the change of the law's shape, psdVCE: a
 %                             reading), .binRatio (nIter x 1, the stop
 %                             quantity: max over bins of the bin's change
 %                             over Tol max(1, sqrt(200 / r_j)); <= 1 settled),
@@ -319,6 +326,13 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-152 (review 12.84, N1/N2/N4): the
+%   bins' stop test reads the change of shape (a robust run's every bin
+%   settles at tau, so IGG3 never converged on clean data); a held arc is not
+%   divided by tau (it grew 2.7 % per pass); the sweep deletes an arc's
+%   EXCLUDED rows by the nugget it deletes rejected epochs with, per axis (a
+%   'diag' stream with 10 % excluded rows read its level 5 % low). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-17 (CEST, UTC+02:00), WP-149: a robust hard solution
 %   carries its truncation tau and dof also when the backend refused v'Pv, so
 %   the residual pass that replaces the NaN (lsqvce.engine.verdict.supersede)
@@ -775,14 +789,9 @@ end
             % R7 WP-115 part 3b (R7-12): the sweep deleted the REJECTED epochs, so
             % the stream's Helmert factor is that of a sample truncated at the
             % rejection point -- divided by its Gaussian truncation factor tau
-            % (1 without a robust pass, or for Huber)
-            av.gamma2(cols) = avk.gamma2 / tauRow(tauMap, sk);
-            lvl(sk{1}) = avk.pooled / tauRow(tauMap, sk);   % WP-125/126: the stream's level
-            if isfinite(avk.gammaBar) && avk.gammaBar > 0
-                av.sigma2(cols) = avk.sigma2 * avk.gammaBar^2 / tauRow(tauMap, sk);   % the clamped gamma2_m
-            else
-                av.sigma2(cols) = s2Applied(cols);                  % badMean: unchanged this pass
-            end
+            % (truncated; WP-125/126: lvl is the stream's pooled level)
+            [g2, s2, lvl(sk{1})] = truncated(avk, tauRow(tauMap, sk), s2Applied(cols));
+            av.gamma2(cols) = g2;  av.sigma2(cols) = s2;
             av.gammaBar(end+1) = avk.gammaBar;
         end
         % WP-40 r2 (F-15): Polyak tail averaging of the RETURNED spectrum
@@ -882,7 +891,7 @@ end
         hist.whitePval(it, :) = pRow;                %#ok<AGROW>
 
         if v
-            lsqvce.util.log.msg(['  [joint %2d] max|alpha2-1| = %.4e   bins %.2f of ' ...
+            lsqvce.util.log.msg(['  [joint %2d] shape change %.4e   bins %.2f of ' ...
                 'their bound   arcs = %d   gammaBar (per stream) = %s\n'], it, pv.maxDev, ...
                 pv.binRatio, nArc, mat2str(av.gammaBar, 4));
         end
@@ -1116,6 +1125,26 @@ function sol = hardSolution(sol, hardFix, nExcl)
     sol.sigma0 = sqrt(sol.s0sq);
     sol.Cxx = sol.Cxx * f;
     sol.truncation = hardFix.tau;
+end
+
+function [gamma2, sigma2, pooled] = truncated(avk, tau, s2Applied)
+%TRUNCATED  One stream's arc factors and pooled level from arcVarianceFactors'
+%   AVK, divided by the stream's truncation factor TAU (1 without a robust
+%   pass, or for Huber). WP-152 (N2): not a HELD arc -- it took no ratio, so
+%   it carries no truncation; dividing its factor every pass grew it by
+%   1 / tau (2.7 % per pass under IGG3) and the loop never settled. The pooled
+%   level holds no held arc (arcVarianceFactors leaves them out of it).
+%   INPUT   avk struct, tau 1x1, s2Applied M x 1 (the factors as weighted)
+%   OUTPUT  gamma2 / sigma2 M x 1 (sigma2: the clamped gamma2_m, or s2Applied
+%           when the mean was unusable -- badMean: unchanged this pass), pooled 1x1
+    tauA = tau .^ ~avk.held;                          % M x 1, 1 on a held arc
+    gamma2 = avk.gamma2 ./ tauA;
+    pooled = avk.pooled / tau;
+    if isfinite(avk.gammaBar) && avk.gammaBar > 0
+        sigma2 = avk.sigma2 * avk.gammaBar^2 ./ tauA;
+    else
+        sigma2 = s2Applied;
+    end
 end
 
 function t = tauRow(tauMap, streams)
@@ -1419,20 +1448,27 @@ function [om, sn, r, why, wsum, wm, qw, tw] = oneArc(st, obsType, arc, day, uo, 
         % level of a clean stream came back 14-19 % low with them inside
         % (HANDOVER 12.43). The truncation this leaves is corrected per
         % stream (truncationFactor).
-        WL = W;  cN = [];
+        % WP-152 (N4): the EXCLUDED rows (arc.excluded, weight 0) are deleted
+        % the same way, per axis: under a 'diag' or 'var' law the loader leaves
+        % them as zero rows without a nugget, and the sweep counted each as an
+        % observation with a zero residual and full redundancy -- 10 % excluded
+        % came back as a level 0.926 against 1.018 for its clean twin
+        WL = W;
         q = lsqvce.util.getfielddef(a, 'nugget', []);
-        if ~isempty(q) && any(q(:) > 1e11)
-            cN = zeros(mE, 1);
-            rej = q(:) > 1e11;
-            dSig = diag(Sig);
-            cN(rej) = q(rej) .* dSig(rej);
-            [W, pd] = chol(Sig + diag(cN));
-            if pd > 0
-                om = [];  sn = [];  r = [];  why = 'nonPD';  return
-            end
-        end
+        rej0 = false(mE, 1);
+        if ~isempty(q), rej0 = q(:) > 1e11; end
+        exAx = excludedAxes(a, mE, nAx);
         om = zeros(mE, 1);  sn = zeros(mE, 1);  r = Sig(:, 1);
+        rejW = [];
         for k = 1:nAx
+            rej = rej0 | exAx(:, k);
+            if ~isequal(rej, rejW)                    % one factor per deletion pattern
+                [W, cN, pd] = deletedFactor(Sig, WL, rej, q);
+                if pd > 0
+                    om = [];  sn = [];  r = [];  why = 'nonPD';  return
+                end
+                rejW = rej;
+            end
             rows = k:nAx:m;
             [AtilBar, Bbar, ebar] = jointArcParts(Ad(rows, :), Bd(rows, :), ld(rows), W, ...
                                                   x(1:size(A,2)), ySys, Gsys);
@@ -1449,9 +1485,13 @@ function [om, sn, r, why, wsum, wm, qw, tw] = oneArc(st, obsType, arc, day, uo, 
         Sig = a.Cfcn(1:m, uo);
         if isvector(Sig), Sig = diag(Sig(:)); end
         Sig = (Sig + Sig.')/2;
-        [W, pd] = chol(Sig);
+        [WL, pd] = chol(Sig);
         if pd > 0
             om = [];  sn = [];  r = [];  why = 'nonPD';  return   % skipped, REPORTED
+        end
+        [W, cN, pd] = deletedFactor(Sig, WL, excludedAxes(a, m, 1), []);   % WP-152 (N4)
+        if pd > 0
+            om = [];  sn = [];  r = [];  why = 'nonPD';  return
         end
     else
         % A Wfcn-only loader hands back a whitening OPERATOR, not the explicit
@@ -1473,12 +1513,40 @@ function [om, sn, r, why, wsum, wm, qw, tw] = oneArc(st, obsType, arc, day, uo, 
     [AtilBar, Bbar, ebar] = jointArcParts(A, B, l, W, x(1:size(A,2)), ...
                                           ySys, Gsys);
     rl = lsqvce.kernel.redundancyLags(AtilBar, W, UiZ, ebar, m, ...
-                               'LocalBbar', Bbar, 'LocalLl', LlS);
+                               'LocalBbar', Bbar, 'LocalLl', LlS, 'Nugget', cN, 'LawW', WL);
     om = finiteOf(rl.omega);
     sn = finiteOf(rl.s);
     r  = Sig(:, 1);
     qw = rl.omegaLaw;  tw = rl.sLaw;                    % WP-132: the whole law
     wsum = whiteLagSums(ebar);  wm = lagPairs(numel(ebar));
+end
+
+function ex = excludedAxes(a, mE, nAx)
+%EXCLUDEDAXES  arc.excluded (m x 1, epoch-major) as an mE x nAx logical: the
+%   rows of weight 0 per axis; all false when the arc marks none (WP-152).
+    ex = false(mE, nAx);
+    if isfield(a, 'excluded') && ~isempty(a.excluded)
+        ex = reshape(logical(a.excluded(:)), nAx, mE).';
+    end
+end
+
+function [W, cN, pd] = deletedFactor(Sig, WL, rej, q)
+%DELETEDFACTOR  The Cholesky factor of Sig with the epochs REJ deleted by a
+%   nugget (R7 WP-115 part 3b; WP-152 for the excluded rows): the loader's q
+%   where it set one (a robust factor 0, or an excluded epoch under a
+%   correlated law: q ~ 1e12), 1e12 elsewhere, times the epoch's variance --
+%   deletion to rounding, the lag structure kept. No epoch deleted: W = WL
+%   (the law's own factor) and cN = [], bitwise the undeleted arc.
+%   INPUT   Sig mE x mE, WL its upper factor, rej mE x 1 logical, q [] or mE x 1
+%   OUTPUT  W upper factor of Sig + diag(cN), cN [] or mE x 1, pd chol's flag
+    pd = 0;  W = WL;  cN = [];
+    if ~any(rej), return, end
+    qq = 1e12 * ones(numel(rej), 1);
+    if ~isempty(q), has = q(:) > 1e11;  qq(has) = q(has); end
+    cN = zeros(numel(rej), 1);
+    dSig = diag(Sig);
+    cN(rej) = qq(rej) .* dSig(rej);
+    [W, pd] = chol(Sig + diag(cN));
 end
 
 function K = WHITE_LAGS()
@@ -1783,7 +1851,8 @@ function [binMax, blocking] = binsAgainstBound(pvg, tol, group, binMax, blocking
 %   the bin's own standard error sqrt(2 / r_j) -- at the default tol 1e-2 a
 %   tenth of it. Scaled BY tol, not floored at a tenth, so a tighter tol
 %   still tightens every bin (a floor would have made tol 1e-3 mean nothing
-%   for them). The plain max|alpha2 - 1| <= tol asked bins the data barely
+%   for them). The plain max|alpha2 - 1| <= tol (WP-152: now the shape change
+%   max|alpha2 / abar - 1|, psdVCE) asked bins the data barely
 %   determine -- the zero-frequency bin the per-arc locals absorb, 60 bins on
 %   60-sample arcs -- for a precision a hundred times finer than their
 %   estimate has: 14-168 passes on the fixtures of HANDOVER 12.79, while x
@@ -1808,7 +1877,7 @@ end
 
 function [hist, xPrev] = recordStep(hist, it, pv, sol, xPrev)
 %RECORDSTEP  The pass's stop quantities into the history (WP-147).
-%   .maxDev (max abs(alpha2 - 1), a reading), .binRatio (the bins' stop
+%   .maxDev (max abs(alpha2 / abar - 1), a reading), .binRatio (the bins' stop
 %   quantity) and .xStep: the solution's largest change since the pass
 %   before in units of its own standard error sqrt(diag(Cxx)) sigma0 -- the
 %   number a user needs to judge a stop on the pass budget; NaN on pass 1
@@ -1844,7 +1913,7 @@ function msg = notSettledMessage(maxIter, tol, hist, blocking)
         if nb > 3, moving = sprintf('%s; and %d more', moving, nb - 3); end
     end
     msg = sprintf(['The joint stochastic model did not settle in %d outer iterations ' ...
-        '(last max|alpha2-1| = %.3e, last max level change %.3e, last prior change ' ...
+        '(last shape change %.3e, last max level change %.3e, last prior change ' ...
         '%.3e, tol %.1e). Still moving by more than tol max(1, sqrt(200 / redundancy)) ' ...
         '(at tol 1e-2 a tenth of their standard error): %s. The solution moved by %.3g ' ...
         'of its standard error in the last pass. Inspect out.history.S, .binRatio, ' ...
