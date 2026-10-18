@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-156 round 2 OPEN, the implementation of design F (tier A; model Claude Opus 5.5; user: "Adopt design F as proposed ... Go ahead with the implementation once #205 is merged"): the robust pass rejects on Baarda's w, snooped in the sweep, the kept epochs' truncation in the redundancy lag by lag, a cycling set frozen at its union; three kernel units; the acceptance bar met in every row (20 seeds paired: every stream and sigma0^2 within 0.5 %, 717 of 720 small blunders on a red stream); a lagged scale found and fixed on the way (the scale is level-free); round 1 DONE (PR #205, merge 6d3b237); version 6.34.0; §12.91.
+Last substantive update: 2026-10-18 — WP-156 DONE (round 1 PR #205, merge 6d3b237; round 2 PR #206, merge c36dcee; CI GREEN on 88b25dd in the first round: ci_gate 786/786, inventory lsqvce:internal:testProbe only, the measure job reproducing the acceptance table): the robust variance estimator redesigned (design F, version 6.34.0), review 12.84 N3 retired; the white-stream offset traced to sampling; the closure in §12.91. Next: WP-155.
+Preceding entry: Last substantive update: 2026-10-18 — WP-156 round 2 OPEN, the implementation of design F (tier A; model Claude Opus 5.5; user: "Adopt design F as proposed ... Go ahead with the implementation once #205 is merged"): the robust pass rejects on Baarda's w, snooped in the sweep, the kept epochs' truncation in the redundancy lag by lag, a cycling set frozen at its union; three kernel units; the acceptance bar met in every row (20 seeds paired: every stream and sigma0^2 within 0.5 %, 717 of 720 small blunders on a red stream); a lagged scale found and fixed on the way (the scale is level-free); the white-stream offset traced to sampling (two fixtures shared their draws; 72 seeds: -0.01 % +- 0.14); round 1 DONE (PR #205, merge 6d3b237); version 6.34.0; §12.91.
 Preceding entry: Last substantive update: 2026-10-18 — WP-156 OPEN, the design study (tier A; model Claude Opus 5.5; user: "Go ahead with WP-156"): N3 diagnosed -- the robust pass rejects on the raw residual while a deletion removes Baarda's w for correlated observations, so the kept epochs are truncated in the wrong direction (and a red stream's blunders go undetected: 2 % x 2 sigma at phi 0.98 read the level 3.6 x); candidates measured with the law known and in an engine prototype; proposed design F (w, data snooping, the per-lag truncation deficit in the redundancy, a 2-cycle frozen) -- clean levels within 0.25 % of a non-robust run where today's rule reads +1.4 %, x unchanged; design F adopted by the user (union freeze, the bar as proposed), the implementation is round 2 after this PR merges; no source change; §12.91.
 Preceding entry: Last substantive update: 2026-10-18 — WP-154 and WP-157 DONE (PR #202, merge d8584ca; PR #203, merge ace8166; CI GREEN in the first round on 1f068d3 and 5f1254d: ci_gate 772/772 and 773/773, inventory lsqvce:internal:testProbe only; main's push CI on ace8166 GREEN): the closures in §12.89 and §12.90, one HANDOVER-only PR; version 6.33.0. Open: WP-156 (robust variance redesign), WP-155 (speed).
 Preceding entry: Last substantive update: 2026-10-18 — WP-157 OPEN (tier A; model Claude Opus 5.5; user: "Open a separate WP to change the default Pool to "stream", measured first"): measured -- pooling identical spectra gains nothing in x, pooling different ones fails (eff 37 / 132) -- and Pool defaults to "stream"; version 6.33.0; stacked on WP-154; §12.90.
@@ -12331,7 +12332,7 @@ option 4 of N3 -- not yet scoped in the ledger) and WP-155 (speed, §12.84), in 
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 156 | The robust variance estimator redesigned (review 12.84 N3, option 4, user decision 2026-10-18): a design study before any code -- why the level of a robust noise run reads high on a coloured stream, the candidates measured (a controlled study with the law known, an engine prototype in the full loop), and one design proposed for the user's decision; no source change in this PR (one measurement script, dev/validation/wp156_selection_measure.m) | 152, 153, 154 | OPEN (2026-10-18): round 1, the design study, DONE (PR #205, merge 6d3b237; CI GREEN on 84c090a in the first round; local postflight 773/773); design F adopted by the user (union freeze, the acceptance bar as proposed); round 2, the implementation, version 6.34.0, in its PR |
+| 156 | The robust variance estimator redesigned (review 12.84 N3, option 4, user decision 2026-10-18): a design study before any code -- why the level of a robust noise run reads high on a coloured stream, the candidates measured (a controlled study with the law known, an engine prototype in the full loop), and one design proposed for the user's decision; no source change in this PR (one measurement script, dev/validation/wp156_selection_measure.m) | 152, 153, 154 | DONE (2026-10-18; round 1, the design study: PR #205, merge 6d3b237, CI GREEN on 84c090a in the first round, local postflight 773/773; round 2, the implementation of design F, version 6.34.0: PR #206, merge c36dcee, CI GREEN on 88b25dd in the first round -- ci_gate 786/786, warning inventory lsqvce:internal:testProbe only, the measure job reproducing the acceptance table to the last digit; local postflight on 88b25dd GREEN 786/786) |
 
 **The user's request (2026-10-18):** "Go ahead with WP-156" -- option 4 of N3 ("redesign the robust
 variance estimator"), third in the agreed order 153 -> 154 -> 156 -> 155, starting with a design
@@ -12586,14 +12587,24 @@ testRobustFreezesARejectedSetThatCycles (redFixture seed 1). New fixture redFixt
 seeded, optional blunders). testRobustLevelOfACleanStreamIsUnbiased's comment updated (its 6 %
 band stays; the tight form is the new red-stream test).
 
-*Open observation (pre-existing, not introduced here; recorded, not acted on).* On fixtures
-WITHOUT local parameters the white stream's robust/plain variance ratio reads slightly low: -0.78 %
-+- 0.30 (redFixture, 24 seeds, law estimated) and -0.55 % +- 0.26 (levelFixture, law known, 24
-seeds); the OLD code reads the same on the same seeds (-1.3 % over 8, the same seeds low). The
-controlled study with the law known reads 1.0000 +- 0.0006 for white noise at 9 and at 40 arcs, so
-it is neither the statistic nor the MAD's finite-sample behaviour; on the design study's fixture
-(arc biases, white stream at 0.5) the 20-seed mean is -0.04 / -0.13 / -0.07 % (+- 0.35) -- no offset there. A follow-up measurement
-should locate it (the engine's per-stream level against the controlled study's, stream by stream).
+*The white-stream observation -- resolved: sampling, not a bias (user: "Erledige diese Aufgabe
+hier", the follow-up proposed for it).* Recorded first as an open offset: on fixtures without
+local parameters the white stream's robust/plain variance read -0.78 % +- 0.30 (redFixture) and
+-0.55 % +- 0.26 (levelFixture), 24 seeds each, the old code alike. Measured since:
+- the two "confirmations" are ONE: redFixture and levelFixture seed the white stream with the same
+  formula (1e5 seed + 10 day + 'a'), so their white data are identical seed by seed;
+- the same levelFixture on 48 NEW seeds reads +0.22 % +- 0.17, all 72 together -0.01 % +- 0.14; a
+  scratch fixture with other draws reads +0.13 % +- 0.26 (independent arcs) and -0.31 % +- 0.25
+  (noise running on across a day's arcs, which the estimator does not assume), 24 seeds each; the
+  acceptance fixture -0.04 / -0.13 / -0.07 % +- 0.35;
+- the mechanism, per seed: the ratio follows the draw's excess of |e| > 3 over the Gaussian 0.27 %
+  (correlation -0.78 over 72 seeds), slope -0.39 % +- 0.04 per extra epoch against -0.47 % if each
+  such epoch takes its expected E[e^2 | |e| > 3] = 10.85 out of the 2304-epoch sum (IGG3's partial
+  zone takes a little less); the original 24 seeds carried +0.40 such epochs each, the 48 new ones
+  -0.78. At zero excess the ratio is -0.16 % +- 0.09.
+A robust estimator SHOULD read a sample with more large values than the Gaussian expects lower
+than the plain one; over draws it is unbiased. Nothing to change. Lesson recorded: two fixtures
+that share a seeding formula are one sample, not two.
 
 *Docs.* adjustVCEjoint (the Influence block rewritten: the statistic, snooping, the deficit, the
 freeze, measured numbers, cost; .robust .scale / .truncation / .frozen), the three kernel units,
@@ -12602,3 +12613,16 @@ html/index.html, three generated pages), tiers.csv, the kernel Contents, error_i
 identifiers at v6.34.0), category_exemptions.csv (vectorisation of the three, speed of wSnoop /
 truncationDeficit -- their cost is the sweep's), measure.yml (runs wp156_acceptance_measure),
 DEVELOPMENT.md (798 declared). Version 6.34.0 (changed results of every robust noise run: a minor).
+
+**Round 2 -- CI round.** 88b25dd GREEN in the first round: matlab (ci_gate 786/786, 27/27 suites,
+inventory lsqvce:internal:testProbe only), audit, release, and measure -- which ran
+dev/validation/wp156_acceptance_measure.m on the self-hosted runner (actions run 39146646206) and
+printed the acceptance table above to the last digit (every row of Part A, Part B's 717 of 720,
+-0.108 % +- 0.108, lag-1 0.900).
+
+**Closure.** WP-156 DONE: round 1 PR #205 (merge 6d3b237), round 2 PR #206 (merge c36dcee, on
+88b25dd). The white-stream resolution (e005c72) reached the branch after the merge and lands with
+this closure, a HANDOVER-only PR as the loop asks. Review 12.84's N3 is retired. Next in the agreed
+order: WP-155 (speed: structured Toeplitz whitening, FFT lag sums, no explicit inverses -- which
+can now build on lsqvce.kernel.lawInverse's Levinson / Trench machinery for the sweep's own
+factor).
