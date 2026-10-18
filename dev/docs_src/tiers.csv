@@ -59,6 +59,9 @@ kernel.decorrFactor,KERNEL,decorrelation factor of a dense covariance
 kernel.crossCorr,KERNEL,cross-correlation of residual streams
 kernel.whitenessCorr,KERNEL,whiteness (Ljung-Box) statistic
 kernel.redundancyLags,KERNEL,redundancy per lag without the dense W^-1
+kernel.lawInverse,KERNEL,explicit inverse of an arc's covariance law (Trench / Cholesky)
+kernel.wSnoop,KERNEL,Baarda's w per epoch with iterative data snooping (the robust statistic)
+kernel.truncationDeficit,KERNEL,the redundancy a robust sample loses to its truncation per lag
 util.getfielddef,KERNEL,struct field with default
 util.callUser,KERNEL,call a user function: outputs counted once and errors wrapped with cause
 util.toolboxVersion,KERNEL,the version string from Contents.m (runMeta provenance, setup report)

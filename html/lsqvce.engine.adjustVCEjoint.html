@@ -145,10 +145,8 @@ OPTIONS (Name/Value)
   &#x27;Influence&#x27; string     &quot;none&quot; (default) | &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;
            R6 WP-105: the ROBUST PASS INSIDE THE LOOP, in the KOCH
            convention -- the weight is a statement about the
-           OBSERVATION. Every pass ends with one residual sweep; the RAW
-           residuals, descaled by each epoch&#x27;s own declared accuracy
-           (Cep) and reduced to ONE value per epoch (chi-calibrated over
-           a multi-axis epoch&#x27;s rows, below), go through
+           OBSERVATION. Every pass&#x27;s sweep forms ONE statistic per epoch
+           (below: Baarda&#x27;s w since WP-156), which goes through
            LSQVCE.KERNEL.ROBUSTWEIGHTS per stream, and the factors
            enter the NEXT pass as an additive NUGGET on the temporal
            covariance (model.rowWeights -&gt; UserOpt.epochWeights -&gt;
@@ -173,36 +171,51 @@ OPTIONS (Name/Value)
            selects the epochs with large residuals, which no redundancy
            count undoes. So (user decision 2026-10-11) the component
            update (the sweep) sees only the REJECTED epochs, factor 0, as
-           nuggets (deleted); partial factors weight the solution only;
-           and the stream&#x27;s level is divided by the Gaussian truncation
-           factor of the rejection point kReject,
-           tau = F_{d+2}(q_k) / F_d(q_k) with P(chi2_d &gt; q_k) =
-           P(|N(0,1)| &gt; kReject) -- 0.9733 for IGG3&#x27;s k1 = 3 at d = 1,
-           1 for Huber, which rejects nothing (out.robust.truncation).
-           The RETURNED solution is hard as well: after the loop one
+           nuggets (deleted); partial factors weight the solution only.
+           THE STATISTIC AND THE TRUNCATION (WP-156, design F, user
+           decision 2026-10-18; HANDOVER 12.91). Deleting epoch i removes
+           exactly w_i^2 = (R v)_i^2 / R_ii from v&#x27;Pv (R = P Qvv P), Baarda&#x27;s
+           w for CORRELATED observations; the raw residual rejected on
+           until then correlates with it only by sqrt(c_i / Sigma_ii), so
+           on a coloured stream the kept epochs were truncated in the
+           wrong direction (review 12.84 N3: the level 1-2.5 % high) and a
+           red stream&#x27;s blunders went unseen (2 % x 2 sigma at phi 0.98:
+           35 % caught, the level 3.6 x). Now: (1) the statistic is w per
+           epoch on the arc&#x27;s law (LSQVCE.KERNEL.WSNOOP; a d-axis epoch
+           the sum of its axes&#x27; w^2, mapped to a normal deviate as R7-08),
+           in units of ONE SCALE PER STREAM, the previous pass&#x27;s MAD of the
+           final system (never the estimated level: perStreamWeights says
+           why); (2) every arc is snooped -- the largest |w| beyond the
+           rejection point deleted, the arc recomputed, until none is left
+           -- rebuilt from the data&#x27;s own exclusions every pass (pass 0,
+           whose scale is not known, rejects simultaneously); (3) the kept
+           epochs&#x27; truncation enters the REDUNDANCY lag by lag
+           (LSQVCE.KERNEL.TRUNCATIONDEFICIT: s_n - (1 - tau) [R D^-1 R]_n,
+           and the whole law&#x27;s pair), so the law, its level and sigma0
+           are consistent for any law -- the level is no longer divided
+           by tau, which is exact for the total only (a red stream&#x27;s
+           variance read +2.4 %); (4) a rejected set that cycles with
+           period 2 is frozen at the union of the two (freezeCycle;
+           out.robust.frozen). tau = F_{d+2}(q_k) / F_d(q_k), P(chi2_d &gt;
+           q_k) = P(|N(0,1)| &gt; kReject), is 0.9733 for IGG3&#x27;s k1 = 3 at d
+           = 1 and 1 for Huber, which rejects nothing.
+           The RETURNED solution is hard: after the loop one
            accumulation with the rejected epochs deleted and every
            partial factor 1, its sigma0 / Cxx corrected for the rejected
-           rows and the truncation (measured: with the partial factors in
-           that solve, sigma*sigma0 stayed 0.83 -- sigma0 gave the bias
-           back).
-           Mirror (mirrors/wp115/nugget.py): 0.978 / 0.976 (phi 0.5 /
-           white) before the factor. tau is the white-noise value: on a
-           coloured stream the deletion lowers the Helmert ratio less
-           (mirror, review 12.84 N3: 0.983 / 0.9955 / 0.998 at phi 0.5 /
-           0.9 / 0.98), so a robust run&#x27;s level and hard sigma0 read 1-2.5 %
-           high there -- not corrected. A HELD arc (no redundancy above
-           rounding) is not divided by tau, and the bins&#x27; stop test reads
-           the change of shape, which tau does not move (WP-152). Multi-axis streams are
-           weighted PER EPOCH by one chi-calibrated statistic (R7-08:
-           the d descaled rows&#x27; sum of squares mapped to an equivalent
-           N(0,1) deviate, so a clean 3-axis epoch is standardised like a
-           scalar residual; the RMS used before zeroed 24 % of clean
-           epochs under IGG3). The residuals
-           are standardised by ONE MAD SCALE PER STREAM, never by the
-           estimated level (perStreamWeights says why). Prior streams
-           are never re-weighted. Prefer &quot;igg3&quot; / &quot;bisquare&quot; for gross
-           blunders: Huber keeps c/|u| of their weight. &quot;none&quot; is bitwise
-           the plain estimator.
+           rows and the truncation -- exact for the total under w
+           (out.robust.truncation; measured: with the partial factors in
+           that solve, sigma*sigma0 stayed 0.83). MEASURED (HANDOVER
+           12.91, 20 seeds paired against &quot;none&quot;): a red stream&#x27;s variance
+           -0.24 / -0.10 / -0.11 % at phi 0.5 / 0.9 / 0.98 (the raw rule
+           +0.3 / +1.4 / +1.0 %), sigma0^2 -0.08 %, x unchanged; 2 % x 2
+           sigma blunders at phi 0.9: phi_b 0.900 (the raw rule 0.843).
+           Cost: one explicit law inverse per arc (O(m^2) for a Toeplitz
+           law, LSQVCE.KERNEL.LAWINVERSE) and the deficit&#x27;s lag sums
+           (O(m^2 log m)), against the sweep&#x27;s O(m^3) factor. A HELD arc
+           keeps its factor and the bins&#x27; stop test reads the change of
+           shape (WP-152). Prior streams are never re-weighted. Prefer
+           &quot;igg3&quot; / &quot;bisquare&quot; for gross blunders: Huber keeps c/|u| of
+           their weight. &quot;none&quot; is bitwise the plain estimator.
   &#x27;Tuning&#x27;    [] | 1xK   tuning constants of the influence (its defaults)
   &#x27;Verbose&#x27;   logical    per-iteration banner (default false)
   &#x27;StepSchedule&#x27; &#x27;none&#x27; (default) | &#x27;decay&#x27;.  WP-40 r2 (F-15): the
@@ -268,15 +281,18 @@ OPTIONS (Name/Value)
   .seed      1x1        the probe seed used (the given Seed, or the one
                         pinned for an unseeded run -- R7-37; passing it
                         back as &#x27;Seed&#x27; replays the run)
-  .robust    struct     .influence, .scale (1 x S, the MAD scale per
-                        stream of the last robust sweep), .streams
-                        (1 x S &#x27;satKey|obsType&#x27;, sorted), .factor
+  .robust    struct     .influence, .scale (1 x S, the scale of the w
+                        statistic per stream, w units: the MAD of the
+                        last robust sweep&#x27;s final system; WP-156),
+                        .streams (1 x S &#x27;satKey|obsType&#x27;, sorted), .factor
                         (nEpoch x 1, the final factors, ONE PER EPOCH
                         in sweep order -- a multi-axis epoch&#x27;s d rows
                         share it), .keys (A x 4 {sysID, obsType, day,
-                        arc}), .truncation (1 x S, the level&#x27;s
-                        truncation factor tau per stream, R7 WP-115
-                        part 3b); empty under &quot;none&quot; (R6 WP-105)
+                        arc}), .truncation (1 x S, the truncation factor
+                        tau per stream, which the hard sigma0 is divided
+                        by -- the level no longer is, WP-156), .frozen
+                        (the pass a cycling rejected set was frozen at,
+                        0 none; WP-156); empty under &quot;none&quot; (R6 WP-105)
   .arcKeys   M x 1 cell arc keys s&lt;sys&gt;_&lt;obsType&gt;_d&lt;day&gt;_a&lt;arc&gt; pinned
                         on pass 1 (LSQVCE.ENGINE.REDUNDANCY&#x27;s &#x27;arc&#x27; format) --
                         the ONE identity .sigma2 and Sigma2_0 align to
@@ -377,6 +393,13 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-18 (CEST, UTC+02:00), WP-156 (design F, user decision
+2026-10-18): the robust pass rejects on Baarda&#x27;s w per epoch, formed and
+snooped in the sweep (the separate residual pass is gone), the kept
+epochs&#x27; truncation enters the redundancy lag by lag (no division of the
+level by tau), a cycling rejected set is frozen at its union
+(history.robustFrozen, out.robust.frozen); N3 retired. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-18 (CEST, UTC+02:00), WP-157: Pool defaults to &quot;stream&quot;, as
 lsqvce.Options does. With assistance from Claude (Anthropic), model Claude
 Opus 5.5.

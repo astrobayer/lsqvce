@@ -118,10 +118,18 @@ Gross outliers belong to preprocessing. Inside the adjustment there are three to
 2. **Robust estimation** down-weights single epochs: `Robust = "igg3"` or `"bisquare"`
    together with `Estimate = "noise"` weights every epoch of every stream inside the
    joint estimator, standardised by the stream's own robust scale; a rejected epoch is
-   removed from the arc exactly. Prefer a redescending function (`igg3`, `bisquare`) for
-   gross blunders: Huber keeps part of their weight. The factors are in
-   `R.noise.robust.factor`; a pass that rejects more than 45 % of the epochs warns that
-   it has reached the breakdown point.
+   removed from the arc exactly. The statistic is Baarda's w for correlated observations
+   — what deleting the epoch removes from v'Pv — tested one epoch at a time, the largest
+   first (data snooping), and the truncation of the epochs that are kept is accounted
+   for lag by lag. So the level, the law and σ0 of a robust run equal those of a plain
+   run on clean data, on a coloured stream too (within 0.25 % in variance, measured),
+   and a small blunder on a strongly correlated stream is found: at a lag-1 correlation
+   of 0.98 a blunder of 2 standard deviations stands out by about 14 in w. Prefer a
+   redescending function (`igg3`, `bisquare`) for gross blunders: Huber keeps part of
+   their weight. The factors are in `R.noise.robust.factor`; a pass that rejects more
+   than 45 % of the epochs warns that it has reached the breakdown point. A rejected set
+   that flips back and forth between two passes is frozen at the union of the two
+   (`R.noise.robust.frozen` names the pass).
 3. **Diagnose, then decide.** Read the outlier tests in `R.report`, repair or remove the
    observations in `buildDay` and run again. Weights taken from a robust run can be made
    data: zero the rejected epochs' rows and mark them `excluded` in the day `buildDay`

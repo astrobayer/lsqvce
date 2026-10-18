@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.33.0 — User Manual</title>
+  <title>lsqvce 6.34.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.33.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.34.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1150,11 +1150,21 @@ automatically (<code>ArcFactors = true</code>).</li>
 <code>Robust = "igg3"</code> or <code>"bisquare"</code> together with
 <code>Estimate = "noise"</code> weights every epoch of every stream
 inside the joint estimator, standardised by the stream’s own robust
-scale; a rejected epoch is removed from the arc exactly. Prefer a
-redescending function (<code>igg3</code>, <code>bisquare</code>) for
-gross blunders: Huber keeps part of their weight. The factors are in
+scale; a rejected epoch is removed from the arc exactly. The statistic
+is Baarda’s w for correlated observations — what deleting the epoch
+removes from v’Pv — tested one epoch at a time, the largest first (data
+snooping), and the truncation of the epochs that are kept is accounted
+for lag by lag. So the level, the law and σ0 of a robust run equal those
+of a plain run on clean data, on a coloured stream too (within 0.25 % in
+variance, measured), and a small blunder on a strongly correlated stream
+is found: at a lag-1 correlation of 0.98 a blunder of 2 standard
+deviations stands out by about 14 in w. Prefer a redescending function
+(<code>igg3</code>, <code>bisquare</code>) for gross blunders: Huber
+keeps part of their weight. The factors are in
 <code>R.noise.robust.factor</code>; a pass that rejects more than 45 %
-of the epochs warns that it has reached the breakdown point.</li>
+of the epochs warns that it has reached the breakdown point. A rejected
+set that flips back and forth between two passes is frozen at the union
+of the two (<code>R.noise.robust.frozen</code> names the pass).</li>
 <li><strong>Diagnose, then decide.</strong> Read the outlier tests in
 <code>R.report</code>, repair or remove the observations in
 <code>buildDay</code> and run again. Weights taken from a robust run can
@@ -2481,7 +2491,9 @@ class="header-section-number">7.9.4</span> Robust runs</h3>
 come back in <code>R.noise.robust</code> when the robust pass runs
 inside the noise loop: <code>influence</code>, <code>scale</code> per
 stream, <code>factor</code> per epoch in sweep order, <code>keys</code>,
-and <code>truncation</code>. For the stand-alone IRLS they are in
+<code>truncation</code> (the factor the hard σ0 is corrected by) and
+<code>frozen</code> (the pass a cycling rejected set was frozen at, 0 if
+none). For the stand-alone IRLS they are in
 <code>R.noise.influence</code> and <code>R.noise.scale</code>, with
 per-pass <code>scale</code>, <code>dx</code>, <code>nDown</code> and
 <code>nZero</code> in <code>R.history</code>. Down-weighted epochs are

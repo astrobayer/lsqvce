@@ -8,6 +8,10 @@ function tests = test_precision
 %
 %   See also TEST_RELIABILITY, TEST_SPEED, TEST_LSQACCUM
 %
+%   Updated 2026-10-18 (CEST, UTC+02:00), WP-156: the robust w statistic's
+%   kernel -- lawInverse, wSnoop (deletion removes exactly w^2), the truncation
+%   deficit and its per-lag consistency. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: testDecorrFactorIsExact's
 %   cond is 345, not ~20; the MA whitener's mirror figure is its worst case,
 %   2.6e-13; testCheckPSDVerdicts is a precision test. With assistance from
@@ -1015,3 +1019,189 @@ function testArmaAcvOfANearUnitRootIsTheSameLawForAnyN(tc)
     tc.verifyEqual(r5(1), 1 / (1 - p5^2), 'RelTol', 1e-8);
     lsqvce.util.log.inventory('reset');
 end
+
+%% ================================================== WP-156: the robust w statistic
+function testLawInverseMatchesDenseInverse(tc)
+% categories: precision, reference
+% lsqvce.kernel.lawInverse inverts a Toeplitz law through Levinson-Durbin and
+% the Trench recursion (O(N^2)); it must equal the dense inverse.
+    for phi = [0.95 0.995]
+        Sig = toeplitz(phi .^ (0:499));
+        P = lsqvce.kernel.lawInverse(Sig);
+        Pd = inv(Sig);
+        % tol: 1e-11 relative -- measured 6e-14 at phi 0.95 and 1.5e-12 at
+        % 0.995 (cond 1.6e5): the recursion's error grows with the condition
+        tc.verifyEqual(norm(P - Pd, 'fro') / norm(Pd, 'fro'), 0, 'AbsTol', 1e-11, sprintf('phi %.3f', phi));
+        tc.verifyEqual(P, P.', 'the inverse is symmetric');
+    end
+    % a PSD law: a band-limited spectrum through psd2acv
+    f = linspace(0, 0.1, 257).';  S = 1 ./ (1 + (f / 0.01).^2);
+    r = lsqvce.kernel.psd2acv(f, S, 5, 300);
+    Sig = toeplitz(r);
+    % tol: 1e-10 -- the same recursion on a smoother law
+    tc.verifyEqual(norm(lsqvce.kernel.lawInverse(Sig) * Sig - eye(300), 'fro'), 0, 'AbsTol', 1e-10);
+end
+
+function testLawInverseTakesTheDensePathOffToeplitz(tc)
+% categories: precision
+% A law that is not Toeplitz (a per-row variance after N/2) and a diagonal law
+% leave the structured path; each must still be the exact inverse.
+    Sig = toeplitz(0.9 .^ (0:199));
+    s = [ones(100, 1); 2 * ones(100, 1)];
+    Sig2 = Sig .* sqrt(s * s.');
+    % tol: 1e-12 relative -- the Cholesky path on cond ~4e2
+    tc.verifyEqual(norm(lsqvce.kernel.lawInverse(Sig2) - inv(Sig2), 'fro') / norm(inv(Sig2), 'fro'), 0, 'AbsTol', 1e-12);
+    D = diag(1 + (1:50).' / 10);
+    tc.verifyEqual(lsqvce.kernel.lawInverse(D), diag(1 ./ diag(D)), 'AbsTol', 1e-15, 'a diagonal law: 1 / variance');
+    tc.verifyError(@() lsqvce.kernel.lawInverse(-eye(3)), 'lsqvce:lawInverse:notPD');
+    tc.verifyError(@() lsqvce.kernel.lawInverse(ones(2, 3)), 'lsqvce:lawInverse:notSquare');
+end
+
+function testDeletionRemovesExactlyWSquared(tc)
+% categories: precision, contract, reference
+% THE identity design F rests on (HANDOVER 12.91): deleting an epoch from an
+% adjustment under a correlated law -- local parameters re-estimated --
+% removes exactly Baarda's w^2 = (R v)_i^2 / R_ii from v'Pv.
+    m = 128;  Sig = toeplitz(0.9 .^ (0:m-1));  P = lsqvce.kernel.lawInverse(Sig);
+    rs = RandStream('mt19937ar', 'Seed', 3);
+    B = [ones(m, 1), (1:m).' / m];
+    e = chol(Sig, 'lower') * randn(rs, m, 1) + B * [2; 1];
+    e(57) = e(57) + 1.5;                           % 1.5 marginal sigma: a 4-5 sigma w
+    z = lsqvce.kernel.wSnoop(P, e, {B}, false(m, 1), Inf, 1);
+    om = @(K) omegaOf(Sig(K, K), B(K, :), e(K));
+    for i = [1 57 128]
+        K = setdiff(1:m, i);
+        % tol: 1e-10 relative -- two exact solves differenced
+        tc.verifyEqual(om(1:m) - om(K), z(i)^2, 'RelTol', 1e-10, sprintf('epoch %d', i));
+    end
+    % a two-axis arc: the epoch statistic is the sum of its axes' w^2, and
+    % deleting the epoch removes exactly that
+    e2 = [e, chol(Sig, 'lower') * randn(rs, m, 1)];
+    [~, q] = lsqvce.kernel.wSnoop(P, e2, {B, B}, false(m, 2), Inf, 1);
+    K = setdiff(1:m, 57);
+    gone = om(1:m) - om(K) + omegaOf(Sig, B, e2(:, 2)) - omegaOf(Sig(K, K), B(K, :), e2(K, 2));
+    tc.verifyEqual(gone, q(57), 'RelTol', 1e-10, 'two axes: the epoch removes the sum of its w^2');   % tol: as above
+end
+
+function om = omegaOf(S, B, e)
+%OMEGAOF  The weighted residual sum of squares of the GLS fit of B to e under S.
+    W = chol(S);  Bb = W.' \ B;  eb = W.' \ e;
+    v = eb - Bb * (Bb \ eb);
+    om = v.' * v;
+end
+
+function testSnoopingFindsSmallBlundersOnARedStream(tc)
+% categories: robustness, precision
+% At phi 0.98 a 2-sigma blunder is a ~14-sigma w; the raw residual sees 2
+% sigma. Snooping must find every planted blunder and, on the clean epochs,
+% reject about the Gaussian 0.27 % beyond 3.
+    m = 256;  Sig = toeplitz(0.98 .^ (0:m-1));  P = lsqvce.kernel.lawInverse(Sig);  L = chol(Sig, 'lower');
+    rs = RandStream('mt19937ar', 'Seed', 5);  B = ones(m, 1);
+    nHit = 0;  nPl = 0;  nFa = 0;  nClean = 0;
+    for a = 1:40
+        e = L * randn(rs, m, 1);
+        pl = randperm(rs, m, 5).';
+        e(pl) = e(pl) + 2 * sign(randn(rs, 5, 1));
+        [~, ~, del] = lsqvce.kernel.wSnoop(P, e, {B}, false(m, 1), 3, 1);
+        nHit = nHit + nnz(del(pl));  nPl = nPl + 5;
+        cl = true(m, 1);  cl(pl) = false;
+        nFa = nFa + nnz(del & cl);  nClean = nClean + nnz(cl);
+    end
+    tc.verifyEqual(nHit, nPl, 'every 2-sigma blunder at phi 0.98 is snooped');
+    % tol: 0.27 % of the 10040 clean epochs is 27; four Poisson sd either side
+    tc.verifyLessThanOrEqual(abs(nFa - 0.0027 * nClean), 4 * sqrt(0.0027 * nClean), ...
+        sprintf('clean epochs rejected: %d of %d', nFa, nClean));
+end
+
+function testTruncationDeficitMatchesDenseForm(tc)
+% categories: precision, reference
+% lsqvce.kernel.truncationDeficit forms the lag sums of (1 - tau) R D^-1 R in
+% s's convention through FFT blocks; it must equal the dense matrix's.
+    m = 128;  Sig = toeplitz(0.9 .^ (0:m-1));  P = lsqvce.kernel.lawInverse(Sig);
+    B = [ones(m, 1), (1:m).' / m];
+    del = false(m, 1);  del([20 77]) = true;  tb = 1 - 0.9733;
+    ex = false(m, 1);  ex(100) = true;
+    [du, dt] = lsqvce.kernel.truncationDeficit(P, {B}, ex, del, tb, m);
+    K = ~del & ~ex;
+    PK = zeros(m);  PK(K, K) = inv(Sig(K, K));
+    G = PK * B;  R = PK - G * ((B.' * PK * B) \ G.');
+    M = R(:, K) * (R(K, :) ./ diag(R(K, K)));
+    ud = arrayfun(@(n) sum(diag(M, -n)), 0:m-1).';
+    ud = tb * [ud(1); 2 * ud(2:end)];
+    % tol: 1e-12 relative -- FFT lag sums against the dense diagonals
+    tc.verifyEqual(norm(du - ud) / norm(ud), 0, 'AbsTol', 1e-12);
+    % tol: 1e-10 -- trace(R D^-1 R Sigma) is the kept count, as R Sigma R = R
+    tc.verifyEqual(dt, tb * trace(M * Sig), 'RelTol', 1e-10);
+    tc.verifyEqual(dt, tb * nnz(K), 'RelTol', 1e-10);
+end
+
+function testDeficitMakesEveryLagConsistent(tc)
+% categories: precision, robustness
+% Design F's consistency claim at the kernel level: snooped AR(1) arcs
+% (phi 0.9, the law known) -- the per-lag Omega of the kept system has the
+% expectation s_n - du_n, not tau s_n. Lag 1 is where a uniform tau misses
+% (the kept epochs are truncated in their w directions, whose overlap
+% doubles the deficit at lag 1: -3.2 % measured).
+    m = 128;  phi = 0.9;  nArc = 4000;
+    Sig = toeplitz(phi .^ (0:m-1));  L = chol(Sig, 'lower');  P = lsqvce.kernel.lawInverse(Sig);
+    B = [ones(m, 1), ((1:m).' - (m+1)/2) / m];
+    k = 3;  tau = 1 - 2*k*exp(-k^2/2) / sqrt(2*pi) / erf(k / sqrt(2));
+    rs = RandStream('mt19937ar', 'Seed', 11);
+    OM = zeros(nArc, 2);  SS = OM;  DU = OM;
+    for a = 1:nArc
+        e = L * randn(rs, m, 1);
+        [~, ~, del] = lsqvce.kernel.wSnoop(P, e, {B}, false(m, 1), k, 1);
+        K = ~del;  PK = zeros(m);  PK(K, K) = inv(Sig(K, K));
+        G = PK * B;  R = PK - G * ((B.' * PK * B) \ G.');
+        et = R * e;
+        OM(a, :) = [et.' * et, 2 * (et(2:end).' * et(1:end-1))];
+        SS(a, :) = [trace(R), 2 * sum(diag(R, -1))];
+        du = lsqvce.kernel.truncationDeficit(P, {B}, false(m, 1), del, 1 - tau, 2);
+        DU(a, :) = du.';
+    end
+    rel = @(x, n) mean(x) / mean(SS(:, n));
+    % tol: 0.009 / 0.013 -- four Monte Carlo standard errors at lags 0 / 1
+    % (0.0021 / 0.0032 at 4000 arcs; measured +0.001 / -0.006 at 1500)
+    tc.verifyEqual(rel(OM(:, 1) - (SS(:, 1) - DU(:, 1)), 1), 0, 'AbsTol', 0.009, 'lag 0: E[Omega] = s - du');
+    tc.verifyEqual(rel(OM(:, 2) - (SS(:, 2) - DU(:, 2)), 2), 0, 'AbsTol', 0.013, 'lag 1: E[Omega] = s - du');
+    tc.verifyLessThan(rel(OM(:, 2) - tau * SS(:, 2), 2), -0.013, ...
+        'a uniform tau misses lag 1 (the reason for the per-lag deficit)');
+end
+
+function testRobustKernelIsScaleEquivariant(tc)
+% categories: metamorphic
+% A level is a scale, never a statistic: Sig -> c Sig gives inv(Sig) / c
+% (lawInverse); residuals x c with the stream's scale x c leave every w-based
+% statistic and the snooped set unchanged (wSnoop); the deficit is linear in
+% 1 - tau and blind to the level (truncationDeficit).
+    m = 96;  Sig = toeplitz(0.8 .^ (0:m-1));  c = 7.3;
+    P = lsqvce.kernel.lawInverse(Sig);
+    % tol: 1e-12 relative in norm -- one recursion on a scaled first column (the
+    % tridiagonal inverse's zeros are rounding, so not entry by entry)
+    Pc = lsqvce.kernel.lawInverse(c * Sig);
+    tc.verifyEqual(norm(Pc - P / c, 'fro') / norm(P / c, 'fro'), 0, 'AbsTol', 1e-12);
+    rs = RandStream('mt19937ar', 'Seed', 9);
+    e = chol(Sig, 'lower') * randn(rs, m, 2);  e(40, 1) = e(40, 1) + 4;
+    B = {ones(m, 1), ones(m, 1)};
+    [z1, ~, d1] = lsqvce.kernel.wSnoop(P, e, B, false(m, 2), 3, 1);
+    [z2, ~, d2] = lsqvce.kernel.wSnoop(P, c * e, B, false(m, 2), 3, c);
+    tc.verifyEqual(d2, d1, 'the snooped set does not depend on the level');
+    ok = isfinite(z1);
+    tc.verifyEqual(z2(ok), z1(ok), 'AbsTol', 1e-10, 'the statistic in units of the scale');   % tol: rounding of a rescale
+    del = false(m, 1);  del(40) = true;
+    du1 = lsqvce.kernel.truncationDeficit(P, B, false(m, 2), del, 0.02, 5);
+    du2 = lsqvce.kernel.truncationDeficit(P, B, false(m, 2), del, 0.04, 5);
+    tc.verifyEqual(du2, 2 * du1, 'RelTol', 1e-12, 'linear in 1 - tau');   % tol: one product
+end
+
+function testRobustKernelRefusesMismatchedSizes(tc)
+% categories: contract
+% wSnoop and truncationDeficit take the arc's inverse law and per-axis pieces;
+% pieces that do not match it are refused, never broadcast.
+    P = eye(8);
+    tc.verifyError(@() lsqvce.kernel.wSnoop(P, zeros(7, 1), {zeros(7, 0)}, false(7, 1), 3, 1), 'lsqvce:wSnoop:badSize');
+    tc.verifyError(@() lsqvce.kernel.wSnoop(P, zeros(8, 2), {zeros(8, 0)}, false(8, 2), 3, 1), 'lsqvce:wSnoop:badSize');
+    tc.verifyError(@() lsqvce.kernel.truncationDeficit(P, {zeros(8, 0)}, false(8, 1), false(7, 1), 0.03, 4), ...
+        'lsqvce:truncationDeficit:badSize');
+end
+

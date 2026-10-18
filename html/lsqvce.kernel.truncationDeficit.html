@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.kernel.truncationDeficit</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.truncationDeficit</div>
+<h1>lsqvce.kernel.truncationDeficit</h1>
+<div class="purpose">The redundancy a robust sample loses to its truncation, lag by lag.</div>
+<h2>Description</h2>
+<pre class="example">[du, dt] = LSQVCE.KERNEL.TRUNCATIONDEFICIT(P, X, excl, del, tauBar, nL)
+
+The robust noise estimator deletes the epochs it rejects, and the epochs
+it KEEPS are a Gaussian sample truncated at the rejection point in their
+own w direction (LSQVCE.KERNEL.WSNOOP). For a kept epoch j that direction
+is R e_j / sqrt(R_jj), so the expected outer product of etilde = P e (what
+the per-lag Omega reads) loses
+    (1 - tau) R D^-1 R,     D = diag(R) over the kept epochs,
+and the estimator&#x27;s expectation of Omega_n is s_n - du_n instead of s_n.
+This returns du in LSQVCE.KERNEL.REDUNDANCYLAGS&#x27; convention for s (lag 0,
+then twice each sub-diagonal sum) and dt, the deficit of the whole law&#x27;s
+Helmert pair, trace(R D^-1 R T) = the kept count (R T R = R for this R).
+Subtracting them from the redundancy makes every lag -- the law&#x27;s shape,
+its level and sigma0 -- consistent to first order in the rejection rate
+for ANY law (WP-156, design F): a uniform division by tau is exact for the
+total only, and over-corrected a red stream&#x27;s marginal variance by up to
+1 / tau - 1 = 2.7 % (HANDOVER 12.91). The arc is d single-axis series
+sharing the temporal law (the separable model); du and dt are summed
+over the axes.</pre>
+<h3>Input</h3>
+<pre class="example">P       m x m   inverse temporal law (LSQVCE.KERNEL.LAWINVERSE)
+X       1 x d   cell, X{k} m x n_k: the parameters of axis k estimated
+                with this law (the arc&#x27;s local design, descaled)
+excl    m x d   logical, rows excluded from the data
+del     m x 1   logical, the epochs the robust pass rejected (deleted)
+tauBar  1x1     1 - tau, tau the truncation factor of one axis at the
+                rejection point (0: no deficit)
+nL      1x1     lags wanted (&lt;= m)</pre>
+<h3>Output</h3>
+<pre class="example">du   nL x 1  the deficit of s, summed over the axes
+dt   1x1     the deficit of the whole law&#x27;s trace, tauBar x kept rows</pre>
+<h3>COST. O(m^2) to form R per axis and O(m^2 log m) for the lag sums (one</h3>
+<pre class="example">FFT per column, in blocks of 512 columns).</pre>
+<h3>Example</h3>
+<pre class="example">Sig = toeplitz(0.9 .^ (0:127));  P = lsqvce.kernel.lawInverse(Sig);
+du = lsqvce.kernel.truncationDeficit(P, {ones(128, 1)}, false(128, 1), ...
+                                     false(128, 1), 1 - 0.9733, 128);</pre>
+<h3>Accuracy</h3>
+<pre class="example">Exact linear algebra on P: du equals the lag sums of the dense (1 -
+tau) R D^-1 R to 1e-12 and dt the kept count to 1e-10 (test_precision
+(testTruncationDeficitMatchesDenseForm)); with it the per-lag Omega of
+4000 snooped AR(1) arcs, phi 0.9, matches s - du at lags 0 and 1 within
+four Monte Carlo standard errors, where tau s misses lag 1 by 3 %
+(testDeficitMakesEveryLagConsistent). In the full loop (20 seeds,
+paired against Robust &quot;none&quot;): a red stream&#x27;s variance -0.10 % at phi
+0.9 where the uniform division read +2.4 % (HANDOVER 12.91).</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:truncationDeficit:badSize   X, excl or del do not match P
+
+See also LSQVCE.KERNEL.WSNOOP, LSQVCE.KERNEL.LAWINVERSE,
+         LSQVCE.KERNEL.REDUNDANCYLAGS
+
+Created 2026-10-18 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Opus 5.5 -- WP-156 round 2, design F.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

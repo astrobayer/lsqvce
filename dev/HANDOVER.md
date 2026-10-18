@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-156 OPEN, the design study (tier A; model Claude Opus 5.5; user: "Go ahead with WP-156"): N3 diagnosed -- the robust pass rejects on the raw residual while a deletion removes Baarda's w for correlated observations, so the kept epochs are truncated in the wrong direction (and a red stream's blunders go undetected: 2 % x 2 sigma at phi 0.98 read the level 3.6 x); candidates measured with the law known and in an engine prototype; proposed design F (w, data snooping, the per-lag truncation deficit in the redundancy, a 2-cycle frozen) -- clean levels within 0.25 % of a non-robust run where today's rule reads +1.4 %, x unchanged; awaiting the user's decision; no source change; §12.91.
+Last substantive update: 2026-10-18 — WP-156 round 2 OPEN, the implementation of design F (tier A; model Claude Opus 5.5; user: "Adopt design F as proposed ... Go ahead with the implementation once #205 is merged"): the robust pass rejects on Baarda's w, snooped in the sweep, the kept epochs' truncation in the redundancy lag by lag, a cycling set frozen at its union; three kernel units; the acceptance bar met in every row (20 seeds paired: every stream and sigma0^2 within 0.5 %, 717 of 720 small blunders on a red stream); a lagged scale found and fixed on the way (the scale is level-free); round 1 DONE (PR #205, merge 6d3b237); version 6.34.0; §12.91.
+Preceding entry: Last substantive update: 2026-10-18 — WP-156 OPEN, the design study (tier A; model Claude Opus 5.5; user: "Go ahead with WP-156"): N3 diagnosed -- the robust pass rejects on the raw residual while a deletion removes Baarda's w for correlated observations, so the kept epochs are truncated in the wrong direction (and a red stream's blunders go undetected: 2 % x 2 sigma at phi 0.98 read the level 3.6 x); candidates measured with the law known and in an engine prototype; proposed design F (w, data snooping, the per-lag truncation deficit in the redundancy, a 2-cycle frozen) -- clean levels within 0.25 % of a non-robust run where today's rule reads +1.4 %, x unchanged; design F adopted by the user (union freeze, the bar as proposed), the implementation is round 2 after this PR merges; no source change; §12.91.
 Preceding entry: Last substantive update: 2026-10-18 — WP-154 and WP-157 DONE (PR #202, merge d8584ca; PR #203, merge ace8166; CI GREEN in the first round on 1f068d3 and 5f1254d: ci_gate 772/772 and 773/773, inventory lsqvce:internal:testProbe only; main's push CI on ace8166 GREEN): the closures in §12.89 and §12.90, one HANDOVER-only PR; version 6.33.0. Open: WP-156 (robust variance redesign), WP-155 (speed).
 Preceding entry: Last substantive update: 2026-10-18 — WP-157 OPEN (tier A; model Claude Opus 5.5; user: "Open a separate WP to change the default Pool to "stream", measured first"): measured -- pooling identical spectra gains nothing in x, pooling different ones fails (eff 37 / 132) -- and Pool defaults to "stream"; version 6.33.0; stacked on WP-154; §12.90.
 Preceding entry: Last substantive update: 2026-10-18 — WP-154 OPEN (tier A; model Claude Opus 5.5; user: "Please continue"): the closed-loop findings of §12.84 reproduced and acted on -- Noise.Smooth defaults to 1 (measured better in x, formal errors and passes; the review's arc-length grid was measured and withdrawn: it biased the level low at high phi), three model checks warn (pooled spectra, a level varying by arc, long memory against short arcs; R.noise.checks), the plug-in formal errors documented; version 6.32.0; §12.89.
@@ -12330,7 +12331,7 @@ option 4 of N3 -- not yet scoped in the ledger) and WP-155 (speed, §12.84), in 
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 156 | The robust variance estimator redesigned (review 12.84 N3, option 4, user decision 2026-10-18): a design study before any code -- why the level of a robust noise run reads high on a coloured stream, the candidates measured (a controlled study with the law known, an engine prototype in the full loop), and one design proposed for the user's decision; no source change in this PR (one measurement script, dev/validation/wp156_selection_measure.m) | 152, 153, 154 | OPEN (2026-10-18): design note below, awaiting the user's decision |
+| 156 | The robust variance estimator redesigned (review 12.84 N3, option 4, user decision 2026-10-18): a design study before any code -- why the level of a robust noise run reads high on a coloured stream, the candidates measured (a controlled study with the law known, an engine prototype in the full loop), and one design proposed for the user's decision; no source change in this PR (one measurement script, dev/validation/wp156_selection_measure.m) | 152, 153, 154 | OPEN (2026-10-18): round 1, the design study, DONE (PR #205, merge 6d3b237; CI GREEN on 84c090a in the first round; local postflight 773/773); design F adopted by the user (union freeze, the acceptance bar as proposed); round 2, the implementation, version 6.34.0, in its PR |
 
 **The user's request (2026-10-18):** "Go ahead with WP-156" -- option 4 of N3 ("redesign the robust
 variance estimator"), third in the agreed order 153 -> 154 -> 156 -> 155, starting with a design
@@ -12495,6 +12496,12 @@ law) would take the dense path at the measured cost.
   and bisquare; with 2 % blunders of 2 sigma at phi 0.9 the level within 2 % and >= 95 % of the
   blunders rejected; convergence in every seed.
 
+**The user's decision (2026-10-18):** "Adopt design F as proposed: union freeze for the 2-cycle and
+the acceptance bar from §12.91. Go ahead with the implementation once #205 is merged." So: (1) F,
+(2) the union freeze, (3) the bar above, pinned by the implementation's tests. The implementation is
+round 2 of WP-156 (its own PR on claude/wp-156, main merged in after #205), as WP-33 and WP-40 ran
+in rounds.
+
 **Residual limits (measured, common to every rule).** The MAD under 2 % contamination is itself
 ~2 % high (the rejected epochs push the median up), so the threshold sits a little higher, fewer
 clean epochs are truncated than tau assumes and the level reads +0.4-0.5 % -- the same for A on white
@@ -12505,3 +12512,93 @@ data (lean: 1.0038 raw, 1.0044 F-statistic). Second-order interactions between d
 the structured deficit, the docs. The prototype lives in the session's scratch tree only; the
 measurement script that stays is dev/validation/wp156_selection_measure.m (the controlled study,
 every lean number above, ~1 h at the default R).
+
+**Round 1 closure (the design study).** PR #205, merge 6d3b237; CI GREEN on 84c090a in the first
+round (matlab, audit, measure, release); local postflight on 84c090a GREEN 773/773, inventory
+lsqvce:internal:testProbe only. The user's decision commit (4555a68) reached the branch after the
+merge and travels with round 2.
+
+**Round 2 -- the implementation of design F (2026-10-18, model Claude Opus 5.5, tier A), version
+6.34.0.**
+
+*Where it lives.* The statistic and the deficit are formed in the noise SWEEP, which already loads
+every arc with its law, residual and local design (oneArc -> arcRobust); the robust pass no longer
+needs its own residual pass over the data (robustSweep reads the sweep's statistics). Three kernel
+units, each with help, ACCURACY and tests:
+- `lsqvce.kernel.lawInverse` -- the explicit inverse of an arc law: a Toeplitz law by
+  Levinson-Durbin + the Trench recursion of the Gohberg-Semencul form (O(m^2)), a diagonal law
+  directly, anything else through Cholesky; a three-column residual guard falls back to Cholesky
+  when the recursion lost digits. Measured 0.06 / 0.13 / 0.25 s at m = 2000 / 3000 / 4000 against
+  0.08 / 0.25 / 0.48 s dense (error 4e-14 at phi 0.95, 1.5e-12 at 0.995).
+- `lsqvce.kernel.wSnoop` -- Baarda's w per epoch (R v / sqrt(R_ii), R from the inverse law with the
+  arc's local columns and the rows excluded on one axis projected out), a d-axis epoch the sum of
+  its axes' w^2 mapped to a normal deviate (as R7-08), iterative data snooping by exact rank-one
+  deletions; the set starts from the data's own exclusions every pass.
+- `lsqvce.kernel.truncationDeficit` -- (1 - tau) R D^-1 R's lag sums in s's convention by FFT
+  blocks, and the whole law's pair, tauBar x the kept count (R T R = R for this R).
+`columnLagSums` moved from redundancyLags' local functions to +kernel/private (shared, one
+implementation). adjustVCEjoint: robustState / robustContext carry the scale, the level, the
+factors and the deficit's switch into the sweep; pass 0 (robustPassZero) sweeps once without
+snooping; the level is no longer divided by tau (arcLevels replaces `truncated`); freezeCycle
+freezes a period-2 cycle at its union (history.robustFrozen, out.robust.frozen); epochResiduals,
+chiCalibrated and chi2Median are gone. The hard solution keeps its tau (hardFixOf). A plain run is
+bitwise unchanged (the robust context is off and arcRobust returns before any work).
+
+*Found by the acceptance run, before it was right -- the scale must be level-free.* The first
+implementation carried the stream's scale of w from one pass to the next in w units (the
+prototype had settled the MAD inside each pass). w is standardised by the law, which carries the
+estimated LEVEL, so w scales as 1 / sqrt(L): from pass 0 (the declared level) to pass 1 (the
+estimated one) the scale of a stream declared 1 and truly 0.5 jumped 2 x, one pass snooped ~13 % of
+its epochs, and the set cycled and froze at a bad union -- measured on the design study's fixture
+(20 seeds): the white stream's variance -5.9 % (IGG3) and -11.0 % (bisquare), a frozen cycle in 116
+of 120 runs, while the red stream and sigma0 looked fine. The scale is now carried in level-free
+units, the scale of w sqrt(L), L the stream's level factor the arcs were weighted with
+(model.streamSigma2; robustContext), and applied as s / sqrt(L) -- the threshold follows every
+change of the level exactly, as a raw residual's would. Rerun: measured on the same fixture, 20 seeds paired against Robust "none" (dev/validation/wp156_acceptance_measure.m, local run 2026-10-18 18:35; the CI measure job reruns it on this PR):
+
+| phi_b | influence | var a - 1 | var b - 1 | sigma0^2 - 1 | converged | frozen |
+|---|---|---|---|---|---|---|
+| 0.5 | IGG3 | -0.04 +- 0.37 % | -0.39 +- 0.18 % | -0.08 +- 0.02 % | 20/20 | 11 |
+| 0.5 | bisquare | +0.09 +- 0.01 % | -0.06 +- 0.01 % | -0.04 % | 20/20 | 0 |
+| 0.9 | IGG3 | -0.13 +- 0.35 % | -0.16 +- 0.06 % | -0.04 +- 0.04 % | 20/20 | 9 |
+| 0.9 | bisquare | +0.05 +- 0.04 % | -0.08 +- 0.02 % | -0.04 % | 20/20 | 1 |
+| 0.98 | IGG3 | -0.07 +- 0.35 % | -0.17 +- 0.11 % | -0.07 +- 0.02 % | 20/20 | 10 |
+| 0.98 | bisquare | -0.13 +- 0.09 % | -0.11 +- 0.04 % | -0.04 % | 20/20 | 7 |
+
+With 2 % x 2 sigma blunders on both streams, phi_b 0.9, 12 seeds: IGG3 rejects 717 of the red stream's 720 blunders (99.6 %), its variance -0.11 +- 0.11 % against the clean plain run and its lag-1 0.900 +- 0.002 (Robust "none": +8.3 % and 0.836). **The bar is met in every row** (every stream and sigma0^2 within 0.5 %, >= 95 % rejected, the level within 2 %, convergence in all 132 robust runs). About half the IGG3 runs freeze a cycle (9-11 of 20), every one converged.
+
+*Tests (11 new; each new full-loop test fails on the old code).* test_precision:
+testLawInverseMatchesDenseInverse, testLawInverseTakesTheDensePathOffToeplitz,
+testDeletionRemovesExactlyWSquared (the identity design F rests on: deleting an epoch removes w^2
+to 1e-10, one axis and two), testSnoopingFindsSmallBlundersOnARedStream,
+testTruncationDeficitMatchesDenseForm, testDeficitMakesEveryLagConsistent (4000 snooped AR(1) arcs:
+the per-lag Omega has expectation s - du at lags 0 and 1; tau s misses lag 1 by 3 %),
+testRobustKernelIsScaleEquivariant, testRobustKernelRefusesMismatchedSizes (the two new
+identifiers fire). test_speedBudget: testLawInverseBeatsTheDenseInverse (< 0.85 of the dense
+inverse at m = 3000, measured 0.52). test_vcePolicy, through lsqvce.fit:
+testRobustLevelOfARedStreamMatchesThePlainRun (the law known, phi 0.9 / 0.98, 16 seeds IGG3 and 6
+bisquare: the robust level within 0.5 % of the plain one -- the old rule read +2.2 / +2.5 %),
+testRobustKeepsTheVarianceOfARedStreamUnderTruncation (the law estimated, 6 seeds: the red
+stream's variance and sigma0^2 within 0.5 % -- the old rule +2.1 %, a uniform tau +2.4 %),
+testRobustCatchesSmallBlundersOnARedStream (2 % x 2 sigma, phi 0.9: >= 95 % of the red stream's
+blunders, its level within 2 %, its lag-1 within 0.02 of the clean run), and
+testRobustFreezesARejectedSetThatCycles (redFixture seed 1). New fixture redFixture (white + AR(1),
+seeded, optional blunders). testRobustLevelOfACleanStreamIsUnbiased's comment updated (its 6 %
+band stays; the tight form is the new red-stream test).
+
+*Open observation (pre-existing, not introduced here; recorded, not acted on).* On fixtures
+WITHOUT local parameters the white stream's robust/plain variance ratio reads slightly low: -0.78 %
++- 0.30 (redFixture, 24 seeds, law estimated) and -0.55 % +- 0.26 (levelFixture, law known, 24
+seeds); the OLD code reads the same on the same seeds (-1.3 % over 8, the same seeds low). The
+controlled study with the law known reads 1.0000 +- 0.0006 for white noise at 9 and at 40 arcs, so
+it is neither the statistic nor the MAD's finite-sample behaviour; on the design study's fixture
+(arc biases, white stream at 0.5) the 20-seed mean is -0.04 / -0.13 / -0.07 % (+- 0.35) -- no offset there. A follow-up measurement
+should locate it (the engine's per-stream level against the controlled study's, stream by stream).
+
+*Docs.* adjustVCEjoint (the Influence block rewritten: the statistic, snooping, the deficit, the
+freeze, measured numbers, cost; .robust .scale / .truncation / .frozen), the three kernel units,
+Manual 05 (Outliers) and 07 (Robust runs), RELEASE_NOTES, the help index (helptoc.xml,
+html/index.html, three generated pages), tiers.csv, the kernel Contents, error_ids.csv (four
+identifiers at v6.34.0), category_exemptions.csv (vectorisation of the three, speed of wSnoop /
+truncationDeficit -- their cost is the sweep's), measure.yml (runs wp156_acceptance_measure),
+DEVELOPMENT.md (798 declared). Version 6.34.0 (changed results of every robust noise run: a minor).

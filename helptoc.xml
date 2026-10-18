@@ -64,6 +64,9 @@
       <tocitem target="html/lsqvce.engine.psdVCE.html">lsqvce.engine.psdVCE</tocitem>
       <tocitem target="html/lsqvce.engine.arcVarianceFactors.html">lsqvce.engine.arcVarianceFactors</tocitem>
       <tocitem target="html/lsqvce.kernel.redundancyLags.html">lsqvce.kernel.redundancyLags</tocitem>
+      <tocitem target="html/lsqvce.kernel.lawInverse.html">lsqvce.kernel.lawInverse</tocitem>
+      <tocitem target="html/lsqvce.kernel.truncationDeficit.html">lsqvce.kernel.truncationDeficit</tocitem>
+      <tocitem target="html/lsqvce.kernel.wSnoop.html">lsqvce.kernel.wSnoop</tocitem>
       <tocitem target="html/lsqvce.engine.sharedProbe.html">lsqvce.engine.sharedProbe</tocitem>
       <tocitem target="html/lsqvce.kernel.toeplitzCofactor.html">lsqvce.kernel.toeplitzCofactor</tocitem>
       <tocitem target="html/lsqvce.engine.covComponent.html">lsqvce.engine.covComponent</tocitem>

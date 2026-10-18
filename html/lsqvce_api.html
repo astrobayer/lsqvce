@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.33.0 — API Reference</title>
+  <title>lsqvce 6.34.0 — API Reference</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.33.0 — API Reference</h1>
+<h1 class="title">lsqvce 6.34.0 — API Reference</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -2847,6 +2847,10 @@ ellipse</td>
 class="header-section-number">8.2</span> lsqvce.kernel — the numerical
 kernels</h2>
 <table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr class="header">
 <th>unit</th>
@@ -2891,38 +2895,50 @@ kernels</h2>
 <td>PSD -&gt; autocovariance</td>
 </tr>
 <tr class="even">
+<td><code>lawInverse</code></td>
+<td>explicit inverse of an arc’s covariance law</td>
+</tr>
+<tr class="odd">
 <td><code>redundancyLags</code></td>
 <td>redundancy per lag without the dense W^-1</td>
 </tr>
+<tr class="even">
+<td><code>truncationDeficit</code></td>
+<td>the redundancy a robust sample loses to its truncation</td>
+</tr>
 <tr class="odd">
+<td><code>wSnoop</code></td>
+<td>Baarda’s w per epoch with iterative data snooping</td>
+</tr>
+<tr class="even">
 <td><code>separableWhiten</code></td>
 <td>separable (temporal x axis) whitening</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>stat</code></td>
 <td>distributions and test thresholds, base MATLAB only</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>toeplitzCofactor</code></td>
 <td>Toeplitz cofactor construction</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>varACV</code></td>
 <td>VAR autocovariance</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>varWhiten</code></td>
 <td>VAR whitening</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>whitenessCorr</code></td>
 <td>whiteness (Ljung-Box) statistic</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>whittle</code></td>
 <td>multichannel Levinson (Whittle) VAR fit</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>robustWeights</code></td>
 <td>IRLS weight factors from standardised residuals</td>
 </tr>
@@ -3109,6 +3125,18 @@ the cause.</p>
 <td>Results</td>
 <td>error</td>
 <td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:lawInverse:notPD</code></td>
+<td>kernel.lawInverse</td>
+<td>error</td>
+<td>v6.34.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:lawInverse:notSquare</code></td>
+<td>kernel.lawInverse</td>
+<td>error</td>
+<td>v6.34.0</td>
 </tr>
 <tr class="odd">
 <td><code>lsqvce:report:badIteration</code></td>
@@ -4827,94 +4855,106 @@ the cause.</p>
 <td>v4.0</td>
 </tr>
 <tr class="odd">
+<td><code>lsqvce:truncationDeficit:badSize</code></td>
+<td>kernel.truncationDeficit</td>
+<td>error</td>
+<td>v6.34.0</td>
+</tr>
+<tr class="even">
 <td><code>lsqvce:util:log:badKey</code></td>
 <td>util.log</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:varACV:badA</code></td>
 <td>kernel.varACV</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:varACV:notStationary</code></td>
 <td>kernel.varACV</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:varWhiten:badA</code></td>
 <td>kernel.varWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:varWhiten:badSigma</code></td>
 <td>kernel.varWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:varWhiten:badStartup</code></td>
 <td>kernel.varWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:varWhiten:notWholeEpochs</code></td>
 <td>kernel.varWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:vce:badAccFcn</code></td>
 <td>engine.vce</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:vce:badSigma0</code></td>
 <td>engine.vce</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:vce:groupMismatch</code></td>
 <td>engine.vce</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:vce:hutchGroupMismatch</code></td>
 <td>engine.vce</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:vce:lowRedundancy</code></td>
 <td>engine.vce</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:vce:notConverged</code></td>
 <td>engine.vce</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:verbosity:badLevel</code></td>
 <td>util.verbosity</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:verbosity:badTag</code></td>
 <td>util.verbosity</td>
 <td>error</td>
 <td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:wSnoop:badSize</code></td>
+<td>kernel.wSnoop</td>
+<td>error</td>
+<td>v6.34.0</td>
 </tr>
 <tr class="even">
 <td><code>lsqvce:whittle:badG</code></td>

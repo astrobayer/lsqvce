@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.kernel.wSnoop</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.wSnoop</div>
+<h1>lsqvce.kernel.wSnoop</h1>
+<div class="purpose">Baarda&#x27;s w per epoch of one arc, with iterative data snooping.</div>
+<h2>Description</h2>
+<pre class="example">[z, q, del] = LSQVCE.KERNEL.WSNOOP(P, E, X, excl, thr, scale)
+
+The robust noise estimator&#x27;s test statistic (WP-156, design F). For an
+observation i of an adjustment with residual v, R = P - P X (X&#x27; P X)^-1
+X&#x27; P (P the inverse law, X the parameters estimated with it),
+    w_i = (R v)_i / sqrt(R_ii)
+is Baarda&#x27;s w for CORRELATED observations, and deleting observation i
+removes exactly w_i^2 from v&#x27;Pv. Rejecting on w therefore truncates the
+very quantity a deletion removes, which is what makes the white
+truncation factor exact on a coloured stream; the raw residual it
+replaces correlates with w_i only by sqrt(c_i / Sigma_ii) (HANDOVER
+12.91). The arc is d single-axis series that share the temporal law
+(the separable model), so axis k has its own residual E(:, k) and its
+own parameter design X{k}, and the epoch statistic is the sum of its
+axes&#x27; w^2.
+
+SNOOPING. The largest |z| beyond THR is deleted (all its axes), every w
+of the arc recomputed, and so on until none is left (Baarda&#x27;s iterative
+data snooping). Deleting one epoch changes its neighbours&#x27; w on a
+correlated stream, so a simultaneous rule can delete a pair that each
+pass restores; snooping removes one epoch at a time, the largest first.
+It starts from the excluded rows only -- the caller rebuilds the set
+from scratch every pass and never inherits it.</pre>
+<h3>Input</h3>
+<pre class="example">P      m x m   inverse temporal law of the arc (LSQVCE.KERNEL.LAWINVERSE)
+E      m x d   residual per axis, descaled by the epoch&#x27;s Cep
+X      1 x d   cell, X{k} m x n_k: the parameters of axis k estimated
+               with this law (the arc&#x27;s local design, descaled), m x 0 for none
+excl   m x d   logical, rows excluded from the data (not observations)
+thr    1x1     |z| beyond which an epoch is snooped; Inf: none
+scale  1x1     the stream&#x27;s scale s (w units, the previous pass&#x27;s)</pre>
+<h3>Output</h3>
+<pre class="example">z    m x 1  the epoch statistic in units of s: w / s for one live axis,
+            sign(sum w) sqrt(2) erfcinv(Q(d_e / 2, q / (2 s^2))) for d_e
+            &gt; 1 live axes (the chi^2 tail mapped to a normal deviate, as
+            R7-08); +-Inf on a snooped epoch, NaN on an epoch excluded on
+            every axis
+q    m x 1  the epoch&#x27;s sum of w^2 over its live axes (unscaled; NaN as z)
+del  m x 1  logical, the snooped epochs</pre>
+<h3>COST. One rank-one update of P per snooped epoch (O(m^2)) and per axis a</h3>
+<pre class="example">matrix-vector product; the parameter part is O(m n_k^2).</pre>
+<h3>Example</h3>
+<pre class="example">Sig = toeplitz(0.9 .^ (0:255));  P = lsqvce.kernel.lawInverse(Sig);
+e = chol(Sig, &#x27;lower&#x27;) * randn(256, 1);  e(100) = e(100) + 3;   % a blunder
+[z, ~, del] = lsqvce.kernel.wSnoop(P, e, {ones(256, 1)}, false(256, 1), 3, 1);
+find(del)                                % 100</pre>
+<h3>Accuracy</h3>
+<pre class="example">Deleting an epoch removes w_i^2 from v&#x27;Pv to 1e-10 relative, local
+parameters re-estimated, and a two-axis epoch the sum of its axes&#x27; w^2
+(test_precision (testDeletionRemovesExactlyWSquared)); on 40 AR(1)
+arcs, phi 0.98, every planted 2-sigma blunder is snooped and the clean
+epochs are rejected at the Gaussian 0.27 % within four Poisson sd
+(testSnoopingFindsSmallBlundersOnARedStream); the statistic and the set
+are invariant to the level (testRobustKernelIsScaleEquivariant).
+The controlled study (dev/validation/wp156_selection_measure.m):
+the level with tau within 0.15 % for phi &lt;= 0.98.</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:wSnoop:badSize   E, X or excl do not match P
+
+See also LSQVCE.KERNEL.LAWINVERSE, LSQVCE.KERNEL.TRUNCATIONDEFICIT,
+         LSQVCE.KERNEL.ROBUSTWEIGHTS, LSQVCE.ENGINE.OUTLIERS
+
+Created 2026-10-18 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Opus 5.5 -- WP-156 round 2, design F.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

@@ -13,7 +13,10 @@
 %   hatACV               - ACV of every bin of a piecewise-linear spectrum
 %   levinsonDurbin       - Levinson-Durbin recursion
 %   psd2acv              - PSD -> autocovariance
+%   lawInverse           - explicit inverse of an arc's covariance law
 %   redundancyLags       - redundancy per lag without the dense W^-1
+%   truncationDeficit    - the redundancy a robust sample loses to its truncation
+%   wSnoop               - Baarda's w per epoch with iterative data snooping
 %   separableWhiten      - separable (temporal x axis) whitening
 %   stat                 - distributions and test thresholds, base MATLAB only
 %   toeplitzCofactor     - Toeplitz cofactor construction

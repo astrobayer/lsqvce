@@ -1,5 +1,27 @@
 # lsqvce release notes
 
+## 6.34.0 — 2026-10-18 (WP-156: the robust variance estimator redesigned)
+
+- A robust noise run (`Robust = "igg3"` or `"bisquare"` with `Estimate = "noise"`) now rejects
+  on Baarda's w for correlated observations, not on the raw residual. Deleting an epoch removes
+  exactly its w² from v'Pv; the raw residual matches that only for white noise. On a coloured
+  stream the old rule truncated the kept epochs in the wrong direction (the level and σ0 1–2.5 %
+  high, review 12.84 N3) and missed small blunders: 2 % blunders of 2σ at a lag-1 correlation of
+  0.98 were caught at 35 % and the level read 3.6×.
+- Every arc is snooped: the largest |w| beyond the rejection point is deleted, the arc
+  recomputed, until none is left. The set is rebuilt every pass.
+- The truncation of the kept epochs enters the redundancy lag by lag; the level is no longer
+  divided by τ (exact for the total only: a red stream's variance read +2.4 %). The hard σ0 keeps
+  its τ.
+- A rejected set that cycles with period 2 is frozen at its union (`R.noise.robust.frozen`).
+- Measured, paired against `Robust = "none"` over 20 seeds: a red stream's variance −0.24 / −0.10
+  / −0.11 % at a lag-1 correlation of 0.5 / 0.9 / 0.98 (the old rule +0.3 / +1.4 / +1.0 %), σ0²
+  −0.08 %, x unchanged (60 paired seeds: 0.99 and 1.02 in squared error).
+- New kernel units: `lsqvce.kernel.lawInverse` (an arc law's explicit inverse, O(m²) for a
+  Toeplitz law), `lsqvce.kernel.wSnoop`, `lsqvce.kernel.truncationDeficit`. The robust pass no
+  longer needs its own residual pass over the data.
+- Results change for every robust noise run; plain runs are bitwise unchanged.
+
 ## 6.33.0 — 2026-10-18 (WP-157: Pool defaults to "stream")
 
 - `Pool` now defaults to `"stream"`: every stream gets its own estimated spectral shape. The old
