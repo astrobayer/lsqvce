@@ -793,3 +793,52 @@ function testSparseLocalDesignSolvesAndSnoops(tc)
     end
     tc.verifyEqual(xd{2}, xd{1}, 'RelTol', 1e-10);   % tol: as above
 end
+
+%% ================================================== WP-158: day contributions (engine)
+function testDayContributionsNeedTheStoredLoaders(tc)
+% categories: contract
+    % dayContributions re-streams the days through the stored loaders, so an
+    % accumulator built without KeepLocal has nothing to stream from.
+    cfg = tc.TestData.cfg;
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend', 'qr', 'KeepLocal', false, 'Verbose', false);
+    for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg, s), 1:2); end
+    tc.verifyError(@() acc.dayContributions(), 'lsqvce:accum:noContributionStore');
+end
+
+function testDayContributionsRefuseARegularisedLocalBlock(tc)
+% categories: contract, robustness
+    % A local block the accumulation regularised no longer is the block the
+    % days' contributions would reproduce: refused, never approximated.
+    cfg = tc.TestData.cfg;
+    cfg.collinear = true;  cfg.collinearEps = 1e-10;
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend', 'qr', 'Reg', 'tikhonov', ...
+                                         'RegLambda', 1e-3, 'Verbose', false);
+    for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg, s), 1:2); end
+    tc.assertEqual(acc.diag(1).regUsed, 'tikhonov', 'the fixture reaches the regularisation');
+    tc.verifyError(@() acc.dayContributions(), 'lsqvce:accum:regularisedLocals');
+end
+
+function testReduceDayRefusesUndeterminedLocals(tc)
+% categories: contract, precision
+    % A day whose own locals are not determined by it (two identical local
+    % columns) has no reduced contribution, on either backend; a column of R
+    % that carries data cannot be dropped by reducedRowsOf.
+    rs = RandStream('mt19937ar', 'Seed', 4);
+    m = 40;  nc = 2;  A = randn(rs, m, nc);  b = randn(rs, m, 1);  l = randn(rs, m, 1);
+    for be = {'qr', 'normal'}
+        if strcmp(be{1}, 'qr'), loc = lsqvce.engine.QRSystem(nc + 3);
+        else,                   loc = lsqvce.engine.NormalEqSystem(nc + 3); end
+        loc.add([A, b, b, zeros(m, 1)], l);              % locals 1 and 2 identical, 3 unused
+        tc.verifyError(@() lsqvce.engine.BlockAccumulator.reduceDay(loc, nc, 3, be{1}, 1, 7), ...
+                       'lsqvce:accum:dayLocalsRankDeficient', be{1});
+    end
+    q = lsqvce.engine.QRSystem(nc + 2);
+    q.add([A, b, zeros(m, 1)], l);
+    tc.verifyError(@() q.reducedRowsOf([], 1:nc), 'lsqvce:qr:droppedNonzero');
+    % the unused column drops exactly: reducedRowsOf over the used one equals
+    % reducedRows of a system that never had the unused column
+    q2 = lsqvce.engine.QRSystem(nc + 1);  q2.add([A, b], l);
+    r1 = q.reducedRowsOf(nc + 1, 1:nc);  r2 = q2.reducedRows(1);
+    % tol: 1e-12 relative -- one re-triangularisation each, compared as normals
+    tc.verifyEqual(r1.' * r1, r2.' * r2, 'RelTol', 1e-12);
+end

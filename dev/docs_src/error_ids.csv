@@ -12,6 +12,8 @@ lsqvce:Options:badTarget,Options,error,v4.0
 lsqvce:Options:badVerbose,Options,error,v4.0
 lsqvce:Options:badWhitener,Options,error,v6.22.0
 lsqvce:Results:badPlotKind,Results,error,v4.0
+lsqvce:Results:contributionsInconsistent,Results,error,v6.35.0
+lsqvce:Results:contributionsNonlinear,Results,error,v6.35.0
 lsqvce:Results:noAccumulator,Results,error,v4.0
 lsqvce:Results:noCovariance,Results,error,v4.0
 lsqvce:Results:noHistory,Results,error,v4.0
@@ -19,8 +21,13 @@ lsqvce:Results:noPerObservation,Results,error,v6.5.0
 lsqvce:Results:noVPv,Results,error,v4.0
 lsqvce:Results:compareEstimatedWeights,Results,error,v6.28.0
 lsqvce:Results:tableMismatch,Results,error,v4.0
+lsqvce:accum:dayLocalsRankDeficient,engine.BlockAccumulator,error,v6.35.0
+lsqvce:accum:localsCoupleDays,engine.BlockAccumulator,error,v6.35.0
+lsqvce:accum:noContributionStore,engine.BlockAccumulator,error,v6.35.0
+lsqvce:accum:regularisedLocals,engine.BlockAccumulator,error,v6.35.0
 lsqvce:lawInverse:notPD,kernel.lawInverse,error,v6.34.0
 lsqvce:lawInverse:notSquare,kernel.lawInverse,error,v6.34.0
+lsqvce:qr:droppedNonzero,engine.QRSystem,error,v6.35.0
 lsqvce:report:badIteration,report,error,v6.24.0
 lsqvce:accum:arcBadNc,engine.BlockAccumulator,error,v4.0
 lsqvce:accum:arcBadNl,engine.BlockAccumulator,error,v4.0
@@ -286,6 +293,8 @@ lsqvce:snoop:lowRedundancy,engine.verdict,warning,v4.0
 lsqvce:snoop:maxReject,engine.verdict,warning,v4.0
 lsqvce:snoop:rejectFraction,engine.verdict,warning,v4.0
 lsqvce:snoop:tooContaminated,engine.verdict,error,v4.0
+lsqvce:solveContributions:badContributions,solveContributions,error,v6.35.0
+lsqvce:solveContributions:badMultiplicity,solveContributions,error,v6.35.0
 lsqvce:stat:badDof,kernel.stat,error,v4.0
 lsqvce:stat:badProb,kernel.stat,error,v4.0
 lsqvce:stat:sizeMismatch,kernel.stat,error,v4.0

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.34.1 — User Manual</title>
+  <title>lsqvce 6.35.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.34.1 — User Manual</h1>
+<h1 class="title">lsqvce 6.35.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -376,10 +376,12 @@ class="toc-section-number">10</span> Large problems</a>
 class="toc-section-number">10.1</span> Memory</a></li>
 <li><a href="#time" id="toc-time"><span
 class="toc-section-number">10.2</span> Time</a></li>
+<li><a href="#resampling-days" id="toc-resampling-days"><span
+class="toc-section-number">10.3</span> Resampling days</a></li>
 <li><a href="#backend" id="toc-backend"><span
-class="toc-section-number">10.3</span> Backend</a></li>
+class="toc-section-number">10.4</span> Backend</a></li>
 <li><a href="#before-a-long-run" id="toc-before-a-long-run"><span
-class="toc-section-number">10.4</span> Before a long run</a></li>
+class="toc-section-number">10.5</span> Before a long run</a></li>
 </ul></li>
 </ul>
 </nav>
@@ -4076,16 +4078,28 @@ result is bitwise identical to the serial run</td>
 </tr>
 </tbody>
 </table>
-<h2 data-number="10.3" id="backend"><span
-class="header-section-number">10.3</span> Backend</h2>
+<h2 data-number="10.3" id="resampling-days"><span
+class="header-section-number">10.3</span> Resampling days</h2>
+<p>A bootstrap over days refits the problem once per replicate, and each
+refit re-reads and re-eliminates days the first fit already reduced.
+<code>R.contributions()</code> keeps every day’s reduced contribution
+(one more pass over the data), and
+<code>lsqvce.solveContributions(C, c)</code> solves a replicate from
+them in O(D·nc²): <code>c</code> says how often the replicate drew each
+day. The days keep the run’s final weights; the noise model and robust
+weights are not re-estimated per replicate. Declare day-specific
+unknowns per day or per arc: a local that spans days couples them, and
+the days then have no separate contributions.</p>
+<h2 data-number="10.4" id="backend"><span
+class="header-section-number">10.4</span> Backend</h2>
 <p><code>Backend = "qr"</code> (default) keeps the square-root
 information form and is the safer choice on ill-conditioned common
 blocks; <code>"normal"</code> forms the normal equations and is faster
 on well-conditioned ones. Both give the same numbers to rounding where
 both work. <code>examples/bench_qr_vs_normal.m</code> measures the
 trade-off on your machine.</p>
-<h2 data-number="10.4" id="before-a-long-run"><span
-class="header-section-number">10.4</span> Before a long run</h2>
+<h2 data-number="10.5" id="before-a-long-run"><span
+class="header-section-number">10.5</span> Before a long run</h2>
 <ol type="1">
 <li>Run one day with <code>Estimate = "none"</code> and read the
 report.</li>

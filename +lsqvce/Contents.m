@@ -1,5 +1,5 @@
 % LSQVCE  Batch least squares: accumulation, variance components, and judgment.
-% Version 6.34.1  18-Oct-2026
+% Version 6.35.0  19-Oct-2026
 %
 % lsqvce -- least-squares adjustment with variance component estimation.
 %
@@ -11,6 +11,7 @@
 %   Options        - the one settings object for fit (typed knobs with engine defaults)
 %   Results        - rich result object: solution, diagnostics, provenance, report()
 %   report         - verdict printer (levels 0-4); Results.report forwards here
+%   solveContributions - a weighted combination of a fit's days (bootstrap) (WP-158)
 %
 % The engines and kernels below fit live in two sub-packages (R4-D1,
 % 2026-09-01); they are reachable for experts and never needed by a user:

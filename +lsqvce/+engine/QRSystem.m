@@ -92,6 +92,9 @@ classdef QRSystem < handle
 %   weight 0 out of the count m (mExcl keeps them; merge adds them); the
 %   factor is kept full whatever the batch. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-19 (CEST, UTC+02:00), WP-158 (issue #183): reducedRowsOf,
+%   the local elimination for any set of local columns (a day's raw partial
+%   system). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: reducedRows also returns the
 %   local block's coupling R12 and right-hand side r1. With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
@@ -247,6 +250,32 @@ classdef QRSystem < handle
             R11 = Rp(1:kl, 1:nl);
             R12 = Rp(1:kl, nl+1:d);  r1 = Rp(1:kl, d+1);
             rows = Rp(kl+1:k, nl+1:end);
+        end
+
+        function [rows, R11, R12, r1] = reducedRowsOf(o, il, ic)
+        %REDUCEDROWSOF  reducedRows for any local columns IL against the
+        %   common columns IC (WP-158): R is re-triangularised over [IL IC rhs]
+        %   and every other column dropped -- which is exact only if those
+        %   columns of R are ZERO, i.e. parameters that took no observation in
+        %   this system (a day's raw partial system: the other days' locals). A
+        %   dropped column that is not zero is refused, never ignored.
+        %   OUTPUT as reducedRows: rows (numel(ic)+1 columns), R11, R12, r1
+        %   ERRORS  lsqvce:qr:droppedNonzero  a dropped column carries data
+            d = o.dim;
+            il = il(:).';  ic = ic(:).';
+            drop = setdiff(1:d, [il, ic]);
+            if ~isempty(drop) && any(any(o.R(:, drop) ~= 0))
+                error('lsqvce:qr:droppedNonzero', ...
+                      'reducedRowsOf: %d of the dropped columns carry observations.', nnz(any(o.R(:, drop) ~= 0, 1)));
+            end
+            Rp = triu(qr(o.R(:, [il, ic, d+1]), 0));
+            k  = min(size(Rp, 1), numel(il) + numel(ic) + 1);
+            Rp = Rp(1:k, :);
+            nil = numel(il);
+            kl = min(nil, k);
+            R11 = Rp(1:kl, 1:nil);
+            R12 = Rp(1:kl, nil+1:nil+numel(ic));  r1 = Rp(1:kl, end);
+            rows = Rp(kl+1:k, nil+1:end);
         end
 
         function merge(o, red)

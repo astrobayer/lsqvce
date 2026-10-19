@@ -2876,3 +2876,196 @@ function testRefusedVtPvIsDiagnosedWithItsOwnSigma0(tc)
     tc.verifyEqual(Rn.diag.flagIdx, Rq.diag.flagIdx, 'the two backends flag the same rows');
     tc.verifyEqual(Rn.diag.flagIdx, 50);
 end
+
+%% ================================================== WP-158: a bootstrap over days (issue #183)
+function testContributionsReproduceTheFit(tc)
+% categories: reference, precision, contract
+    % Issue #183's first acceptance: with every multiplicity 1 the solve of
+    % the days' contributions reproduces fit's x, Cxx and sigma0 -- the days'
+    % reduced rows (each day's 'day' and 'arc' locals eliminated on the
+    % factor) stacked where fit stacked the system's.
+    R = lsqvce.fit(bootFixture(1:3, 1:3, "known"), lsqvce.Options(Estimate="none", Verbose=false));
+    C = R.contributions();
+    tc.verifyEqual(C.days, 1:3, 'one entry per distinct day');
+    tc.verifyEqual(numel(C.items), 3, 'one contribution per (system, day)');
+    tc.verifyEqual(C.weights, struct('estimate', "none", 'robust', "none", 'fixed', true), 'the weights it carries');
+    out = lsqvce.solveContributions(C, ones(1, 3));
+    % tol: 1e-8 relative -- the issue's bound (measured 2e-10 here)
+    tc.verifyEqual(out.x, R.x, 'RelTol', 1e-8);
+    tc.verifyEqual(norm(out.Cxx - R.sol.Cxx, 'fro') / norm(R.sol.Cxx, 'fro'), 0, 'AbsTol', 1e-8);
+    tc.verifyEqual(out.sigma0, R.sigma0, 'RelTol', 1e-8);
+    tc.verifyEqual(out.dof, R.sol.dof, 'the degrees of freedom add up');
+end
+
+function testContributionsEqualAFitOverTheExpandedDays(tc)
+% categories: reference, precision, metamorphic
+    % The issue's second acceptance: multiplicities c = [2 0 1] equal a full
+    % fit over the expanded day list (day 1 twice -- relabelled as day 4 --,
+    % day 2 not drawn, day 3 once) under the same fixed weights. A real c (a
+    % Bayesian bootstrap) is accepted; c times a constant moves no estimate.
+    opts = lsqvce.Options(Estimate="none", Verbose=false);
+    C = lsqvce.fit(bootFixture(1:3, 1:3, "known"), opts).contributions();
+    Rx = lsqvce.fit(bootFixture([1 3 4], [1 3 1], "known"), opts);
+    out = lsqvce.solveContributions(C, [2 0 1]);
+    % tol: 1e-8 relative -- the issue's bound (measured 9e-10)
+    tc.verifyEqual(out.x, Rx.x, 'RelTol', 1e-8);
+    tc.verifyEqual(norm(out.Cxx - Rx.sol.Cxx, 'fro') / norm(Rx.sol.Cxx, 'fro'), 0, 'AbsTol', 1e-8);
+    tc.verifyEqual(out.sigma0, Rx.sigma0, 'RelTol', 1e-8);
+    tc.verifyEqual(out.dof, Rx.sol.dof);
+    o1 = lsqvce.solveContributions(C, [0.4 1.3 0.9]);
+    o2 = lsqvce.solveContributions(C, 2.5 * [0.4 1.3 0.9]);
+    % tol: 1e-10 -- the same normal equations times 2.5
+    tc.verifyEqual(o2.x, o1.x, 'RelTol', 1e-10, 'a common factor on c moves no estimate');
+end
+
+function testContributionsReturnTheDrawnDaysLocals(tc)
+% categories: reference, precision
+    % 'Locals', true back-substitutes the local parameters of every drawn day
+    % with their covariance; with c = 1 they are fit's own.
+    R = lsqvce.fit(bootFixture(1:3, 1:3, "known"), lsqvce.Options(Estimate="none", Verbose=false));
+    C = R.contributions();
+    out = lsqvce.solveContributions(C, ones(1, 3), 'Locals', true);
+    tc.verifyEqual(numel(out.locals), 3);
+    for k = 1:3
+        L = out.locals(k);
+        y = R.acc.backSubstitute(L.sysID, R.x);
+        Cyy = R.acc.localCovariance(L.sysID, R.sol.Cxx, R.sol.s0sq);
+        % tol: 1e-8 relative -- the day's factor against the system's (measured 2e-10)
+        tc.verifyEqual(L.y, y(L.localIdx), 'RelTol', 1e-8, sprintf('day %d: y', L.day));
+        tc.verifyEqual(norm(L.Cyy - Cyy(L.localIdx, L.localIdx), 'fro') / norm(Cyy(L.localIdx, L.localIdx), 'fro'), ...
+                       0, 'AbsTol', 1e-8, sprintf('day %d: Cyy', L.day));
+    end
+    out2 = lsqvce.solveContributions(C, [1 0 2], 'Locals', true);
+    tc.verifyEqual([out2.locals.day], [1 3], 'only the drawn days');
+    tc.verifyEqual([out2.locals.multiplicity], [1 2], 'with their multiplicities');
+end
+
+function testContributionsOfANoiseAndARobustRun(tc)
+% categories: reference, precision, robustness
+    % Under Estimate = "noise" (and with Robust = "igg3") the days carry the
+    % run's FINAL weights, fixed: c = 1 reproduces the run's x, Cxx and
+    % sigma0 -- a robust run's sigma0 with its truncation factor, as fit's
+    % hard solution -- and C.weights says which weights those are.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % 4 passes on 3 short days: the weights are read, not judged
+    data = bootFixture(1:3, 1:3, "law");
+    for rb = ["none", "igg3"]
+        R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Robust=rb, MaxPasses=4, Verbose=false));
+        C = R.contributions();
+        tc.verifyEqual(C.weights.estimate, "noise");
+        tc.verifyEqual(C.weights.robust, rb);
+        out = lsqvce.solveContributions(C, ones(1, 3));
+        % tol: 1e-8 relative -- the issue's bound (measured 9e-10 / 3e-10)
+        tc.verifyEqual(out.x, R.x, 'RelTol', 1e-8, sprintf('%s: x', rb));
+        tc.verifyEqual(norm(out.Cxx - R.sol.Cxx, 'fro') / norm(R.sol.Cxx, 'fro'), 0, 'AbsTol', 1e-8, sprintf('%s: Cxx', rb));
+        tc.verifyEqual(out.sigma0, R.sigma0, 'RelTol', 1e-8, sprintf('%s: sigma0', rb));
+    end
+end
+
+function testContributionsOnTheNormalBackend(tc)
+% categories: reference, precision
+    % The normal backend reduces each day by an equilibrated Cholesky Schur
+    % complement; on a well-conditioned problem the combination is fit's.
+    R = lsqvce.fit(bootFixture(1:3, 1:3, "known"), lsqvce.Options(Estimate="none", Backend="normal", Verbose=false));
+    out = lsqvce.solveContributions(R.contributions(), ones(1, 3), 'Locals', true);
+    % tol: 1e-8 relative -- the normal equations' own precision at cond(N) ~ 1e3
+    tc.verifyEqual(out.x, R.x, 'RelTol', 1e-8);
+    tc.verifyEqual(out.sigma0, R.sigma0, 'RelTol', 1e-8);
+    y = R.acc.backSubstitute(out.locals(2).sysID, R.x);
+    tc.verifyEqual(out.locals(2).y, y(out.locals(2).localIdx), 'RelTol', 1e-8);   % tol: as above
+end
+
+function testContributionsRefuseWhatTheyCannotRepresent(tc)
+% categories: contract, robustness
+    % A 'system' local couples the days (no separate contributions exist); a
+    % Gauss-Newton run's rows are linearised about its x; the days' dof must
+    % add up to the run's; the multiplicities must fit C.days and be >= 0.
+    cfg = scopedCfg();
+    data = struct();
+    data.commonParams = [{'common', 'g1'}; {'common', 'g2'}];
+    data.days = 1:2;
+    s = struct();
+    s.buildDay   = @(d, ot, common, local, po, info) scopedBuildDay(cfg, d, ot, info);
+    s.covariance = cfg.cov;
+    s.localParams = [{'arc', 'ic'}; {'day', 'bias'}; {'system', 'scale'}];
+    s.arcs = 2;
+    data.systems = s;
+    Rs = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    tc.verifyError(@() Rs.contributions(), 'lsqvce:accum:localsCoupleDays');
+    rs = RandStream('mt19937ar', 'Seed', 5);
+    t  = linspace(0, 1, 40).';
+    lobs = exp(0.7*t) - 0.2 + 1e-3*randn(rs, 40, 1);
+    bf = @(k, x) deal([t.*exp(x(1)*t), ones(40, 1)], lobs - (exp(x(1)*t) + x(2)), []);
+    Rg = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.5; 0]), ...
+                    lsqvce.Options(MaxPasses=15, Tolerance=1e-9, Verbose=false));
+    tc.verifyError(@() Rg.contributions(), 'lsqvce:Results:contributionsNonlinear');
+    R = lsqvce.fit(bootFixture(1:3, 1:3, "known"), lsqvce.Options(Estimate="none", Verbose=false));
+    s2 = R.sol;  s2.dof = s2.dof + 5;
+    R2 = lsqvce.Results(s2, R.diag, R.acc, [], R.batchFcn, R.nBatch, R.systems, R.meta);
+    tc.verifyError(@() R2.contributions(), 'lsqvce:Results:contributionsInconsistent');
+    C = R.contributions();
+    tc.verifyError(@() lsqvce.solveContributions(C, [1 1]), 'lsqvce:solveContributions:badMultiplicity');
+    tc.verifyError(@() lsqvce.solveContributions(C, [1 -1 1]), 'lsqvce:solveContributions:badMultiplicity');
+    tc.verifyError(@() lsqvce.solveContributions(C, [0 0 0]), 'lsqvce:solveContributions:badMultiplicity');
+    tc.verifyError(@() lsqvce.solveContributions(struct('days', 1:3), [1 1 1]), ...
+                   'lsqvce:solveContributions:badContributions');
+end
+
+function testContributionsCostIsIndependentOfTheSamples(tc)
+% categories: speed, contract
+    % The issue's third acceptance: a replicate's cost does not depend on the
+    % number of samples per day -- every contribution is (nc + 1) rows wide
+    % and at most nc + 1 high, whatever the day held.
+    Ca = lsqvce.fit(bootFixture(1:3, 1:3, "known", 64), lsqvce.Options(Estimate="none", Verbose=false)).contributions();
+    Cb = lsqvce.fit(bootFixture(1:3, 1:3, "known", 512), lsqvce.Options(Estimate="none", Verbose=false)).contributions();
+    sz = @(C) arrayfun(@(it) numel(it.red.Rows), C.items);
+    tc.verifyLessThanOrEqual(max(sz(Cb)), (Cb.nc + 1)^2, 'a contribution is at most (nc+1)^2 numbers');
+    tc.verifyEqual(sz(Cb), sz(Ca), 'the same size at 8 x the samples per day');
+    % a replicate reads nothing but those rows: it solves from them alone
+    out = lsqvce.solveContributions(Cb, [3 0 1]);
+    tc.verifyEqual(size(out.x), [Cb.nc 1]);
+    tc.verifyTrue(all(isfinite(out.x)) && isfinite(out.sigma0), 'a replicate from the stored rows');
+end
+
+function data = bootFixture(days, srcDay, law, m)
+%BOOTFIXTURE  WP-158: one system, two streams (white 0.5; AR(1) 0.5 1.2), three
+%   common parameters, one bias per day and one per arc (both day-scoped
+%   locals), 2 arcs of M epochs a day. A day's content is keyed on its SOURCE
+%   day srcDay(i), so a relabelled day repeats a day exactly (the expanded
+%   day list of a bootstrap draw). LAW "known" declares the true laws (fixed
+%   weights); "law" estimates them.
+    if nargin < 4, m = 128; end
+    data = struct();
+    data.commonParams = [repmat({'common'}, 3, 1), {'g1'; 'g2'; 'g3'}];
+    data.days = days;
+    if law == "known"
+        cov = struct('a', struct('type', 'diag', 'sigma', 0.5, 'estimate', "scale", 'arcFactors', false), ...
+                     'b', struct('type', 'arma', 'ar', [1 -0.5], 'sigma', 1.2 * sqrt(0.75), 'estimate', "scale", 'arcFactors', false));
+    else
+        cov = struct('a', struct('type', 'diag', 'sigma', 1, 'estimate', "law", 'arcFactors', false), ...
+                     'b', struct('type', 'diag', 'sigma', 1, 'estimate', "law", 'arcFactors', false));
+    end
+    s = struct();
+    s.buildDay = @(day, ot, common, local, po, info) bootDay(srcDay(days == day), ot, info, m);
+    s.covariance = cov;
+    s.localParams = [{'day', 'bias'}; {'arc', 'ic'}];
+    s.arcs = 2;  s.id = 1;  s.name = 'boot';
+    data.systems = s;
+end
+
+function D = bootDay(src, ot, info, m)
+%BOOTDAY  The content of source day SRC: random common partials, a day bias, an
+%   arc offset, AR(1) (b) or white (a) noise.
+    k = 1 + strcmp(ot, 'b');
+    rs = RandStream('mt19937ar', 'Seed', 1000 * src + 17 * k);
+    phi = [0 0.5];  lev = [0.5 1.2];
+    D = struct('A', {cell(1, 2)}, 'B', {cell(1, 2)}, 'l', {cell(1, 2)}, 't', {cell(1, 2)});
+    for a = 1:2
+        A = randn(rs, m, info.nc);
+        e = filter(1, [1 -phi(k)], lev(k) * sqrt(1 - phi(k)^2) * randn(rs, m + 50, 1));
+        B = zeros(m, info.nl);
+        B(:, info.dayOffset + 1) = 1;
+        B(:, info.offsetOf(a) + 1) = 1 + (0:m-1).' / m;
+        D.A{a} = A;  D.B{a} = B;  D.t{a} = ((src - 1) * 2 + a - 1) * 86400 / 2 + 5 * (0:m-1).';
+        D.l{a} = A * [0.3; -0.8; 1.1] + B * (0.1 * (1:info.nl).') + e(51:end);
+    end
+end

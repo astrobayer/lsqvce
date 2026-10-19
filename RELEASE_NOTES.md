@@ -1,5 +1,19 @@
 # lsqvce release notes
 
+## 6.35.0 — 2026-10-19 (WP-158: a bootstrap over days, issue #183)
+
+- `R.contributions()` returns every (system, day)'s reduced contribution under the run's final
+  weights, and the new `lsqvce.solveContributions(C, c)` solves any weighted combination of the
+  days without re-reading them: `c` is how often a replicate drew each day (or any non-negative
+  real, for a Bayesian bootstrap). A day drawn twice contributes twice, with no relabelling around
+  `lsqvce:fit:duplicateDay`. One replicate costs O(D·nc²), independent of the samples per day.
+- Measured against fit: with every multiplicity 1, x and Cxx within 2e-10 and σ₀ within 2e-14
+  (QR backend); a multiplicity vector equals a full fit over the expanded day list within 9e-10;
+  the drawn days' locals (`'Locals', true`) within 2e-10. The issue's bound is 1e-8.
+- The weights are fixed: a noise run's variance components and a robust run's hard weights are
+  kept (a robust run's σ₀ with its truncation factor). Locals that span days, a regularised local
+  block, and Gauss–Newton runs are refused with their own identifiers.
+
 ## 6.34.1 — 2026-10-18 (WP-155: speed without loss of precision)
 
 - A dense law (a `psd` law in Toeplitz mode, `acf`, `custom`) is whitened by forward substitutions

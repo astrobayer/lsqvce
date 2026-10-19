@@ -248,6 +248,10 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-19 (CEST, UTC+02:00), WP-158 (issue #183): dayContributions
+%   (every system's days re-streamed, each with its own locals eliminated) and
+%   fromContributions (a weighted combination, solved by solve() unchanged).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84): (S1) every rank
 %   decision and solve of a local block on its Jacobi-equilibrated form -- the
 %   QR pivots relative to their column, the normal form's rcond and pinv cut on
@@ -956,6 +960,70 @@ classdef BlockAccumulator < handle
                         'VariableNames', {'sysID','nLocal','nArc','condNll', ...
                                           'rankDef','status','regUsed','lambda'});
         end
+
+        %------------------------------------------------------------------
+        function C = dayContributions(obj)
+        %DAYCONTRIBUTIONS  Every (system, day)'s reduced contribution (WP-158,
+        %   issue #183), for a bootstrap over days that re-weights the days
+        %   without re-reading them (LSQVCE.SOLVECONTRIBUTIONS).
+        %
+        %   Each system's days are streamed ONCE more through the stored loader
+        %   -- so under the weights this accumulator was built with (a noise
+        %   run's final, hard weights) -- each into its own raw partial system,
+        %   and the day's own local columns are eliminated from it: on the
+        %   factor (QRSystem.reducedRowsOf) on the QR backend, by an
+        %   equilibrated Cholesky Schur complement on the normal backend. With
+        %   locals that never span two days the system's local block is block
+        %   diagonal by day, so the days' reduced contributions SUM to the
+        %   system's: N_red = sum_d N_d, exactly. A local parameter seen on two
+        %   days of one system couples them and is refused; so is a local
+        %   block the accumulation regularised, and a day whose locals are not
+        %   determined by it.
+        %
+        %   OUTPUT  C struct: .nc, .backend, .prior (the common prior, added once
+        %           by fromContributions, or []), .days (1 x D, the distinct
+        %           days in order of first appearance), .items (one per system
+        %           and day: .sysID, .day, .red (ReducedContribution), .localIdx
+        %           (the system's local indices of the day), .m (observations),
+        %           and the day's local block for back-substitution -- .R11 /
+        %           .R12 / .r1 on QR, .Nll / .Nlc / .nll on the normal backend)
+        %   ERRORS  lsqvce:accum:noContributionStore  KeepLocal was false
+        %           lsqvce:accum:localsCoupleDays     a local spans two days
+        %           lsqvce:accum:regularisedLocals    a local block was regularised
+        %           lsqvce:accum:dayLocalsRankDeficient  a day leaves its locals undetermined
+            if isempty(obj.store)
+                error('lsqvce:accum:noContributionStore', ...
+                      'Day contributions need the stored loaders: build the accumulator with KeepLocal = true.');
+            end
+            nc = obj.nc;
+            items = struct('sysID', {}, 'day', {}, 'red', {}, 'localIdx', {}, 'm', {}, ...
+                           'R11', {}, 'R12', {}, 'r1', {}, 'Nll', {}, 'Nlc', {}, 'nll', {});
+            days = [];
+            for k = 1:numel(obj.store)
+                st = obj.store(k);
+                if ~isempty(st.NllReg)
+                    error('lsqvce:accum:regularisedLocals', ...
+                          ['System %s''s local block was regularised in the accumulation; its days'' ' ...
+                           'contributions would not sum to the solved system. Fix the local datum.'], string(st.sysID));
+                end
+                seen = false(1, st.nl);
+                for d = st.dayList(:).'
+                    loc = lsqvce.engine.BlockAccumulator.newSysFor(obj.backend, nc + st.nl);
+                    lsqvce.engine.BlockAccumulator.accumDay(loc, nc, st.nl, st.dataFcn, d, st.sysID, st.uo);
+                    it = lsqvce.engine.BlockAccumulator.reduceDay(loc, nc, st.nl, obj.backend, st.sysID, d);
+                    if any(seen(it.localIdx))
+                        error('lsqvce:accum:localsCoupleDays', ...
+                              ['System %s: a local parameter takes observations on day %s and on an earlier ' ...
+                               'day; days coupled by a local have no separate contributions (declare the ' ...
+                               'local per day or per arc).'], string(st.sysID), string(d));
+                    end
+                    seen(it.localIdx) = true;
+                    items(end+1) = it; %#ok<AGROW>
+                    if ~any(days == d), days(end+1) = d; end %#ok<AGROW>
+                end
+            end
+            C = struct('nc', nc, 'backend', obj.backend, 'prior', obj.prior, 'days', days, 'items', items);
+        end
     end
 
     %======================================================================
@@ -1278,6 +1346,77 @@ classdef BlockAccumulator < handle
     end
 
     methods (Static, Hidden)   % public so the mapreduce worker context can
+
+        %------------------------------------------------------------------
+        function it = reduceDay(loc, nc, nl, backend, sysID, d)
+        %REDUCEDAY  One day's raw partial system with its own local columns
+        %   eliminated (WP-158; dayContributions). The day's locals are the
+        %   local columns that took observations: exactly nonzero in the
+        %   factor (an orthogonal transform maps a zero column to zero) or on
+        %   the normal matrix's diagonal. QR: on the factor; normal: the
+        %   Jacobi-equilibrated Cholesky Schur complement (WP-151's scaling).
+        %   The pivot rule is QRSystem.RankTol's, 1e3 eps of the largest.
+            ic = 1:nc;
+            if strcmp(backend, 'qr')
+                act = find(any(loc.R(:, nc + (1:nl)) ~= 0, 1));
+                [rows, R11, R12, r1] = loc.reducedRowsOf(nc + act, ic);
+                pv = abs(diag(R11));
+                if numel(pv) < numel(act) || any(pv <= 1e3 * eps * max([abs(diag(loc.R)); 0]))
+                    lsqvce.engine.BlockAccumulator.dayRankRefusal(sysID, d);
+                end
+                red = lsqvce.engine.ReducedContribution([], [], [], loc.m - numel(act), rows);
+                it = struct('sysID', sysID, 'day', d, 'red', red, 'localIdx', act, 'm', loc.m, ...
+                            'R11', R11, 'R12', R12, 'r1', r1, 'Nll', [], 'Nlc', [], 'nll', []);
+                return
+            end
+            [Nll, Nlc, Ncc, nll, ncc, ltl, m] = loc.blocks(ic, nc + (1:nl));
+            act = find(diag(Nll) ~= 0).';
+            Nll = Nll(act, act);  Nlc = Nlc(act, :);  nll = nll(act);
+            dsc = 1 ./ sqrt(diag(Nll));
+            [Ls, fail] = chol(dsc .* Nll .* dsc.', 'lower');
+            if fail > 0, lsqvce.engine.BlockAccumulator.dayRankRefusal(sysID, d); end
+            X = Ls \ (dsc .* Nlc);  z = Ls \ (dsc .* nll);
+            Nred = Ncc - X.' * X;  Nred = (Nred + Nred.') / 2;
+            red = lsqvce.engine.ReducedContribution(Nred, ncc - X.' * z, ltl - z.' * z, m - numel(act), [], ...
+                                                    max(ltl, loc.ltlMass));
+            it = struct('sysID', sysID, 'day', d, 'red', red, 'localIdx', act, 'm', m, ...
+                        'R11', [], 'R12', [], 'r1', [], 'Nll', Nll, 'Nlc', Nlc, 'nll', nll);
+        end
+
+        function dayRankRefusal(sysID, d)
+        %DAYRANKREFUSAL  The refusal of a day that leaves its locals undetermined.
+            error('lsqvce:accum:dayLocalsRankDeficient', ...
+                  ['System %s, day %s: the day does not determine its own local parameters; ' ...
+                   'its reduced contribution does not exist.'], string(sysID), string(d));
+        end
+
+        %------------------------------------------------------------------
+        function acc = fromContributions(C, c)
+        %FROMCONTRIBUTIONS  A reduced-only accumulator from day contributions
+        %   weighted by their days' multiplicities C (WP-158): every item of a
+        %   day d with c(d) > 0 is merged with weight c(d) -- its square-root
+        %   rows times sqrt(c(d)), or N, n, l'l times c(d) -- and its dof times
+        %   c(d); the common prior ONCE. solve() then runs unchanged (the prior,
+        %   the rank rule, the cancellation guards), so a combination is solved
+        %   exactly as fit solves its accumulation.
+        %   INPUT   C  dayContributions' struct;  c  1 x numel(C.days), finite, >= 0
+            acc = lsqvce.engine.BlockAccumulator(C.nc, 'Backend', string(C.backend), 'Verbose', false, ...
+                                                'KeepLocal', false);
+            for k = 1:numel(C.items)
+                w = c(C.days == C.items(k).day);
+                if w == 0, continue, end
+                r = C.items(k).red;
+                if ~isempty(r.Rows)
+                    rs = lsqvce.engine.ReducedContribution([], [], [], w * r.dof, sqrt(w) * r.Rows, w * r.ltlMass);
+                else
+                    rs = lsqvce.engine.ReducedContribution(w * r.N, w * r.n, w * r.ltl, w * r.dof, [], w * r.ltlMass);
+                end
+                acc.sys.merge(rs);
+            end
+            acc.diag = struct('sysID', 0, 'nl', 0, 'nArc', 0, 'condNll', 1, 'rankDef', 0, ...
+                              'status', 'ok', 'regUsed', 'none', 'lambdaUsed', 0);
+            acc.prior = C.prior;
+        end
                                % invoke it; hidden because it is not user API
 
         %------------------------------------------------------------------

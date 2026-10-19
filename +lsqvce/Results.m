@@ -69,6 +69,9 @@ classdef Results < handle
 %                                    (LSQVCE.REPORT); options pass straight through.
 %     r = R.redundancy()             Total redundancy sum(r_i) = n - u.
 %     res = R.residuals(Name,Value)  Whitened/raw residuals (acc.residuals).
+%     C = R.contributions()          Every (system, day)'s reduced contribution under
+%                                    the run's final weights, for
+%                                    LSQVCE.SOLVECONTRIBUTIONS (a bootstrap over days).
 %     con = R.contribution(...)      Per-group information share.
 %     T = R.convergence(Name,Value)  Per-ITERATION trajectory: when the loop
 %                                    settled (needs .history).
@@ -127,6 +130,9 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-19 (CEST, UTC+02:00), WP-158 (issue #183): contributions(),
+%   the days' reduced contributions for lsqvce.solveContributions. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
 %   report() hands the iterating loop as a code (Iteration.loop) and no longer
 %   as the label the report branched on; the noHistory message does not repeat
@@ -423,6 +429,53 @@ classdef Results < handle
         %RESIDUALS  Collected residuals from the accumulator (acc.residuals).
             obj.requireAccumulator('residuals');
             res = obj.acc.residuals(obj.sol, varargin{:});
+        end
+
+        function C = contributions(obj)
+        %CONTRIBUTIONS  Every (system, day)'s reduced contribution under this
+        %   run's final weights (WP-158, issue #183) -- the input of
+        %   LSQVCE.SOLVECONTRIBUTIONS, which solves any weighted combination of
+        %   the days (a bootstrap over days) without re-reading the data.
+        %   C = R.contributions()
+        %   Streams every day once more through the stored loaders (one data
+        %   pass), each day into its own partial system, and eliminates the
+        %   day's own local parameters (on the factor on the QR backend).
+        %   OUTPUT  C struct: .days (1 x D, the distinct days), .items (one per
+        %           system and day), .nc, .backend, .prior, and .weights
+        %           (.estimate, .robust, .fixed = true) and .truncation (a robust
+        %           run's tau, 1 otherwise): the weights the days
+        %           carry are this run's FINAL ones -- a noise run's estimated
+        %           variance components and a robust run's hard weights --
+        %           kept fixed in every combination
+        %   ERRORS  lsqvce:Results:noAccumulator          no accumulator on this Results
+        %           lsqvce:Results:contributionsNonlinear a Gauss-Newton run (its rows
+        %                                                 are linearised about x)
+        %           lsqvce:Results:contributionsInconsistent the days' dof do not add up
+        %                                                 to the run's
+        %           lsqvce:accum:localsCoupleDays         a local parameter spans two days
+        %           lsqvce:accum:regularisedLocals        a local block was regularised
+        %           lsqvce:accum:dayLocalsRankDeficient   a day leaves its locals undetermined
+            obj.requireAccumulator('contributions');
+            if ~isempty(lsqvce.util.getfielddef(obj.sol, 'xLin', []))
+                error('lsqvce:Results:contributionsNonlinear', ...
+                      ['R.contributions() needs a linear run: a Gauss-Newton run''s rows are ' ...
+                       'linearised about its x, and a combination of days would move it.']);
+            end
+            C = obj.acc.dayContributions();
+            % a robust run's hard sigma0 is divided by the truncation of its kept
+            % epochs; every combination of days is the same truncated sample
+            C.truncation = lsqvce.util.getfielddef(obj.sol, 'truncation', 1);
+            nk = 0;  if ~isempty(C.prior), nk = C.prior.nk; end
+            dofC = sum(arrayfun(@(it) it.red.dof, C.items)) + nk - C.nc;
+            if abs(dofC - obj.sol.dof) > 0.5
+                error('lsqvce:Results:contributionsInconsistent', ...
+                      ['The days'' contributions carry %g degrees of freedom, the run %g: the ' ...
+                       'run removed rows its loader did not mark (a robust rejection under a ' ...
+                       '''var'' law), and a combination of days could not count them.'], dofC, obj.sol.dof);
+            end
+            o = lsqvce.util.getfielddef(obj.meta, 'options', struct());
+            C.weights = struct('estimate', string(lsqvce.util.getfielddef(o, 'Estimate', "none")), ...
+                               'robust', string(lsqvce.util.getfielddef(o, 'Robust', "none")), 'fixed', true);
         end
 
         function [C, L, map] = toTable(obj, data, opt)
