@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.solveContributions</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.solveContributions</div>
+<h1>lsqvce.solveContributions</h1>
+<div class="purpose">Solve a weighted combination of a run&#x27;s days without re-reading them.</div>
+<h2>Description</h2>
+<pre class="example">out = LSQVCE.SOLVECONTRIBUTIONS(C, c)
+out = LSQVCE.SOLVECONTRIBUTIONS(C, c, &#x27;Locals&#x27;, true)
+
+For a bootstrap over days (WP-158, issue #183). C = R.contributions()
+holds every (system, day)&#x27;s reduced contribution of a fit; c gives each
+day a multiplicity -- how often a replicate drew it (0, 1, 2, ...), or any
+non-negative real for a Bayesian bootstrap. The combination&#x27;s reduced
+normal equations are the weighted sum of the days&#x27;,
+    N* = sum_d c_d N_d,  n* = sum_d c_d n_d,  l&#x27;l* = sum_d c_d l&#x27;l_d,
+    dof* = sum_d c_d dof_d,
+formed on the square root (each day&#x27;s rows times sqrt(c_d)) on the QR
+backend, and solved exactly as fit solves its accumulation: the common
+prior added ONCE, the same rank rule and cancellation guards. A day drawn
+twice contributes 2 N_d -- no relabelling around lsqvce:fit:duplicateDay.
+One replicate costs O(D nc^2) for D days and nc common parameters,
+independent of the number of observations per day.</pre>
+<h3>THE WEIGHTS ARE FIXED. Every day carries the run&#x27;s final weights: a noise</h3>
+<pre class="example">run&#x27;s estimated variance components and a robust run&#x27;s final (hard)
+weights are NOT re-estimated per combination -- a bootstrap of the
+estimator under fixed weights. out.weights says which weights those
+were. A bootstrap that re-estimates them needs a full fit per replicate.
+A robust run&#x27;s sigma0 is divided by its truncation factor tau (C.truncation)
+as fit&#x27;s hard solution is: every combination of days is a sample of kept
+epochs truncated alike.</pre>
+<h3>Input</h3>
+<pre class="example">  C   1x1 struct   R.contributions() of a linear fit
+  c   1 x D double multiplicity per day, aligned to C.days; finite, &gt;= 0,
+                   at least one day &gt; 0
+
+OPTIONS (Name/Value)
+  &#x27;Locals&#x27;  logical  also back-substitute the local parameters of every
+                     day drawn (c_d &gt; 0), with their covariance (default false)</pre>
+<h3>Output</h3>
+<pre class="example">out.x       nc x 1   the common parameters
+out.Cxx     nc x nc  their covariance (s0sq times the cofactor)
+out.sigma0  1x1      sqrt(s0sq);  out.s0sq, out.dof, out.vtv as fit&#x27;s solve
+out.weights 1x1      C.weights: .estimate, .robust, .fixed = true
+out.locals  struct array, with &#x27;Locals&#x27; true, one per system and drawn
+            day: .sysID, .day, .multiplicity, .localIdx (the system&#x27;s
+            local indices), .y, .Cyy; [] otherwise</pre>
+<h3>Example</h3>
+<pre class="example">R = lsqvce.fit(data, opts);
+C = R.contributions();                       % one data pass
+D = numel(C.days);  B = 100;  X = zeros(numel(R.x), B);
+for b = 1:B
+    draw = randi(D, 1, D);                   % D days with replacement
+    c = accumarray(draw(:), 1, [D 1]).&#x27;;
+    X(:, b) = lsqvce.solveContributions(C, c).x;
+end
+Cboot = cov(X.&#x27;);                            % the bootstrap covariance of x</pre>
+<h3>Accuracy</h3>
+<pre class="example">With every multiplicity 1 the combination reproduces fit&#x27;s x, Cxx and
+sigma0 on the QR backend to 1e-8 relative, the issue&#x27;s acceptance
+bound (measured 2e-10 in x and Cxx, 2e-14 in sigma0 at cond(A) ~ 9e4:
+the days&#x27; reduced rows are stacked and re-factorised where fit stacked
+each system&#x27;s); with a multiplicity vector it equals a full fit over the
+expanded day list (a day drawn twice entered twice, under the same
+fixed weights) to 1e-8 (measured 9e-10); the locals of a drawn day equal
+fit&#x27;s back-substitution to 1e-8 (measured 2e-10); a noise run and a
+robust run (sigma0 with tau) reproduce their fit alike (test_fit
+(testContributionsReproduceTheFit, testContributionsEqualAFitOverTheExpandedDays,
+testContributionsReturnTheDrawnDaysLocals, testContributionsOfANoiseAndARobustRun)).
+On the normal backend the agreement is that of the normal equations
+themselves, cond(N) eps: at cond(N) ~ 7e9 fit&#x27;s own normal solve is
+5e-4 from the QR one (testContributionsOnTheNormalBackend uses a
+well-conditioned fixture).</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:solveContributions:badContributions  C is not R.contributions()&#x27;s struct
+  lsqvce:solveContributions:badMultiplicity   c is not 1 x numel(C.days), finite,
+                                              &gt;= 0 with one day &gt; 0
+  (and the solve&#x27;s own: lsqvce:accum:priorNotPD, lsqvce:qr:*)
+
+See also LSQVCE.FIT, LSQVCE.RESULTS
+
+Created 2026-10-19 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Opus 5.5 -- WP-158 (issue #183).</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

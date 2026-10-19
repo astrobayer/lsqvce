@@ -9,6 +9,7 @@
       <tocitem target="html/lsqvce.Results.html">lsqvce.Results</tocitem>
       <tocitem target="html/lsqvce.report.html">lsqvce.report</tocitem>
       <tocitem target="html/lsqvce.layout.html">lsqvce.layout</tocitem>
+      <tocitem target="html/lsqvce.solveContributions.html">lsqvce.solveContributions</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Solving
       <tocitem target="html/lsqvce.engine.NormalEqSystem.html">lsqvce.engine.NormalEqSystem</tocitem>

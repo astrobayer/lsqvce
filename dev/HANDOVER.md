@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-18 — WP-155 DONE (PR #208, merge f621c30; CI GREEN on 68a628e in the first round: ci_gate 790/790, inventory lsqvce:internal:testProbe only): speed without loss of precision, version 6.34.1; the closure in §12.92. Review 12.84's packages are all closed (153, 154, 157, 156, 155).
+Last substantive update: 2026-10-19 — WP-158 OPEN (tier A; model Claude Opus 5.5; user: "Look at the open issues and fix them", interface "New lsqvce.solveContributions", locals "on request"): issue #183 -- R.contributions() and lsqvce.solveContributions(C, c), a bootstrap over days without re-reading them, fit reproduced to 2e-10 (bound 1e-8); version 6.35.0; §12.93.
+Preceding entry: Last substantive update: 2026-10-18 — WP-155 DONE (PR #208, merge f621c30; CI GREEN on 68a628e in the first round: ci_gate 790/790, inventory lsqvce:internal:testProbe only): speed without loss of precision, version 6.34.1; the closure in §12.92. Review 12.84's packages are all closed (153, 154, 157, 156, 155).
 Preceding entry: Last substantive update: 2026-10-18 — WP-155 OPEN (tier A; model Claude Opus 5.5; user: "#207 is merged"): speed without loss of precision -- a dense law whitened by solves (the explicit inverse was two thirds of the cost), the inverse law's lag sums by FFT, the robust snooping by projection; one pass at 24 576 observations 52 % faster at 4096-epoch arcs (45 % robust), results unchanged to 1.1e-14; Schur Cholesky and a factor cache measured and not adopted; version 6.34.1; §12.92.
 Preceding entry: Last substantive update: 2026-10-18 — WP-156 DONE (round 1 PR #205, merge 6d3b237; round 2 PR #206, merge c36dcee; CI GREEN on 88b25dd in the first round: ci_gate 786/786, inventory lsqvce:internal:testProbe only, the measure job reproducing the acceptance table): the robust variance estimator redesigned (design F, version 6.34.0), review 12.84 N3 retired; the white-stream offset traced to sampling; the closure in §12.91. Next: WP-155.
 Preceding entry: Last substantive update: 2026-10-18 — WP-156 round 2 OPEN, the implementation of design F (tier A; model Claude Opus 5.5; user: "Adopt design F as proposed ... Go ahead with the implementation once #205 is merged"): the robust pass rejects on Baarda's w, snooped in the sweep, the kept epochs' truncation in the redundancy lag by lag, a cycling set frozen at its union; three kernel units; the acceptance bar met in every row (20 seeds paired: every stream and sigma0^2 within 0.5 %, 717 of 720 small blunders on a red stream); a lagged scale found and fixed on the way (the scale is level-free); the white-stream offset traced to sampling (two fixtures shared their draws; 72 seeds: -0.01 % +- 0.14); round 1 DONE (PR #205, merge 6d3b237); version 6.34.0; §12.91.
@@ -12714,3 +12715,79 @@ lsqvce:internal:testProbe only), audit, release. The speed budgets on the runner
 from review 12.84 is complete -- 153 (#200), 154 (#202), 157 (#203), 156 (#205, #206) and 155
 (#208); every finding of 12.84 is fixed, documented as a decision, or measured and recorded as not
 worth doing (12.86-12.92).
+
+### 12.93 WP-158 — a bootstrap over days: per-day contributions (issue #183) (2026-10-19, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 158 | Issue #183 (NonGravForces' bootstrap over days, 45 % of its calibration run): R.contributions() returns every (system, day)'s reduced contribution under the run's final weights, and the new user function lsqvce.solveContributions(C, c) solves any weighted combination of the days -- c the multiplicity per day, integer or real -- without re-reading the data, the drawn days' locals on request; days coupled by a local, a regularised local block and Gauss-Newton runs refused; version 6.35.0 | 155 | OPEN (2026-10-19) |
+
+**The user's request (2026-10-19):** "Look at the open issues and fix them" -- one issue was open,
+#183 (by the user), a feature request with two interfaces left open. Asked and answered: the
+interface "New lsqvce.solveContributions" (option 1 as the issue wrote it: the contributions on
+Results plus a new top-level function), and the locals of the drawn days "Yes, on request".
+
+**Design.** fit reduces each SYSTEM's local block over all its days. A day has a reduced
+contribution of its own exactly when no local parameter of its system takes observations on
+another day ('day' and 'arc' scopes; a 'system' local couples the days): the local block is then
+block diagonal by day and its Schur complement is the sum of the days' -- N_red = sum_d N_d,
+exactly. So:
+- `BlockAccumulator.dayContributions` streams every system's days once more through the stored
+  loaders (one data pass, under the weights the accumulator was built with -- a noise run's final,
+  hard weights), each into its own raw partial system, and eliminates the day's own local columns:
+  on the FACTOR on the QR backend (`QRSystem.reducedRowsOf`, reducedRows for any set of local
+  columns -- the other days' local columns are exactly zero in R, an orthogonal transform maps a
+  zero column to zero, and are dropped; a dropped column that carries data is refused), by the
+  Jacobi-equilibrated Cholesky Schur complement on the normal backend. A local seen on two days
+  (lsqvce:accum:localsCoupleDays), a local block the accumulation regularised
+  (lsqvce:accum:regularisedLocals) and a day that leaves its locals undetermined
+  (lsqvce:accum:dayLocalsRankDeficient, the pivot rule of QRSystem.RankTol) are refused.
+- `BlockAccumulator.fromContributions` merges the items of every drawn day with weight c_d -- the
+  square-root rows times sqrt(c_d), dof times c_d -- adds the common prior ONCE, and `solve()` runs
+  unchanged: the prior, the rank rule and the cancellation guards are fit's own.
+- `R.contributions()` adds .weights (.estimate, .robust, .fixed = true) and .truncation (a robust
+  run's tau: its hard sigma0 is divided by it, and every combination of days is a sample of kept
+  epochs truncated alike), checks that the days' dof add up to the run's
+  (lsqvce:Results:contributionsInconsistent: a robust rejection under a 'var' law that the loader
+  does not mark), and refuses a Gauss-Newton run (lsqvce:Results:contributionsNonlinear: its rows
+  are linearised about x).
+- `lsqvce.solveContributions(C, c, 'Locals', true)` returns x, Cxx, sigma0, s0sq, dof, vtv, the
+  weights, and per drawn day y = R11 \ (r1 - R12 x) with Cyy = s0sq R11^-1 R11^-T + G Cxx G'.
+
+**Semantics (the issue's list, settled as it proposed).** Fixed weights: the run's final variance
+components and robust weights are kept in every combination (a bootstrap of the estimator under
+fixed weights), stated in the help and visible in out.weights; a bootstrap that re-estimates them
+needs a full fit per replicate. Common priors once. A day drawn twice contributes 2 N_d.
+
+**Measured (acceptance of the issue, bound 1e-8).** One system, two streams, three common
+parameters, a bias per day and per arc, 3 days x 2 arcs x 128 epochs, cond(A) ~ 9e4: every
+multiplicity 1 against fit -- x and Cxx 2e-10, sigma0 2e-14, dof equal; c = [2 0 1] against a full
+fit over the expanded day list [1 3 1] (relabelled) -- x 9e-10, Cxx 4e-11, sigma0 2e-13; the drawn
+days' locals against fit's back-substitution 2e-10; a noise run 9e-10 and a robust IGG3 run 3e-10
+in x (sigma0 3e-14 once divided by tau -- without it the ratio was exactly tau = 0.9733). On the
+normal backend the agreement is the normal equations' own: at cond(N) ~ 7e9 fit's normal solve is
+itself 5e-4 from the QR one (the contributions 3e-4); at cond ~ 4e2 the two agree to 6e-11. A
+contribution is at most (nc + 1)^2 numbers whatever the day held: a replicate costs O(D nc^2).
+
+**Tests (10 new; each new path has one, each new identifier fires).** test_fit:
+testContributionsReproduceTheFit, testContributionsEqualAFitOverTheExpandedDays (with a real c and
+c x constant), testContributionsReturnTheDrawnDaysLocals, testContributionsOfANoiseAndARobustRun,
+testContributionsOnTheNormalBackend, testContributionsRefuseWhatTheyCannotRepresent (localsCoupleDays
+through a 'system' local, contributionsNonlinear, contributionsInconsistent, badMultiplicity,
+badContributions), testContributionsCostIsIndependentOfTheSamples; new fixture bootFixture (a day's
+content keyed on its source day, so a relabelled day repeats it). test_lsqAccum:
+testDayContributionsNeedTheStoredLoaders (noContributionStore),
+testDayContributionsRefuseARegularisedLocalBlock (regularisedLocals),
+testReduceDayRefusesUndeterminedLocals (dayLocalsRankDeficient on both backends,
+qr:droppedNonzero, and reducedRowsOf equal to reducedRows of a system without the dropped column).
+
+**Docs.** solveContributions (help, ACCURACY), Results (contributions, METHODS), BlockAccumulator,
+QRSystem, API reference 06 (the Results table and a section with the identifiers), Manual 10
+("Resampling days"), the help index (helptoc.xml, html/index.html, a generated page), tiers.csv (a
+USER row), +lsqvce/Contents, error_ids.csv (nine identifiers at v6.35.0),
+category_exemptions.csv (vectorisation of solveContributions; one stale row removed),
+RELEASE_NOTES, DEVELOPMENT.md (812 declared). Version 6.35.0 (a new user function: a minor).
+
+**Limits, recorded.** Gauss-Newton runs are refused (a linearised combination would need the
+re-linearisation the bootstrap is meant to avoid). The weights are fixed by design. Locals that
+span days have no per-day contributions; declare them per day or per arc.

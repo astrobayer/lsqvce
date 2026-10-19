@@ -113,6 +113,9 @@ METHODS
                                  (LSQVCE.REPORT); options pass straight through.
   r = R.redundancy()             Total redundancy sum(r_i) = n - u.
   res = R.residuals(Name,Value)  Whitened/raw residuals (acc.residuals).
+  C = R.contributions()          Every (system, day)&#x27;s reduced contribution under
+                                 the run&#x27;s final weights, for
+                                 LSQVCE.SOLVECONTRIBUTIONS (a bootstrap over days).
   con = R.contribution(...)      Per-group information share.
   T = R.convergence(Name,Value)  Per-ITERATION trajectory: when the loop
                                  settled (needs .history).
@@ -167,6 +170,9 @@ lsqvce:Results:noPerObservation reliability() on a fit whose diagnostics
 See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
          LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-19 (CEST, UTC+02:00), WP-158 (issue #183): contributions(),
+the days&#x27; reduced contributions for lsqvce.solveContributions. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
 report() hands the iterating loop as a code (Iteration.loop) and no longer
 as the label the report branched on; the noHistory message does not repeat

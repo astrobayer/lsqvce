@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.34.1 — API Reference"
+title: "lsqvce 6.35.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -619,6 +619,7 @@ the map.
 | `R.coefficients(Alpha=a)` | estimates with formal errors and (1 − a) confidence bounds |
 | `R.toTable(data)` | your parameter tables with estimate and standard deviation written in |
 | `R.residuals(...)` | whitened (and raw) residuals per stream, re-read from the arcs |
+| `R.contributions()` | every (system, day)'s reduced contribution under the run's final weights, for `lsqvce.solveContributions` (one more pass over the data) |
 | `R.contribution(...)` | the share of every group in the common solution, t_g = tr(N⁻¹N_g) (Level 2: per parameter) |
 | `R.redundancy()` | the total redundancy n − u |
 | `R.reliability()` | per observation: r, w, the minimal detectable bias and its quadrant |
@@ -632,6 +633,39 @@ The readers that need an iteration (`summary`, `convergence`) raise
 `lsqvce:Results:noHistory` on a single solve; those that need the accumulator
 (`residuals`, `contribution`) raise `lsqvce:Results:noAccumulator` on the in-memory
 kinds.
+
+## `lsqvce.solveContributions` — a bootstrap over days
+
+`C = R.contributions()` streams every day once more and eliminates each day's own local
+parameters, so that the day's reduced normal equations remain. `out =
+lsqvce.solveContributions(C, c)` solves any weighted combination of the days:
+
+    N* = sum_d c_d N_d,   n* = sum_d c_d n_d,   l'l* = sum_d c_d l'l_d,   dof* = sum_d c_d dof_d
+
+`c` holds one multiplicity per day of `C.days`: how often a replicate drew the day (0, 1,
+2, ...), or any non-negative real for a Bayesian bootstrap. On the QR backend the days'
+square-root rows are stacked (times √c_d); the common prior is added once, and the solve is
+fit's own. One replicate costs O(D·nc²), independent of how many observations a day held.
+
+| output | meaning |
+|---|---|
+| `out.x`, `out.Cxx`, `out.sigma0`, `out.s0sq`, `out.dof`, `out.vtv` | the combination's solution |
+| `out.weights` | `.estimate`, `.robust`, `.fixed = true`: the weights every day carries |
+| `out.locals` | with `'Locals', true`: per drawn day `.sysID`, `.day`, `.multiplicity`, `.localIdx`, `.y`, `.Cyy` |
+
+The weights are the run's final ones, fixed: a noise run's estimated variance components
+and a robust run's hard weights are not re-estimated per combination (a bootstrap of the
+estimator under fixed weights); a robust run's σ0 is divided by its truncation factor, as
+fit's is. Contributions exist only where the days are separable:
+
+| identifier | cause |
+|---|---|
+| `lsqvce:accum:localsCoupleDays` | a local parameter takes observations on two days (declare it per day or per arc) |
+| `lsqvce:accum:regularisedLocals` | the accumulation regularised a local block |
+| `lsqvce:accum:dayLocalsRankDeficient` | a day leaves its own locals undetermined |
+| `lsqvce:Results:contributionsNonlinear` | a Gauss–Newton run (its rows are linearised about x) |
+| `lsqvce:Results:contributionsInconsistent` | the days' dof do not add up to the run's |
+| `lsqvce:solveContributions:badMultiplicity` | `c` does not fit `C.days`, or is negative, or draws nothing |
 
 
 # Help of the user-tier units
@@ -1068,6 +1102,9 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
                                    (LSQVCE.REPORT); options pass straight through.
     r = R.redundancy()             Total redundancy sum(r_i) = n - u.
     res = R.residuals(Name,Value)  Whitened/raw residuals (acc.residuals).
+    C = R.contributions()          Every (system, day)'s reduced contribution under
+                                   the run's final weights, for
+                                   LSQVCE.SOLVECONTRIBUTIONS (a bootstrap over days).
     con = R.contribution(...)      Per-group information share.
     T = R.convergence(Name,Value)  Per-ITERATION trajectory: when the loop
                                    settled (needs .history).
@@ -1370,6 +1407,8 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:Options:badVerbose` | Options | error | v4.0 |
 | `lsqvce:Options:badWhitener` | Options | error | v6.22.0 |
 | `lsqvce:Results:badPlotKind` | Results | error | v4.0 |
+| `lsqvce:Results:contributionsInconsistent` | Results | error | v6.35.0 |
+| `lsqvce:Results:contributionsNonlinear` | Results | error | v6.35.0 |
 | `lsqvce:Results:noAccumulator` | Results | error | v4.0 |
 | `lsqvce:Results:noCovariance` | Results | error | v4.0 |
 | `lsqvce:Results:noHistory` | Results | error | v4.0 |
@@ -1377,8 +1416,13 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:Results:noVPv` | Results | error | v4.0 |
 | `lsqvce:Results:compareEstimatedWeights` | Results | error | v6.28.0 |
 | `lsqvce:Results:tableMismatch` | Results | error | v4.0 |
+| `lsqvce:accum:dayLocalsRankDeficient` | engine.BlockAccumulator | error | v6.35.0 |
+| `lsqvce:accum:localsCoupleDays` | engine.BlockAccumulator | error | v6.35.0 |
+| `lsqvce:accum:noContributionStore` | engine.BlockAccumulator | error | v6.35.0 |
+| `lsqvce:accum:regularisedLocals` | engine.BlockAccumulator | error | v6.35.0 |
 | `lsqvce:lawInverse:notPD` | kernel.lawInverse | error | v6.34.0 |
 | `lsqvce:lawInverse:notSquare` | kernel.lawInverse | error | v6.34.0 |
+| `lsqvce:qr:droppedNonzero` | engine.QRSystem | error | v6.35.0 |
 | `lsqvce:report:badIteration` | report | error | v6.24.0 |
 | `lsqvce:accum:arcBadNc` | engine.BlockAccumulator | error | v4.0 |
 | `lsqvce:accum:arcBadNl` | engine.BlockAccumulator | error | v4.0 |
@@ -1644,6 +1688,8 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:snoop:maxReject` | engine.verdict | warning | v4.0 |
 | `lsqvce:snoop:rejectFraction` | engine.verdict | warning | v4.0 |
 | `lsqvce:snoop:tooContaminated` | engine.verdict | error | v4.0 |
+| `lsqvce:solveContributions:badContributions` | solveContributions | error | v6.35.0 |
+| `lsqvce:solveContributions:badMultiplicity` | solveContributions | error | v6.35.0 |
 | `lsqvce:stat:badDof` | kernel.stat | error | v4.0 |
 | `lsqvce:stat:badProb` | kernel.stat | error | v4.0 |
 | `lsqvce:stat:sizeMismatch` | kernel.stat | error | v4.0 |

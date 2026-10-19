@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.34.1 — User Manual"
+title: "lsqvce 6.35.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -2188,6 +2188,16 @@ a day is rebuilt. If reading the raw files is the expensive part, cache those in
 | `Probes` | the cost of the redundancy sweep grows linearly with it; 100 is the standard, fewer gives noisier redundancies |
 | `Parallel = struct('Mode', "parfor", 'DistributeDays', true)` | distributes the day loop of the accumulation over workers; the result is bitwise identical to the serial run |
 | `MaxPasses`, `Tolerance` | the number of passes of an iterative run |
+
+## Resampling days
+
+A bootstrap over days refits the problem once per replicate, and each refit re-reads and
+re-eliminates days the first fit already reduced. `R.contributions()` keeps every day's
+reduced contribution (one more pass over the data), and `lsqvce.solveContributions(C, c)`
+solves a replicate from them in O(D·nc²): `c` says how often the replicate drew each day.
+The days keep the run's final weights; the noise model and robust weights are not
+re-estimated per replicate. Declare day-specific unknowns per day or per arc: a local that
+spans days couples them, and the days then have no separate contributions.
 
 ## Backend
 

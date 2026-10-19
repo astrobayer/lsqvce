@@ -4,6 +4,7 @@ fit,USER,"the one user verb: fit(data, opts) -> Results"
 Options,USER,the one settings object for fit (typed knobs with engine defaults)
 Results,USER,"rich result object: solution, diagnostics, provenance, report()"
 report,USER,verdict printer (levels 0-4); Results.report forwards here
+solveContributions,USER,"solve a weighted combination of a fit's days (a bootstrap over days) from R.contributions()"
 engine.adjustNonlinear,ENGINE,Gauss-Newton with Levenberg damping on the block path
 engine.batchSystem,ENGINE,a batch source as one local-free streaming system (the kind B/C adapter)
 engine.adjustRobust,ENGINE,IRLS on the block path (every fit kind)
