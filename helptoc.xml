@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <toc version="2.0">
   <tocitem target="html/index.html">lsqvce
-    <tocitem target="html/lsqvce_manual.html">Manual (install, workflow, declaring a problem, the report, the examples)</tocitem>
-    <tocitem target="html/lsqvce_api.html">API reference (data contract, buildDay, Options, Results, identifiers)</tocitem>
+    <tocitem target="html/lsqvce_manual.html">Manual (install, concepts, tutorial, workflow, declaring a problem, the report, the examples, troubleshooting)</tocitem>
+    <tocitem target="html/lsqvce_api.html">API reference (data contract, buildDay and prepareDay, Options, Results, identifiers)</tocitem>
     <tocitem target="html/index.html">Start here (USER tier)
       <tocitem target="html/lsqvce.fit.html">lsqvce.fit</tocitem>
       <tocitem target="html/lsqvce.Options.html">lsqvce.Options</tocitem>
@@ -41,8 +41,6 @@
     <tocitem target="html/index.html">Stream and covariance helpers (the GRACE-FO template is examples/demo_grace_dataLoader.m)
       <tocitem target="html/lsqvce.engine.collectResiduals.html">lsqvce.engine.collectResiduals</tocitem>
       <tocitem target="html/lsqvce.kernel.whitenessCorr.html">lsqvce.kernel.whitenessCorr</tocitem>
-    </tocitem>
-    <tocitem target="html/index.html">Combining data sets
     </tocitem>
     <tocitem target="html/index.html">Diagnostics
       <tocitem target="html/lsqvce.engine.localDiagnostics.html">lsqvce.engine.localDiagnostics</tocitem>
@@ -89,8 +87,6 @@
       <tocitem target="html/lsqvce.kernel.crossCorr.html">lsqvce.kernel.crossCorr</tocitem>
       <tocitem target="html/lsqvce.engine.checkPSD.html">lsqvce.engine.checkPSD</tocitem>
       <tocitem target="html/lsqvce.engine.gcvLambda.html">lsqvce.engine.gcvLambda</tocitem>
-    </tocitem>
-    <tocitem target="html/index.html">Model testing
     </tocitem>
     <tocitem target="html/index.html">Free networks
       <tocitem target="html/lsqvce.engine.datum.html">lsqvce.engine.datum</tocitem>

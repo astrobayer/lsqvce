@@ -64,8 +64,8 @@ LEVELS
                  NOT ABLE TO CHECK.
   4  PARAMETERS  correlations, conditioning, precision.</pre>
 <h3>Name-Value</h3>
-<pre class="example">  &#x27;verbose&#x27;  true  print the report (default true)
-  &#x27;width&#x27;    78    line width
+<pre class="example">  &#x27;Verbose&#x27;  true  print the report (default true)
+  &#x27;Width&#x27;    78    line width (&gt;= 40)
   &#x27;Provenance&#x27; struct()  a run-provenance struct (LSQVCE.RESULTS .meta);
                    when non-empty, ONE level-0 NOTE line
                    (code &#x27;PROVENANCE&#x27;) states toolbox version, MATLAB
@@ -90,10 +90,14 @@ LEVELS
 OUTPUT V
   V.verdict   &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;
   V.findings  cell array of struct(level, severity, code, msg)
-  V.nError, V.nWarn, V.nNote</pre>
+  V.message   the one-paragraph explanation printed under the verdict
+  V.nError, V.nWarn, V.nNote
+  V.integrityOK  true when every level-0 check held</pre>
 <h3>Input</h3>
 <pre class="example">D         1x1 struct  diagnostics from LSQVCE.ENGINE.VERDICT.DIAGNOSE
-varargin  Name/Value: &#x27;verbose&#x27;, &#x27;width&#x27;, &#x27;alpha&#x27;, &#x27;rWeak&#x27;, ...</pre>
+Name/Value: &#x27;Verbose&#x27;, &#x27;Width&#x27;, &#x27;Provenance&#x27;, &#x27;Iteration&#x27; (above).
+          The test settings (alpha, rWeak, ...) are not report options:
+          they shape D, through lsqvce.Options&#x27; Diagnostics group.</pre>
 <h3>Example</h3>
 <pre class="example">data = struct(&#x27;batchFcn&#x27;, src, &#x27;numUnknowns&#x27;, u, &#x27;numBatches&#x27;, 4);
 R = lsqvce.fit(data, Verbose=false);
@@ -105,7 +109,7 @@ V = lsqvce.report(R.diag);         % prints the five levels (= R.report)
 % Drive a pipeline off the codes rather than the text:
 codes = cellfun(@(f) f.code, V.findings, &#x27;UniformOutput&#x27;, false);
 if ismember(&#x27;SNOOP_CONTAMINATED&#x27;, codes)
-    error(&#x27;Pope is blind here -- re-run with test=mad.&#x27;);
+    error(&#x27;Pope is blind here -- re-run with Diagnostics.Test = &quot;mad&quot;.&#x27;);
 end</pre>
 <h3>Accuracy</h3>
 <pre class="example">Not applicable to the verdict: it reads D (LSQVCE.ENGINE.VERDICT.DIAGNOSE
@@ -120,6 +124,10 @@ own ACCURACY). WP-138.</pre>
 
 See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 
+Updated 2026-10-29 (CET, UTC+01:00), WP-159: the Name-Value list is the
+arguments block&#x27;s (alpha / rWeak were never report options), OUTPUT
+lists .message and .integrityOK. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
 Iteration.loop, a code (&#x27;noise&#x27; / &#x27;irls&#x27; / &#x27;gaussNewton&#x27;), replaces the
 display label .what -- the report owns the wording and refuses an unknown

@@ -476,7 +476,7 @@ redundancy against the median of their group, and the solution's last step:
 An arc that cannot be used in a pass is **skipped and keeps its previous factor**. The
 reason is `'gap'` or `'nonPD'` (its covariance could not be factored). `R.history.skips`
 lists every skip as `{pass, arcKey, reason}`. A pass that skips more than
-`Noise.SkipThreshold` (0.2) of the arcs is refused with
+`Noise.SkipThreshold` (0.2) of one stream's arcs is refused with
 `lsqvce:adjustVCEjoint:skipThreshold`. A few `nonPD` skips usually mean a `Cep` or a law
 that is not positive definite on those arcs, so inspect that day's `buildDay` output.
 

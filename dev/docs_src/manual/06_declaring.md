@@ -87,12 +87,35 @@ holds both satellites' parameters. One reader for several setups takes the setup
 plain values in `processingOptions`, its 5th argument, or a closure that binds a
 configuration (API reference, chapter `buildDay`, *Where the handle goes*).
 
-When several streams of that system rest on one expensive computation — the orbits of
-both satellites and their partials for the whole day, used by the kinematic orbits and by
-the range-rates — put it in the system's `prepareDay`. It runs once per build of a day,
-before the first stream of the day is built, and every `buildDay` of that day finds its result in
-`procOpt.prepared` (API reference, chapter `buildDay`, *What all streams of a day share*;
-`template/kbr_variational.m` does exactly this).
+## Sharing the work of a day: `prepareDay`
+
+`buildDay` is called once per day **and observation type**. When several streams of a
+system rest on one expensive computation — the orbits of both satellites and their
+partials for the whole day, used by the kinematic orbits *and* by the range-rates — that
+computation would run once per stream. Give the system a `prepareDay` instead. It runs
+**once per build of a day**, before the first stream of the day is built, and every
+`buildDay` of that day finds its result in `procOpt.prepared`.
+
+```matlab
+s.prepareDay = @myPrepareDay;    % P = myPrepareDay(day, common, local, procOpt, info)
+s.buildDay   = @myBuildDay;      % D = myBuildDay(day, obsType, common, local, procOpt, info)
+```
+
+| question | answer |
+|---|---|
+| when does it pay? | when two or more observation types of one system share an expensive step: an orbit integration, the variational partials, a large file, Earth-rotation matrices. With one observation type it gains nothing |
+| what does it get? | as many of `(day, common, local, procOpt, info)` as it declares; `info` is the same day slice `buildDay` gets |
+| what may it return? | anything: a struct, a cell, an object. The toolbox does not look inside |
+| what must `buildDay` do? | declare at least five arguments, so that it receives `procOpt` (otherwise `lsqvce:makeLoader:prepareUnused`, reported by `fit` under its own prefix), and read `procOpt.prepared` |
+| how often does it run? | once each time the day is built: twice per pass with the default `CacheDays = 1`, once per run with `CacheDays = Inf`, and on every parallel worker that builds the day |
+| how much memory? | the current day's result only; it is dropped when the next day is prepared |
+| what must it be? | deterministic, like `buildDay` |
+| what if it fails? | `lsqvce:makeLoader:prepareDay`, naming the day, with your error as the cause |
+
+The tutorial (*Your first adjustment*, `examples/demo_tutorial.m`) is the smallest
+working example; the GRACE-FO pair below and `template/kbr_variational.m` are the real
+case. The full contract is in the API reference, chapter `buildDay`, *What all streams of
+a day share*.
 
 ## Multi-axis observations and their accuracy
 
@@ -110,30 +133,55 @@ The vector forms are standard deviations and the matrix form is a covariance —
 epoch by hand before a campaign. `Cep` is relative to the `sigma` of the covariance spec:
 declare `sigma = 1` when `Cep` already carries the absolute accuracy.
 
-## A complete declaration: two GRACE-FO satellites
+## A complete declaration: a GRACE-FO pair
+
+The range-rate between the two spacecraft depends on both orbits, so the pair is **one**
+system with three observation types: the kinematic positions of each satellite and the
+inter-satellite range-rate. All three rest on the same orbit integration, which therefore
+goes into `prepareDay`:
 
 ```matlab
 data.commonParams = [repmat({'common'}, nSh, 1), shParameterTable(60)];
 data.days = 1:31;
-cov.kbr = struct('type', 'arma', 'ar', [1 -1.6 0.9 -0.25], 'ma', 1, 'sigma', 1e-7);
-cov.pos = struct('type', 'diag', 'sigma', 0.02);
 
+state = {'x0'; 'y0'; 'z0'; 'vx0'; 'vy0'; 'vz0'};
 s = struct();
-s.buildDay = @buildDayGrace;
-s.covariance = cov;
-s.id = 'C';  s.name = 'GRACE-FO C';
-s.arcs = @(day, obsType) arcSchedule('C', day);            % 'arc' rows need a schedule
+s.id = 'G';  s.name = 'GRACE-FO';
+s.prepareDay = @prepareGracePair;          % both orbits and their partials, once per day
+s.buildDay   = @buildDayGracePair;         % picks the rows of one observation type
+s.covariance.posC = struct('type', 'diag', 'sigma', 0.02);
+s.covariance.posD = struct('type', 'diag', 'sigma', 0.02);
+s.covariance.kbr  = struct('type', 'diag', 'sigma', 1e-7);   % colour: let the estimator find it
+s.arcs = @(day, obsType) arcSchedule(day);                    % 'arc' rows need a schedule
 s.localParams = [ ...
-    [repmat({'arc'}, 6, 1), {'x0'; 'y0'; 'z0'; 'vx0'; 'vy0'; 'vz0'}];   % initial state
+    [repmat({'arc'}, 6, 1), strcat(state, 'C')];                       % initial state C
+    [repmat({'arc'}, 6, 1), strcat(state, 'D')];                       % initial state D
     {'arc', 'kbrBias'; 'arc', 'kbrCos1cpr'};                           % KBR empiricals
-    [repmat({'day'}, 3, 1), {'accScale'; 'accBias'; 'accDrift'}]];     % ACC per day
+    [repmat({'day'}, 6, 1), {'accScaleC'; 'accBiasC'; 'accDriftC'; ...
+                             'accScaleD'; 'accBiasD'; 'accDriftD'}]];  % ACC per day
 s.processingOptions = struct('dataDir', '/data/gracefo');
-data.systems(1) = s;
-s.id = 'D';  s.name = 'GRACE-FO D';  s.arcs = @(day, obsType) arcSchedule('D', day);
-data.systems(2) = s;
+data.systems = s;
 
-R = lsqvce.fit(data, Estimate="noise", Pool="stream", ArcFactors=false);
+R = lsqvce.fit(data, Estimate="noise");
 R.report
+```
+
+with the two functions of the system:
+
+```matlab
+function P = prepareGracePair(day, ~, ~, procOpt, info)
+    P.C = integrateWithPartials('C', day, procOpt, info);   % r, v and d[r;v]/dp
+    P.D = integrateWithPartials('D', day, procOpt, info);
+end
+
+function D = buildDayGracePair(day, obsType, ~, ~, procOpt, info)
+    P = procOpt.prepared;                  % prepareGracePair's result for this day
+    switch obsType
+        case 'posC', D = kinematicRows(P.C, day, info);
+        case 'posD', D = kinematicRows(P.D, day, info);
+        case 'kbr',  D = rangeRateRows(P.C, P.D, day, info);
+    end
+end
 ```
 
 A runnable builder of this shape for real Level-1B data is `template/kbr_variational.m`

@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.35.0 — API Reference"
+title: "lsqvce 6.35.1 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -134,7 +134,8 @@ uses to write estimates back into your tables.
 
 Both in-memory kinds run with `Estimate = "none"` (variance components need the
 streams of a streaming system, `lsqvce:fit:modelKind`); `Robust` selects
-M-estimation. Their per-observation diagnostics are in the whitened frame,
+M-estimation, except on the nonlinear form: `Robust` with `x0` is refused
+(`lsqvce:fit:notYet`; linearise first). Their per-observation diagnostics are in the whitened frame,
 `R.diag.v = sqrt(p).*v`.
 
 
@@ -456,13 +457,13 @@ R = lsqvce.fit(data, Estimate="noise", MaxPasses=6);     % name-value pairs stra
 |---|---|---|---|
 | `Backend` | `"qr"`, `"normal"` | `"qr"` | square-root information (Householder QR) or normal equations (Cholesky); the same numbers to rounding, QR the safer on ill-conditioned common blocks |
 | `CacheDays` | > 0 | 1 | built days kept resident per system; `Inf` keeps the calendar and builds each day once per run (a built type-day is m × nc doubles); a system's `prepareDay` result is the current day's only, whatever `CacheDays` |
-| `Verbose` | logical | `false` | screen messages: 0 silent, 1 progress |
+| `Verbose` | logical, or 0 / 1 / 2 | `false` | screen messages: 0 silent, 1 progress (2 is accepted and acts as 1) |
 | `OnPass` | `[]` or `@(ctx)` | `[]` | inspection hook called after every pass of every iterative run (below) |
 
 ### `OnPass`
 
 The hook receives one struct: `driver`, `pass`, `x`, `Cxx`, `sigma0`, `s0sq`; the loop
-state (noise loop: `C`, `Cgroups`, `sigma2`, `arcKeys`, `streams`, `sigma`, `white`,
+state (noise loop: `S`, `Sgroups` (the bin spectra), `C`, `Cgroups`, `sigma2`, `arcKeys`, `streams`, `sigma`, `white`,
 `whitePval`, `maxDev`, `binRatio`, `xStep`, `skips`; IRLS: `factor`, `keys`, `scale`, `dx`; Gauss–Newton:
 `vPv`, `dxRel`, `lambda`); `acc`, the live accumulator; `data`, the declaration as
 passed to `fit`; `processingOptions{k}`, system k's as declared. Return nothing to
@@ -543,7 +544,7 @@ data.systems(k).priors(l) = struct(...)   % on system k's local parameters: L in
 | `sigma` | ONE standard deviation for all rows of the group; relative weights inside a group go into L |
 | `from` | the pass at which the group becomes active (default 1). A single solve reports a group with `from > 1` (`lsqvce:fit:priorNotActive`) and skips it. |
 | `name` | label (default: the pattern); a local group becomes the stream `prior_<name>` of its system |
-| `estimate` | `"none"` (default): σ fixed; `"scale"`: σ is estimated in every pass of `Estimate = "noise"` |
+| `estimate` | `"none"` (default): σ fixed; `"scale"`: σ is estimated in every pass of `Estimate = "noise"` (in a run that cannot estimate it — `Estimate = "none"`, or the in-memory kinds — the group keeps its declared σ, with the warning `lsqvce:fit:priorScaleHeld`) |
 
 Malformed fields, or an `L` of the wrong width, are refused by name
 (`lsqvce:fit:badPrior`).
@@ -604,7 +605,7 @@ the map.
 | `sol` | struct | the solve: `.x`, `.sigma0`, `.Cxx` (covariance scaled by σ₀²), … |
 | `diag` | struct | per-observation diagnostics: residuals in the whitened frame, redundancy numbers, test statistics, minimal detectable biases, the robust check |
 | `history` | 1×I struct | one record per pass of an iterative run (empty for a single solve) |
-| `noise` | struct | the estimated stochastic model: per stream `.stream` keys and `.model{k}` (`.sigma` the level, `.C` the law's autocovariance); `.S` / `.Sgroups` the bin spectra per pool group; `.priors`, `.priorHistory`; `.robust` (influence, scale per stream, one factor per epoch) |
+| `noise` | struct | the estimated stochastic model: per stream `.stream` keys and `.model{k}` (`.sigma` the level, `.C` the law's autocovariance); `.S` / `.Sgroups` the bin spectra per pool group; `.Cgroups` the autocovariance per pool group; `.priors`, `.priorHistory`; `.checks` (when the model's assumptions fail); `.robust` (influence, scale per stream, one factor per epoch, `.truncation`, `.frozen`) |
 | `acc` | `BlockAccumulator` | the accumulator: re-solve, inspect blocks, residuals |
 | `systems` | 1×M struct | what ran per system: id, nl, day list, name |
 | `meta` | struct | provenance: `.toolboxVersion`, `.matlabRelease`, `.createdUTC`, `.seeds`, `.options` (the resolved options), `.warnings` |
@@ -665,12 +666,13 @@ fit's is. Contributions exist only where the days are separable:
 | `lsqvce:accum:dayLocalsRankDeficient` | a day leaves its own locals undetermined |
 | `lsqvce:Results:contributionsNonlinear` | a Gauss–Newton run (its rows are linearised about x) |
 | `lsqvce:Results:contributionsInconsistent` | the days' dof do not add up to the run's |
+| `lsqvce:solveContributions:badContributions` | `C` is not the struct `R.contributions()` returns |
 | `lsqvce:solveContributions:badMultiplicity` | `c` does not fit `C.days`, or is negative, or draws nothing |
 
 
 # Help of the user-tier units
 
-The help blocks of the five user-tier units, verbatim: `help lsqvce.<name>` shows the same text and `doc lsqvce.<name>` the same page. Generated from the code at build time.
+The help blocks of the six user-tier units, verbatim: `help lsqvce.<name>` shows the same text and `doc lsqvce.<name>` the same page. Generated from the code at build time.
 
 
 ## lsqvce.fit
@@ -746,7 +748,9 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
                                 checks -- the model checks, WP-154), stopReason,
                                 meta (options as resolved, warnings, seeds, version);
                                 methods report, summary, convergence, residuals,
-                                contribution, compare, plot, toTable, coefficients
+                                contribution, contributions, compare, plot,
+                                toTable, coefficients, reliability, systematic,
+                                snoop, ellipse, redundancy (LSQVCE.RESULTS)
 
   ACCURACY
     fit adds no arithmetic of its own: the estimate is the block
@@ -934,7 +938,8 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT: 12 knobs and 5 groups.
                                   EVERY pass of every iterative run (the
                                   variance-component loop, IRLS, Gauss-Newton)
                                   with ONE ctx struct: .driver .pass .x .Cxx
-                                  .sigma0, the loop state (noise: .C .Cgroups
+                                  .sigma0 .s0sq, the loop state (noise: .S
+                                  .Sgroups .C .Cgroups
                                   .sigma2 .arcKeys .streams .sigma .white
                                   .whitePval .maxDev .binRatio .xStep
                                   .skips; IRLS: .factor
@@ -1040,7 +1045,7 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
   ADJUSTVCEJOINT, ADJUSTROBUST, ADJUSTNONLINEAR. It gathers
   everything a user needs to read and judge an adjustment in one object, and
   keeps the lower layers reachable for experts. You rarely construct it
-  yourself; you receive it from adjustBlock and call R.report().
+  yourself; you receive it from lsqvce.fit and call R.report().
 
   PROPERTIES (read-only)
     x          nc x 1   double   Common-parameter estimate (the field).
@@ -1070,10 +1075,12 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
                                  .C the law's ACV) .S (the law: the bin
                                  spectrum, LSQVCE.KERNEL.HATACV) .Sgroups /
                                  .Cgroups (one per pool group)
-                                 .priors .priorHistory, and .robust
-                                 (.influence, .scale per stream,
+                                 .priors .priorHistory, .checks (the
+                                 model checks after convergence), and
+                                 .robust (.influence, .scale per stream,
                                  .streams, .factor ONE PER EPOCH in sweep
-                                 order, .keys; empty fields under "none").
+                                 order, .keys, .truncation, .frozen; empty
+                                 fields under "none").
     sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
     acc        1x1      lsqvce.engine.BlockAccumulator   The accumulator (drop here
                                  to re-solve, inspect blocks, get residuals).
@@ -1093,6 +1100,8 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
                                                  seed is stored as [])
                                  .options        1x1 struct the RESOLVED
                                                  options the run actually used
+                                 .warnings       every warning identifier
+                                                 the run raised
                                  A bare construction (7 arguments) gets a
                                  meta with empty seeds/options -- the field
                                  is never missing.
@@ -1131,7 +1140,7 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
   whitened -- the per-pass view reports the worst p-value without naming it.
 
   EXAMPLE
-    R = lsqvce.engine.adjustBlock(systems, days);
+    R = lsqvce.fit(data, Estimate="noise");
     R.report();
     if ~R.converged, lsqvce.util.log.warn('did not converge'); end
     x = R.x;   s0 = R.sigma0;
@@ -1150,6 +1159,16 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
                                   without an accumulator (fit kinds B / C)
     lsqvce:Results:noPerObservation reliability() on a fit whose diagnostics
                                   kept no per-observation vectors
+    lsqvce:Results:badPlotKind    plot() with an unknown kind, or a Stream
+                                  that matches no stream
+    lsqvce:Results:tableMismatch  toTable() with a declaration that is not
+                                  the one this Results came from
+    lsqvce:Results:compareEstimatedWeights  compare() on fits whose weights
+                                  were estimated (one fixed weighting needed)
+    lsqvce:Results:contributionsNonlinear   contributions() of a
+                                  Gauss-Newton run
+    lsqvce:Results:contributionsInconsistent contributions() whose days'
+                                  dof do not add up to the run's
 
   ACCURACY
     Results adds no numerics: x and sigma0 are the engine's (sigma0 is the
@@ -1193,8 +1212,8 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
     4  PARAMETERS  correlations, conditioning, precision.
 
   NAME-VALUE
-    'verbose'  true  print the report (default true)
-    'width'    78    line width
+    'Verbose'  true  print the report (default true)
+    'Width'    78    line width (>= 40)
     'Provenance' struct()  a run-provenance struct (LSQVCE.RESULTS .meta);
                      when non-empty, ONE level-0 NOTE line
                      (code 'PROVENANCE') states toolbox version, MATLAB
@@ -1219,11 +1238,15 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
   OUTPUT V
     V.verdict   'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
     V.findings  cell array of struct(level, severity, code, msg)
+    V.message   the one-paragraph explanation printed under the verdict
     V.nError, V.nWarn, V.nNote
+    V.integrityOK  true when every level-0 check held
 
   INPUT
     D         1x1 struct  diagnostics from LSQVCE.ENGINE.VERDICT.DIAGNOSE
-    varargin  Name/Value: 'verbose', 'width', 'alpha', 'rWeak', ...
+    Name/Value: 'Verbose', 'Width', 'Provenance', 'Iteration' (above).
+              The test settings (alpha, rWeak, ...) are not report options:
+              they shape D, through lsqvce.Options' Diagnostics group.
 
   EXAMPLE
       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
@@ -1236,7 +1259,7 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
       % Drive a pipeline off the codes rather than the text:
       codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
       if ismember('SNOOP_CONTAMINATED', codes)
-          error('Pope is blind here -- re-run with test=mad.');
+          error('Pope is blind here -- re-run with Diagnostics.Test = "mad".');
       end
 
   ACCURACY
@@ -1298,6 +1321,95 @@ LSQVCE.LAYOUT  The column layout fit will use -- so you can declare priors in it
     testSystemWithoutDaysClaimsOnlyTheGlobalCalendar). WP-139.
 
   See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the API reference
+```
+
+
+## lsqvce.solveContributions
+
+LSQVCE.SOLVECONTRIBUTIONS  Solve a weighted combination of a run's days without re-reading them.
+
+```
+LSQVCE.SOLVECONTRIBUTIONS  Solve a weighted combination of a run's days without re-reading them.
+
+  out = LSQVCE.SOLVECONTRIBUTIONS(C, c)
+  out = LSQVCE.SOLVECONTRIBUTIONS(C, c, 'Locals', true)
+
+  For a bootstrap over days (WP-158, issue #183). C = R.contributions()
+  holds every (system, day)'s reduced contribution of a fit; c gives each
+  day a multiplicity -- how often a replicate drew it (0, 1, 2, ...), or any
+  non-negative real for a Bayesian bootstrap. The combination's reduced
+  normal equations are the weighted sum of the days',
+      N* = sum_d c_d N_d,  n* = sum_d c_d n_d,  l'l* = sum_d c_d l'l_d,
+      dof* = sum_d c_d dof_d,
+  formed on the square root (each day's rows times sqrt(c_d)) on the QR
+  backend, and solved exactly as fit solves its accumulation: the common
+  prior added ONCE, the same rank rule and cancellation guards. A day drawn
+  twice contributes 2 N_d -- no relabelling around lsqvce:fit:duplicateDay.
+  One replicate costs O(D nc^2) for D days and nc common parameters,
+  independent of the number of observations per day.
+
+  THE WEIGHTS ARE FIXED. Every day carries the run's final weights: a noise
+  run's estimated variance components and a robust run's final (hard)
+  weights are NOT re-estimated per combination -- a bootstrap of the
+  estimator under fixed weights. out.weights says which weights those
+  were. A bootstrap that re-estimates them needs a full fit per replicate.
+  A robust run's sigma0 is divided by its truncation factor tau (C.truncation)
+  as fit's hard solution is: every combination of days is a sample of kept
+  epochs truncated alike.
+
+  INPUT
+    C   1x1 struct   R.contributions() of a linear fit
+    c   1 x D double multiplicity per day, aligned to C.days; finite, >= 0,
+                     at least one day > 0
+
+  OPTIONS (Name/Value)
+    'Locals'  logical  also back-substitute the local parameters of every
+                       day drawn (c_d > 0), with their covariance (default false)
+
+  OUTPUT
+    out.x       nc x 1   the common parameters
+    out.Cxx     nc x nc  their covariance (s0sq times the cofactor)
+    out.sigma0  1x1      sqrt(s0sq);  out.s0sq, out.dof, out.vtv as fit's solve
+    out.weights 1x1      C.weights: .estimate, .robust, .fixed = true
+    out.locals  struct array, with 'Locals' true, one per system and drawn
+                day: .sysID, .day, .multiplicity, .localIdx (the system's
+                local indices), .y, .Cyy; [] otherwise
+
+  EXAMPLE
+    R = lsqvce.fit(data, opts);
+    C = R.contributions();                       % one data pass
+    D = numel(C.days);  B = 100;  X = zeros(numel(R.x), B);
+    for b = 1:B
+        draw = randi(D, 1, D);                   % D days with replacement
+        c = accumarray(draw(:), 1, [D 1]).';
+        X(:, b) = lsqvce.solveContributions(C, c).x;
+    end
+    Cboot = cov(X.');                            % the bootstrap covariance of x
+
+  ACCURACY
+    With every multiplicity 1 the combination reproduces fit's x, Cxx and
+    sigma0 on the QR backend to 1e-8 relative, the issue's acceptance
+    bound (measured 2e-10 in x and Cxx, 2e-14 in sigma0 at cond(A) ~ 9e4:
+    the days' reduced rows are stacked and re-factorised where fit stacked
+    each system's); with a multiplicity vector it equals a full fit over the
+    expanded day list (a day drawn twice entered twice, under the same
+    fixed weights) to 1e-8 (measured 9e-10); the locals of a drawn day equal
+    fit's back-substitution to 1e-8 (measured 2e-10); a noise run and a
+    robust run (sigma0 with tau) reproduce their fit alike (test_fit
+    (testContributionsReproduceTheFit, testContributionsEqualAFitOverTheExpandedDays,
+    testContributionsReturnTheDrawnDaysLocals, testContributionsOfANoiseAndARobustRun)).
+    On the normal backend the agreement is that of the normal equations
+    themselves, cond(N) eps: at cond(N) ~ 7e9 fit's own normal solve is
+    5e-4 from the QR one (testContributionsOnTheNormalBackend uses a
+    well-conditioned fixture).
+
+  ERRORS
+    lsqvce:solveContributions:badContributions  C is not R.contributions()'s struct
+    lsqvce:solveContributions:badMultiplicity   c is not 1 x numel(C.days), finite,
+                                                >= 0 with one day > 0
+    (and the solve's own: lsqvce:accum:priorNotPD, lsqvce:qr:*)
+
+  See also LSQVCE.FIT, LSQVCE.RESULTS
 ```
 
 

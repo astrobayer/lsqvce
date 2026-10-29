@@ -37,13 +37,13 @@ R = lsqvce.fit(data, Estimate="noise", MaxPasses=6);     % name-value pairs stra
 |---|---|---|---|
 | `Backend` | `"qr"`, `"normal"` | `"qr"` | square-root information (Householder QR) or normal equations (Cholesky); the same numbers to rounding, QR the safer on ill-conditioned common blocks |
 | `CacheDays` | > 0 | 1 | built days kept resident per system; `Inf` keeps the calendar and builds each day once per run (a built type-day is m × nc doubles); a system's `prepareDay` result is the current day's only, whatever `CacheDays` |
-| `Verbose` | logical | `false` | screen messages: 0 silent, 1 progress |
+| `Verbose` | logical, or 0 / 1 / 2 | `false` | screen messages: 0 silent, 1 progress (2 is accepted and acts as 1) |
 | `OnPass` | `[]` or `@(ctx)` | `[]` | inspection hook called after every pass of every iterative run (below) |
 
 ### `OnPass`
 
 The hook receives one struct: `driver`, `pass`, `x`, `Cxx`, `sigma0`, `s0sq`; the loop
-state (noise loop: `C`, `Cgroups`, `sigma2`, `arcKeys`, `streams`, `sigma`, `white`,
+state (noise loop: `S`, `Sgroups` (the bin spectra), `C`, `Cgroups`, `sigma2`, `arcKeys`, `streams`, `sigma`, `white`,
 `whitePval`, `maxDev`, `binRatio`, `xStep`, `skips`; IRLS: `factor`, `keys`, `scale`, `dx`; Gauss–Newton:
 `vPv`, `dxRel`, `lambda`); `acc`, the live accumulator; `data`, the declaration as
 passed to `fit`; `processingOptions{k}`, system k's as declared. Return nothing to

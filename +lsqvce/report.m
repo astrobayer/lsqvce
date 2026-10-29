@@ -22,8 +22,8 @@ function V = report(D, opt)
 %     4  PARAMETERS  correlations, conditioning, precision.
 %
 %   NAME-VALUE
-%     'verbose'  true  print the report (default true)
-%     'width'    78    line width
+%     'Verbose'  true  print the report (default true)
+%     'Width'    78    line width (>= 40)
 %     'Provenance' struct()  a run-provenance struct (LSQVCE.RESULTS .meta);
 %                      when non-empty, ONE level-0 NOTE line
 %                      (code 'PROVENANCE') states toolbox version, MATLAB
@@ -48,11 +48,15 @@ function V = report(D, opt)
 %   OUTPUT V
 %     V.verdict   'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
 %     V.findings  cell array of struct(level, severity, code, msg)
+%     V.message   the one-paragraph explanation printed under the verdict
 %     V.nError, V.nWarn, V.nNote
+%     V.integrityOK  true when every level-0 check held
 %
 %   INPUT
 %     D         1x1 struct  diagnostics from LSQVCE.ENGINE.VERDICT.DIAGNOSE
-%     varargin  Name/Value: 'verbose', 'width', 'alpha', 'rWeak', ...
+%     Name/Value: 'Verbose', 'Width', 'Provenance', 'Iteration' (above).
+%               The test settings (alpha, rWeak, ...) are not report options:
+%               they shape D, through lsqvce.Options' Diagnostics group.
 %
 %   EXAMPLE
 %       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
@@ -65,7 +69,7 @@ function V = report(D, opt)
 %       % Drive a pipeline off the codes rather than the text:
 %       codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
 %       if ismember('SNOOP_CONTAMINATED', codes)
-%           error('Pope is blind here -- re-run with test=mad.');
+%           error('Pope is blind here -- re-run with Diagnostics.Test = "mad".');
 %       end
 %
 %   ACCURACY
@@ -82,6 +86,10 @@ function V = report(D, opt)
 %
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 %
+%   Updated 2026-10-29 (CET, UTC+01:00), WP-159: the Name-Value list is the
+%   arguments block's (alpha / rWeak were never report options), OUTPUT
+%   lists .message and .integrityOK. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
 %   Iteration.loop, a code ('noise' / 'irls' / 'gaussNewton'), replaces the
 %   display label .what -- the report owns the wording and refuses an unknown

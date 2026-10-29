@@ -70,9 +70,9 @@ def help_block(path):
 
 def chapter_api():
     out = ['# Help of the user-tier units\n',
-           'The help blocks of the five user-tier units, verbatim: `help lsqvce.<name>` shows the same '
+           'The help blocks of the six user-tier units, verbatim: `help lsqvce.<name>` shows the same '
            'text and `doc lsqvce.<name>` the same page. Generated from the code at build time.\n']
-    for name in ['fit', 'Options', 'Results', 'report', 'layout']:
+    for name in ['fit', 'Options', 'Results', 'report', 'layout', 'solveContributions']:
         h1, body = help_block(os.path.join(ROOT, '+lsqvce', name + '.m'))
         out.append('\n## lsqvce.%s\n\n%s\n\n```\n%s\n```\n' % (name, h1.strip(), body.rstrip()))
     return '\n'.join(out)

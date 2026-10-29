@@ -7,7 +7,7 @@ function R = demo_gravfire(bundleFile, opt)
 %   (Stokes coefficients as the common block, per-day ICs / accelerometer
 %   parameters / empiricals as the locals, kinematic positions of both
 %   satellites and the K-band range-rate as three observation groups) goes
-%   through template/gravfire_data.m into the v5 data struct and through
+%   through template/gravfire_data.m into the data struct and through
 %   lsqvce.fit. The design function is NOT part of the toolbox (STEP 11 of the
 %   guide is yours); the template's 'DryRun' stands in for it with random
 %   design matrices, so this demo exercises the PIPELINE -- the declaration,
@@ -33,6 +33,10 @@ function R = demo_gravfire(bundleFile, opt)
 %   model Claude Opus 5.
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M6, WP-88 (gracefoReading).
+%   Updated 2026-10-29 (CET, UTC+01:00), WP-159: the declaration is the data
+%   struct of the API reference (it was called "v5"; since v6 a day is one
+%   cell per arc). With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 arguments
     bundleFile (1,1) string = ""
     opt.Estimate (1,1) string {mustBeMember(opt.Estimate, ["none","noise"])} = "none"

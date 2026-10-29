@@ -1,5 +1,5 @@
 <productinfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <matlabrelease>R2020a</matlabrelease>
+  <matlabrelease>R2024a</matlabrelease>
   <name>lsqvce</name>
   <type>toolbox</type>
   <icon>$toolbox/matlab/icons/matlabicon.gif</icon>

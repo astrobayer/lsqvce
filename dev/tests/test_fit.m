@@ -15,6 +15,9 @@ function tests = test_fit
 %
 %   Run: runtests('tests/test_fit')
 %
+%   Updated 2026-10-29 (CET, UTC+01:00), WP-159: the guard of demo_tutorial,
+%   the Manual's tutorial and the worked example of prepareDay. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: two mutes that hid nothing
 %   removed (demo_fit mutes its own two-pass run, demo_priors converges); the
 %   demo capture echoes its warnings. With assistance from Claude
@@ -2767,6 +2770,36 @@ function testDemoPriorsIsTheWorkedLayoutExample(tc)
     tc.verifyLessThan(s.datumGap, 1e-6, 'moving the datum does not move the signal');
     tc.verifyLessThan(max(abs(s.zSignal)), 3, 'the signal is recovered within 3 sigma');
     tc.verifyGreaterThan(s.priorLevel, 0, 'the prior group is a stream with a level');
+end
+
+function testDemoTutorialIsTheManualsTutorial(tc)
+% categories: contract, precision
+    % WP-159: examples/demo_tutorial.m is the Manual's chapter "Your first
+    % adjustment", line for line, and the ONE worked example of prepareDay
+    % outside template/kbr_variational. The chapter prints its figures, so
+    % the claims of the demo's ACCURACY block are checked here: it must RUN,
+    % the noise run must settle and pass, and the lesson must hold -- the
+    % declared run's formal errors are too small, the estimated ones are not.
+    here  = fileparts(mfilename('fullpath'));
+    exDir = fullfile(here, '..', '..', 'examples');    % dev/tests -> root (L8)
+    addpath(exDir);
+    tc.addTeardown(@() rmpath(exDir));
+    out = evalc('[R, s] = demo_tutorial();');
+    echoWarnings(out);   % WP-145: its warnings reach the gate
+
+    tc.verifyClass(R, 'lsqvce.Results');
+    tc.verifyEqual(s.final.stopReason, "converged", 'the noise loop settles');
+    tc.verifyEqual(s.verdict, "PASS", 'the report passes the estimated model');
+    % tol: 3 formal sigma -- the planted truth against the noise run's errors
+    z = (s.final.x - s.truth) ./ s.final.se;
+    tc.verifyLessThan(max(abs(z)), 3, 'a and b are recovered within 3 sigma');
+    % tol: 0.1 -- sigma0 of a settled noise run at r = 4788 (95 % CI +-2 %)
+    tc.verifyLessThan(abs(s.final.sigma0 - 1), 0.1, 'the noise run ends at sigma0 ~ 1');
+    % the lesson of the chapter: a white law on AR(1) data (phi 0.5) gives
+    % formal errors that are too small; the estimated colour widens them
+    % (measured 1.6x; the bound is loose on purpose)
+    tc.verifyGreaterThan(min(s.final.se ./ s.first.se), 1.3, ...
+        'the estimated colour widens the formal errors of the declared run');
 end
 
 function testRobustJointSweepLeavesThePriorArcsOut(tc)

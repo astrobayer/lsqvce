@@ -3,7 +3,7 @@ function [cfg, data] = demo_grace_dataLoader()
 %
 %   [cfg, data] = demo_grace_dataLoader()
 %
-%   Returns a ready-to-run configuration CFG and the declaration as a v5 data
+%   Returns a ready-to-run configuration CFG and the declaration as a data
 %   struct DATA (the API reference), so the VCE loop on multi-axis and
 %   scalar streams can be exercised end to end without real data:
 %
@@ -29,14 +29,14 @@ function [cfg, data] = demo_grace_dataLoader()
 %   stream, giving FOUR variance components (posC, posD, rr, posE). Each stream
 %   starts from a deliberately WRONG a-priori (temporally white, sigma 1).
 %
-%   PARAMETRISATION PIPE (v5 contract, scoped tables).  The unknowns are described by two
+%   PARAMETRISATION PIPE (scoped tables).  The unknowns are described by two
 %   cell arrays with one ROW per unknown (data.commonParams and the system's
 %   localParams), piped through to the day-builder as its 3rd/4th args; nc
 %   and nl are DERIVED from their row counts, and the column count is YOUR
 %   convention (this demo uses 15). A 'processingOptions' struct is piped as
 %   the 5th arg. The demo's column convention (yours may differ) is:
 %
-%     col  1  scope           v5 token: 'common' (shared table)
+%     col  1  scope           scope token: 'common' (shared table)
 %                             or 'system' (local tables)     (char)
 %     col  2  kind            'gravity' | 'arcBias' | ...   (char)
 %     col  3  label           human-readable name          (char)
@@ -95,13 +95,17 @@ function [cfg, data] = demo_grace_dataLoader()
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
 %   contract point at the API reference. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-29 (CET, UTC+01:00), WP-159: the declaration is the data
+%   struct of the API reference (it was called "v5"; since v6 a day is one
+%   cell per arc). With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
     cfg  = demoCfg();
     data = graceData(cfg);
 end
 
 %==========================================================================
 function data = graceData(cfg)
-%GRACEDATA  The declaration as a v5 data struct: two systems (the merged
+%GRACEDATA  The declaration as a data struct: two systems (the merged
 %   C/D pair and independent E), each with its covariance (the fieldnames
 %   ARE the streams, in processing order) and its localParams table.
     data = struct();
@@ -259,7 +263,7 @@ end
 
 %% ===================================================== parametrisation tables
 function C = commonParamTable(cfg)
-%COMMONPARAMTABLE  nc rows x 15 cols: the v5 scope token 'common' first, then
+%COMMONPARAMTABLE  nc rows x 15 cols: the scope token 'common' first, then
 %   14 cols describing the shared gravity unknowns. Synthetic degree/order
 %   just enumerate the nc coefficients; a real table would carry the true SH
 %   (n,m,C/S). Shared -> system 0, satellite ''.
@@ -273,7 +277,7 @@ function C = commonParamTable(cfg)
 end
 
 function T = localParamTable(cfg, sats, yTrue)
-%LOCALPARAMTABLE  (nlSat*numel(sats)) rows x 15 cols: the v5 scope token
+%LOCALPARAMTABLE  (nlSat*numel(sats)) rows x 15 cols: the scope token
 %   'system' first (this demo hand-stacks the pair block [y_C | y_D], so its
 %   rows stay hand-numbered -- exactly what 'system' scope means), then 14
 %   cols. yTrue is nlSat x numel(sats) (or nlSat x 1) of a-priori truth.

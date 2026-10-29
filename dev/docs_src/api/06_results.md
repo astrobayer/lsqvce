@@ -15,7 +15,7 @@ the map.
 | `sol` | struct | the solve: `.x`, `.sigma0`, `.Cxx` (covariance scaled by σ₀²), … |
 | `diag` | struct | per-observation diagnostics: residuals in the whitened frame, redundancy numbers, test statistics, minimal detectable biases, the robust check |
 | `history` | 1×I struct | one record per pass of an iterative run (empty for a single solve) |
-| `noise` | struct | the estimated stochastic model: per stream `.stream` keys and `.model{k}` (`.sigma` the level, `.C` the law's autocovariance); `.S` / `.Sgroups` the bin spectra per pool group; `.priors`, `.priorHistory`; `.robust` (influence, scale per stream, one factor per epoch) |
+| `noise` | struct | the estimated stochastic model: per stream `.stream` keys and `.model{k}` (`.sigma` the level, `.C` the law's autocovariance); `.S` / `.Sgroups` the bin spectra per pool group; `.Cgroups` the autocovariance per pool group; `.priors`, `.priorHistory`; `.checks` (when the model's assumptions fail); `.robust` (influence, scale per stream, one factor per epoch, `.truncation`, `.frozen`) |
 | `acc` | `BlockAccumulator` | the accumulator: re-solve, inspect blocks, residuals |
 | `systems` | 1×M struct | what ran per system: id, nl, day list, name |
 | `meta` | struct | provenance: `.toolboxVersion`, `.matlabRelease`, `.createdUTC`, `.seeds`, `.options` (the resolved options), `.warnings` |
@@ -76,5 +76,6 @@ fit's is. Contributions exist only where the days are separable:
 | `lsqvce:accum:dayLocalsRankDeficient` | a day leaves its own locals undetermined |
 | `lsqvce:Results:contributionsNonlinear` | a Gauss–Newton run (its rows are linearised about x) |
 | `lsqvce:Results:contributionsInconsistent` | the days' dof do not add up to the run's |
+| `lsqvce:solveContributions:badContributions` | `C` is not the struct `R.contributions()` returns |
 | `lsqvce:solveContributions:badMultiplicity` | `c` does not fit `C.days`, or is negative, or draws nothing |
 

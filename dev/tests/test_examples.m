@@ -43,6 +43,9 @@ function tests = test_examples
 %   Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A7): demo_gravfire runs on
 %   a generated bundle. With assistance from Claude (Anthropic), model Claude
 %   Opus 5.5.
+%   Updated 2026-10-29 (CET, UTC+01:00), WP-159: the row of demo_tutorial,
+%   the Manual's tutorial. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: the examples' warnings
 %   reach the gate, and the suite carries its capture probe. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -141,6 +144,7 @@ function varargout = exampleCalls(exDir, what)
       'demo_noisePolicy',        @() demo_noisePolicy(); ...
       'demo_priors',             @() demo_priors(); ...
       'demo_sensors',            @() demo_sensors(); ...
+      'demo_tutorial',           @() demo_tutorial(); ...
       'demo_workflow',           @() runScript('demo_workflow')};
     if strcmp(what, 'names')
         varargout = {sort(T(:, 1).')};

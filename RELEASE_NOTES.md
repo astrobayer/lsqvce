@@ -1,5 +1,26 @@
 # lsqvce release notes
 
+## 6.35.1 — 2026-10-29 (WP-159: the Manual for a first-time user; documentation drift)
+
+No estimate changes.
+
+- The Manual is rewritten for a first-time user. New chapters: *Key concepts* (the
+  vocabulary: common and local parameters, systems, days, arcs, streams, and what `fit`
+  calls in which order), *Your first adjustment* (a straight line, then a complete
+  streaming case), and *Troubleshooting* (the common error identifiers, their causes and
+  fixes). *The workflow, step by step* gains a step for `prepareDay` and a table of
+  `buildDay`'s arguments; *Declaring your problem* gains a section on `prepareDay` and
+  declares the GRACE-FO pair as ONE system, as its own text demands.
+- New example `examples/demo_tutorial.m`: the tutorial line for line, with a `prepareDay`
+  shared by two streams. The suite runs it and checks its printed claims.
+- Documentation drift fixed: the README (six user names, 12 knobs, `Noise.Grid`, the
+  covariance types, `Parallel.DistributeDays`, the gate); the help of `report` (its
+  Name-Value list, `.message`, `.integrityOK`), `Results` (received from `fit`, every
+  identifier it raises, `meta.warnings`, `noise.checks`), `fit` (every method of
+  `Results`), `Options` (the `OnPass` fields `s0sq`, `S`, `Sgroups`); the API reference
+  (the help of `solveContributions`, `Verbose` 0/1/2, `priorScaleHeld`, `Robust` with
+  `x0`); the landing page's workflow, which called functions that no longer exist.
+
 ## 6.35.0 — 2026-10-19 (WP-158: a bootstrap over days, issue #183)
 
 - `R.contributions()` returns every (system, day)'s reduced contribution under the run's final

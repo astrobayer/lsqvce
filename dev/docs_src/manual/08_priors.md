@@ -66,6 +66,10 @@ a local group appears as the stream `prior_<name>` of its system in `R.noise.mod
 λ = σ₀²/σ² is the regularisation the data support. `R.report` counts the redundancy of
 the prior rows like that of any observation.
 
+A group with `estimate = "scale"` is estimated only under `Estimate = "noise"` on the
+streaming kind. In any other run it keeps its declared σ, and `fit` says so once
+(`lsqvce:fit:priorScaleHeld`).
+
 ## Activating a prior later
 
 `from = 3` activates a group in the third pass of an iterative run: the first passes then
