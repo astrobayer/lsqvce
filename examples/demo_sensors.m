@@ -7,7 +7,7 @@ function demo_sensors()
 %
 %   THE KEY STRUCTURAL FACT
 %   -----------------------
-%   The v5 data struct states the whole hierarchy declaratively:
+%   The data struct states the whole hierarchy declaratively:
 %     * a SYSTEM is an entry of data.systems (its localParams are the
 %       per-system locals -- every sensor of the system sees them);
 %     * a SENSOR is an observation type: one field of covariance, and one
@@ -73,6 +73,10 @@ function demo_sensors()
 %   lsqvce.fit per question (gls for the symptom, Estimate="noise", Pool="stream", ArcFactors=false for the
 %   weights), R.residuals() for the attribution. With assistance from
 %   Claude (Anthropic), model Claude Fable 5.
+%   Updated 2026-10-29 (CET, UTC+01:00), WP-159: the declaration is the data
+%   struct of the API reference (it was called "v5"; since v6 a day is one
+%   cell per arc). With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 
 clc;
 rs = RandStream('mt19937ar', 'Seed', 2026);
@@ -135,7 +139,7 @@ fprintf('\n  [planted] a 6-sigma offset in GRACE-C / KBR / day 7\n');
 fprintf('  [planted] GRACE-D''s LRI is down on days 4-5 (a data gap)\n');
 
 %% ------------------------------------------------------------------------
-% STEP 2 -- declare the hierarchy: the v5 data struct
+% STEP 2 -- declare the hierarchy: the data struct
 % -------------------------------------------------------------------------
 data = struct();
 data.commonParams = [repmat({'common'}, uC, 1), num2cell((1:uC).')];  % scoped

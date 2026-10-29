@@ -7,7 +7,7 @@ classdef Results < handle
 %   ADJUSTVCEJOINT, ADJUSTROBUST, ADJUSTNONLINEAR. It gathers
 %   everything a user needs to read and judge an adjustment in one object, and
 %   keeps the lower layers reachable for experts. You rarely construct it
-%   yourself; you receive it from adjustBlock and call R.report().
+%   yourself; you receive it from lsqvce.fit and call R.report().
 %
 %   PROPERTIES (read-only)
 %     x          nc x 1   double   Common-parameter estimate (the field).
@@ -37,10 +37,12 @@ classdef Results < handle
 %                                  .C the law's ACV) .S (the law: the bin
 %                                  spectrum, LSQVCE.KERNEL.HATACV) .Sgroups /
 %                                  .Cgroups (one per pool group)
-%                                  .priors .priorHistory, and .robust
-%                                  (.influence, .scale per stream,
+%                                  .priors .priorHistory, .checks (the
+%                                  model checks after convergence), and
+%                                  .robust (.influence, .scale per stream,
 %                                  .streams, .factor ONE PER EPOCH in sweep
-%                                  order, .keys; empty fields under "none").
+%                                  order, .keys, .truncation, .frozen; empty
+%                                  fields under "none").
 %     sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
 %     acc        1x1      lsqvce.engine.BlockAccumulator   The accumulator (drop here
 %                                  to re-solve, inspect blocks, get residuals).
@@ -60,6 +62,8 @@ classdef Results < handle
 %                                                  seed is stored as [])
 %                                  .options        1x1 struct the RESOLVED
 %                                                  options the run actually used
+%                                  .warnings       every warning identifier
+%                                                  the run raised
 %                                  A bare construction (7 arguments) gets a
 %                                  meta with empty seeds/options -- the field
 %                                  is never missing.
@@ -98,7 +102,7 @@ classdef Results < handle
 %   whitened -- the per-pass view reports the worst p-value without naming it.
 %
 %   EXAMPLE
-%     R = lsqvce.engine.adjustBlock(systems, days);
+%     R = lsqvce.fit(data, Estimate="noise");
 %     R.report();
 %     if ~R.converged, lsqvce.util.log.warn('did not converge'); end
 %     x = R.x;   s0 = R.sigma0;
@@ -117,6 +121,16 @@ classdef Results < handle
 %                                   without an accumulator (fit kinds B / C)
 %     lsqvce:Results:noPerObservation reliability() on a fit whose diagnostics
 %                                   kept no per-observation vectors
+%     lsqvce:Results:badPlotKind    plot() with an unknown kind, or a Stream
+%                                   that matches no stream
+%     lsqvce:Results:tableMismatch  toTable() with a declaration that is not
+%                                   the one this Results came from
+%     lsqvce:Results:compareEstimatedWeights  compare() on fits whose weights
+%                                   were estimated (one fixed weighting needed)
+%     lsqvce:Results:contributionsNonlinear   contributions() of a
+%                                   Gauss-Newton run
+%     lsqvce:Results:contributionsInconsistent contributions() whose days'
+%                                   dof do not add up to the run's
 %
 %   ACCURACY
 %     Results adds no numerics: x and sigma0 are the engine's (sigma0 is the
@@ -130,6 +144,10 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-29 (CET, UTC+01:00), WP-159: received from lsqvce.fit
+%   (the example called an engine); meta.warnings, noise.checks and the
+%   robust truncation listed; ERRORS lists every id the class raises. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-19 (CEST, UTC+02:00), WP-158 (issue #183): contributions(),
 %   the days' reduced contributions for lsqvce.solveContributions. With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.

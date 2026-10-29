@@ -35,7 +35,9 @@ whitener, so there the same limit applies to every law, a filter law included.
 - **You know the noise spectrum.** Declare `type = 'psd'` with `f` and `S`, or an `arma`
   filter; set `estimate = "scale"` to keep the shape and estimate only the level, or
   `"none"` to use it as given.
-- **Your axes are correlated in time across axes.** Declare a `var` law (no `Cep`).
+- **Your axes are correlated in time across axes.** Declare a `var` law (no `Cep`). It
+  is used as declared: `Estimate = "noise"` has no path for it and refuses it
+  (`lsqvce:fit:varUnderNoise`).
 - **A stream you trust completely** — a prior stream, a reference — takes
   `estimate = "none"`.
 
@@ -53,8 +55,8 @@ group, the level of every stream, the factor of every arc and the σ of every pr
 `estimate = "scale"`. It stops when no component changes by more than `Tolerance` — the
 σ of a prior group included, which is first updated on the pass after it enters the solve,
 so the loop does not stop before — or after `MaxPasses`. A spectral bin the data barely
-determine may change by more, in proportion to its own standard error (the next
-chapter, "When the loop did not settle").
+determine may change by more, in proportion to its own standard error (chapter
+*Reading the results and the report*, "When the loop did not settle").
 
 The choices that matter:
 

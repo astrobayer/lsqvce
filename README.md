@@ -1,11 +1,12 @@
-# lsqvce v6.35.0 — least-squares adjustment with variance component estimation
+# lsqvce v6.35.1 — least-squares adjustment with variance component estimation
 
 Declare your problem as a plain `data` struct, `fit` it, and get a judged
 result: estimates with formal errors, per-observation diagnostics, and a
 five-level verdict that says whether to believe them.
 
-**The user surface is five names** at `lsqvce.` — `fit`, `Options`, `Results`,
-`report` and `layout` (the column layout to declare priors in) — plus the `data`
+**The user surface is six names** at `lsqvce.` — `fit`, `Options`, `Results`,
+`report`, `layout` (the column layout to declare priors in) and `solveContributions`
+(a fit's days re-weighted without re-reading them: a bootstrap) — plus the `data`
 struct specified in the API reference (`doc lsqvce`). Everything
 that does the work lives one level down (`lsqvce.engine.*` drivers,
 accumulators, loaders, VCE, diagnostics; `lsqvce.kernel.*` transforms, filters,
@@ -74,22 +75,25 @@ data.systems = struct('buildDay', @buildDayC, 'covariance', cov, 'id', 'C', ...
 R = lsqvce.fit(data, Estimate="noise", Pool="obsType", OnPass=@myInspect);   % per arc (v6)
 ```
 
-Every kind runs on the same accumulator and the same loop; `Robust`, the
-nonlinear form and `OnPass` (your inspection hook after every pass) work on
-all of them. The v5 → v6 migration is one change (`RELEASE_NOTES.md`).
+Every kind runs on the same accumulator and the same loop; `Robust` and `OnPass`
+(your inspection hook after every pass) work on all of them, and the nonlinear form
+(`x0`) on the batched kind — but not together with `Robust` (`lsqvce:fit:notYet`). The v5 → v6 migration is one change (`RELEASE_NOTES.md`).
 
 **New here?** `doc lsqvce` opens the landing page (`html/index.html`). Three documents, each with one job:
 
 1. **The Manual** (`html/lsqvce_manual.html`, `lsqvce_manual.pdf`) — how to use the toolbox:
-   installation, the workflow step by step, declaring your problem, choosing the stochastic
-   model, priors, reading the report, and every example explained.
+   installation, the key concepts, a tutorial you can run (`examples/demo_tutorial.m`), the
+   workflow step by step, declaring your problem (including `prepareDay`, the work all
+   streams of a day share), choosing the stochastic model, priors, reading the report,
+   every example explained, and troubleshooting.
 2. **The API reference** (`html/lsqvce_api.html`, `lsqvce_api.pdf`) — what every interface
-   accepts and returns: the `data` struct, `buildDay`, covariance specifications, `Options`,
+   accepts and returns: the `data` struct, `buildDay` and `prepareDay`, covariance specifications, `Options`,
    `Results`, every error identifier.
 3. **The theory** (`lsqvce_theory.pdf`) — the mathematical framework.
 
-Then run `examples/demo_workflow.m` section by section, and copy the example closest to your
-problem.
+Then run `demo_tutorial` and read the Manual's chapter *Your first adjustment* beside it;
+`examples/demo_workflow.m` walks the general path section by section. Copy the example
+closest to your problem.
 
 ## Usage guidelines
 
@@ -99,13 +103,15 @@ variance-component estimator on every stream whose spec allows it: the
 spectral shape per pool group (`Pool="all" | "obsType" | "stream"`), one level
 per stream, and — with `ArcFactors=true` — a keyed factor per arc. The v4
 words: `"vce"` = `Estimate="noise", Pool="stream", ArcFactors=false`;
-`"pooled"` = `Pool="all", ArcFactors=false`; `"ellmer"` = `Estimate="noise"`.
-Set `Noise.Grid` at least as large as the longest arc. `Robust="huber" |
-"igg3" | "bisquare"` is IRLS on the same loop, on every kind.
+`"pooled"` = `Estimate="noise", Pool="all", ArcFactors=false`; `"ellmer"` =
+`Estimate="noise"`. `Noise.Grid` is the number of spectral bins of the estimated law
+(default 60; keep it with the default `Noise.Smooth = 1`). `Robust="huber" |
+"igg3" | "bisquare"` is IRLS on the same loop, on every kind except the nonlinear form.
 
 **Declaring the stochastic model.** Each observation stream carries a
-covariance spec — its temporal law: `diag` (white), `arma` / `ar` (a whitening
-filter), `acf` / `psd` (an exact Toeplitz law) — plus the per-stream policy
+covariance spec — its temporal law: `diag` (white), `arma` (a whitening
+filter), `acf` / `psd` (an exact Toeplitz law; `psd` can also be AR-whitened), `var`
+(axes correlated across time; not under `Estimate="noise"`) or `custom` — plus the per-stream policy
 `estimate = "none" | "scale" | "law"` and `arcFactors`
 (`examples/demo_noisePolicy.m` runs all four against a planted truth). The per-epoch accuracy
 of the observations (a sigma per epoch, or a 3 × 3 covariance per epoch for
@@ -116,10 +122,13 @@ arcs. Batches are
 overlapped by the filter memory automatically, so batching never changes the
 result. Priors on the common parameters — a datum, a Kaula rule, a
 background model — are `data.priors`, written in the columns
-`lsqvce.layout` announces (`examples/demo_priors.m`). Details and the six `buildDay` rules:
+`lsqvce.layout` announces (`examples/demo_priors.m`). When several streams of a day rest
+on one expensive computation (an orbit integration, a file every stream reads), the
+system's optional `prepareDay` runs it once per day and hands the result to every
+`buildDay` of that day as `procOpt.prepared`. Details and the `buildDay` rules:
 the API reference (`doc lsqvce`).
 
-**Options.** `lsqvce.Options` is a typed value class: 14 knobs and five
+**Options.** `lsqvce.Options` is a typed value class: 12 knobs and five
 groups (`Noise`, `RobustOpts`, `Diagnostics`, `Parallel`, `GaussNewton`);
 name-value on construction or straight on `fit`; `disp(opts)` marks which
 knobs deviate from the defaults. You rarely need more than `Estimate`,
@@ -158,7 +167,7 @@ silent, and never an option: `data.priors(k)` on the common parameters and
 `data.systems(k).priors(l)` on the local ones, each a pseudo-observation group
 that carries its own redundancy (the Manual, chapter Priors and regularisation).
 
-**Parallelism.** Days within a system (`DistributeDays=true`), arcs in the
+**Parallelism.** Days within a system (`Parallel.DistributeDays = true`), arcs in the
 redundancy pass, and systems parallelise; nothing inside an arc (filter state)
 or inside the dense solve (BLAS) does. Serial and distributed accumulation are
 pinned equal to 1e-11 by test.
@@ -175,8 +184,8 @@ edit(fullfile('template','lsqvce_template.m'))   % copy to start your own case
 ```
 
 Developers: the suite, the audit, the doc builders and the full development
-record live under `dev/` (`dev/DEVELOPMENT.md`; `dev/tests/run_all_lsqvce.m`
-manages its path temporarily and restores it on return).
+record live under `dev/` (`dev/DEVELOPMENT.md`). The gate is
+`cd('dev/tests'); ci_gate`, which manages its path temporarily and restores it on return.
 
 ## License
 

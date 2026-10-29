@@ -67,7 +67,9 @@ function R = fit(data, opts, nv)
 %                                 checks -- the model checks, WP-154), stopReason,
 %                                 meta (options as resolved, warnings, seeds, version);
 %                                 methods report, summary, convergence, residuals,
-%                                 contribution, compare, plot, toTable, coefficients
+%                                 contribution, contributions, compare, plot,
+%                                 toTable, coefficients, reliability, systematic,
+%                                 snoop, ellipse, redundancy (LSQVCE.RESULTS)
 %
 %   ACCURACY
 %     fit adds no arithmetic of its own: the estimate is the block
@@ -176,6 +178,9 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-29 (CET, UTC+01:00), WP-159: OUTPUT lists every method
+%   of Results. With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-154 (review 12.84, M2-M5): R.noise
 %   carries the joint estimator's model checks (.checks); ACCURACY states the
 %   formal errors' plug-in optimism. With assistance from Claude (Anthropic),

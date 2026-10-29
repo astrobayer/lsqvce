@@ -5,7 +5,7 @@ function R = demo_grace(varargin)
 %   R = DEMO_GRACE('maxPasses', 8, 'verbose', true)
 %
 %   Runs a GRACE-FO-shaped synthetic problem through the USER surface:
-%   the declaration comes from DEMO_GRACE_DATALOADER as a v5 data struct
+%   the declaration comes from DEMO_GRACE_DATALOADER as a data struct
 %   (the API reference), the run is ONE call to LSQVCE.FIT, and everything
 %   you read afterwards is on the LSQVCE.RESULTS. Two observation systems:
 %     * System 1 -- satellites C and D, each with a 3-D position stream (posC,
@@ -84,6 +84,10 @@ function R = demo_grace(varargin)
 %   (Noise.Smooth 1, budget 10, settles in 4; it stopped unconverged on 6),
 %   the settled values measured. With assistance from Claude (Anthropic),
 %   model Claude Opus 5.5.
+%   Updated 2026-10-29 (CET, UTC+01:00), WP-159: the declaration is the data
+%   struct of the API reference (it was called "v5"; since v6 a day is one
+%   cell per arc). With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 
     p = inputParser;
     p.addParameter('maxPasses', 10);
@@ -91,7 +95,7 @@ function R = demo_grace(varargin)
     p.parse(varargin{:});
     o = p.Results;
 
-    [cfg, data] = demo_grace_dataLoader();   % the v5 declaration (this folder)
+    [cfg, data] = demo_grace_dataLoader();   % the declaration (this folder)
 
     fprintf(['\n=== VCE demo: GRACE-FO topology (+ independent sat E) ===\n' ...
              '    System 1: satellites C,D with a 3-D position stream each\n' ...

@@ -17,6 +17,7 @@ path by itself.
 
 | Question | Example | Kind of data |
 |---|---|---|
+| I am new: what does a complete streaming run look like, and how do I use `prepareDay`? | `demo_tutorial` | streaming, one system, two streams |
 | How do I wire my own data into `data` and read the verdict? | `demo_workflow` (script) | batched; streaming recipe |
 | What do the three data kinds look like in one call each? | `demo_fit` | in-memory, batched, streaming |
 | What does the report say when an adjustment is wrong in a specific way? | `demo_lsqvce` (script) | in-memory, one streaming case |
@@ -33,6 +34,7 @@ path by itself.
 
 ## Suggested reading order
 
+0. **`demo_tutorial`**: the Manual's chapter *Your first adjustment*, as a file.
 1. **`demo_workflow`**, then **`demo_fit`**: the shape of `data`, the three
    kinds, `lsqvce.Options`, and how to read `R.diag` and `R.report()`.
 2. **`demo_lsqvce`**: what the diagnostics say when something is wrong.
@@ -79,7 +81,7 @@ demo_combine()
 demo_fit()
 demo_grace('verbose', false)
 demo_grace_dataLoader()
-demo_gravfire([tempname '.mat'])      % a path that does not exist: the no-bundle branch
+demo_gravfire(bundleFile)             % the suite writes a generated bundle to bundleFile
 demo_gravity()
 demo_gravity_dataLoader()
 orbit = struct('u', linspace(0, 4*pi, 400).', 'lam0', linspace(0, 0.3, 400).', ...
@@ -90,13 +92,40 @@ demo_messaging()
 demo_noisePolicy()
 demo_priors()
 demo_sensors()
+demo_tutorial()
 demo_workflow                         % script
 ```
 
-The files in `template/` are not part of that run. `gravfire_data` needs
-your bundle and `kbr_variational` needs Level-1B files.
+`demo_gravfire` runs on a bundle the suite generates
+(`dev/tests/fixture_gravfire_bundle.m`, random numbers in the real structure), so
+`template/gravfire_data.m` runs with it. `demo_gravfire` with a path that does not
+exist prints what it would need and returns. `kbr_variational` needs Level-1B files
+and is not part of the run.
 
 ---
+
+## `demo_tutorial`: your first streaming run, with `prepareDay`
+
+```matlab
+[R, s] = demo_tutorial();
+[R, s] = demo_tutorial('verbose', true, 'plot', true);   % defaults: false, false
+```
+
+The file of the chapter *Your first adjustment*, line for line. One system watches a
+periodic signal with two instruments (`'gauge'`, white; `'radar'`, AR(1) but declared
+white) on two arcs a day for five days; every arc has an unknown offset. Its
+`prepareDay` computes the epochs and the signal basis of a day once, and both streams'
+`buildDay` read them from `procOpt.prepared`.
+
+It runs `fit` twice — once under the declared noise, once with `Estimate = "noise"` — and
+prints the two estimates of the two common parameters against the planted truth. Both
+are close to the truth; the declared run's formal errors are about 1.6 times too small,
+because the radar's colour was missing. The noise run converges in four passes, σ₀ = 1.000,
+and the report's verdict is `PASS`.
+
+`s` returns the truth, both runs' estimates, standard errors and σ₀, each stream's final
+level relative to the declared one, and the verdict. The test suite checks these claims
+(`test_fit`, `testDemoTutorialIsTheManualsTutorial`).
 
 ## `demo_workflow`: build your own case
 

@@ -3,7 +3,7 @@ function [cfg, data] = demo_gravity_dataLoader()
 %
 %   [cfg, data] = demo_gravity_dataLoader()
 %
-%   Returns a configuration CFG and the declaration as a v5 data struct DATA
+%   Returns a configuration CFG and the declaration as a data struct DATA
 %   (the form LSQVCE.FIT takes -- see the API reference), so a PHYSICALLY
 %   STRUCTURED gravity recovery can be run end to end without any external
 %   data:
@@ -136,6 +136,10 @@ function [cfg, data] = demo_gravity_dataLoader()
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
 %   contract point at the API reference. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-29 (CET, UTC+01:00), WP-159: the declaration is the data
+%   struct of the API reference (it was called "v5"; since v6 a day is one
+%   cell per arc). With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 
     cfg  = gravityCfg();
     data = gravityData(cfg);
@@ -143,7 +147,7 @@ end
 
 %==========================================================================
 function data = gravityData(cfg)
-%GRAVITYDATA  The declaration as a v5 data struct (L11 WP-77): the tables
+%GRAVITYDATA  The declaration as a data struct (L11 WP-77): the tables
 %   declare, the counts are derived -- commonParams is the degree/order/term
 %   table of the SH coefficients (nc = rows, and the columns MEAN something),
 %   the observation type is the covariance fieldname, id is the system id.
@@ -160,7 +164,7 @@ function data = gravityData(cfg)
         d.covariance   = struct(ot, cfg.cov.(ot));        % fieldname = the stream
         d.arcs         = @(dd, o) cfg.arcsOfDay{cfg.days == dd};
         d.localParams  = [repmat({'arc'}, cfg.sys(s).nlPerArc, 1), ...
-                          num2cell((1:cfg.sys(s).nlPerArc).')];   % v5 'arc' templates
+                          num2cell((1:cfg.sys(s).nlPerArc).')];   % 'arc' templates
         d.id           = cfg.sys(s).id;
         d.name         = cfg.sys(s).name;
         if s == 1, data.systems = d; else, data.systems(s) = d; end

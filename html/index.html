@@ -79,7 +79,13 @@ struct. <a href="lsqvce_api.html">The API reference</a> is the binding
 specification; the runnable build-your-own-case guide is
 <code>examples/demo_workflow.m</code>.</div>
 
+<div class="note"><b>New to lsqvce?</b> Run <code>demo_tutorial</code> and read the
+<a href="lsqvce_manual.html">Manual</a>'s chapters <i>Key concepts</i> and <i>Your first
+adjustment</i> beside it: a complete streaming run in one file, with a
+<code>buildDay</code> and a <code>prepareDay</code> you can replace by your own reader.</div>
+
 <div class="note"><b>Starting your own case?</b> Copy
+<code>examples/demo_tutorial.m</code> for a streaming case, or
 <code>examples/demo_fit.m</code> for the user path (a plain <code>data</code>
 struct through <code>lsqvce.fit</code>). Two other starting
 points exist for narrower jobs: <code>template/lsqvce_template.m</code> is the
@@ -90,17 +96,22 @@ onto the declaration. The GRACE-FO example
 alongside any of them.</div>
 
 <h2>Gravity recovery workflow</h2>
-<pre class="example">% streaming block-arrow accumulate -> solve -> variance components -> verdict
-acc = BlockAccumulator(nc, 'Backend','qr', 'KeepLocal',true);
-acc.addSystem('GRACE-C', nl, graceLoaderC, days);
-acc.addSystem('GRACE-D', nl, graceLoaderD, days);
+<pre class="example">% one system per satellite pair: its streams share the day's orbit integration
+s.prepareDay = @prepareGracePair;      % P = prepareGracePair(day, common, local, procOpt, info)
+s.buildDay   = @buildDayGracePair;     % reads procOpt.prepared, returns one cell per arc
+s.covariance.posC = struct('type', 'diag', 'sigma', 0.02);
+s.covariance.posD = struct('type', 'diag', 'sigma', 0.02);
+s.covariance.kbr  = struct('type', 'diag', 'sigma', 1e-7);
+s.arcs = @(day, obsType) arcSchedule(day);
+s.localParams = localTemplates;        % initial states, KBR empiricals, ACC per day
+data.commonParams = [repmat({'common'}, nc, 1), shTable];
+data.days = 1:31;   data.systems = s;
 
-vc  = vce(@(sig) buildAccumulator(cfg,sig), 'GroupBy','obsType');
-sol = vc.sol;                                   % solution at converged weights
-
-[dsol, src, nB] = diagnoseAccum(acc, sol);   % bridge to diagnostics
-D = diagnose(dsol, src, 'nBatch', nB);
-V = report(D);                           % the five levels</pre>
+R = lsqvce.fit(data, Estimate="noise", Seed=1);   % accumulate, solve, estimate the noise
+V = R.report();                                   % the five levels
+R.plot("psd");                                    % the estimated spectra</pre>
+<p>The Manual, chapter <i>Declaring your problem</i>, writes this declaration out in full;
+<code>template/kbr_variational.m</code> is a runnable builder of this shape for Level-1B data.</p>
 
 <h2>The five levels of the report</h2>
 <p>The report is ordered so that a failure at one level invalidates the levels
@@ -124,7 +135,7 @@ below it.</p>
 <b>1. Pope's tau goes blind under contamination.</b> It divides by
 <code>s0</code>, which is estimated from data that <i>contain</i> the blunders.
 At 10% contamination a <b>100&sigma; blunder is undetectable</b>, and iterating
-does not rescue it. Use <code>'test','mad'</code>, and heed the contamination
+does not rescue it. Use <code>Diagnostics=struct('Test', "mad")</code>, and heed the contamination
 gauge.
 <br><br>
 <b>2. A small residual is not evidence of a good observation.</b> A residual
@@ -136,7 +147,7 @@ reveals only the fraction <code>r_i</code> of any error present
 <h2>Function reference</h2>
 <h3>Start here &mdash; the USER tier</h3><table>
 <tr><td class="name"><a href="lsqvce.layout.html">lsqvce.layout</a></td><td>The column layout of A and B announced before fit (declare priors in it).</td></tr>
-<tr><td class="name"><a href="lsqvce.fit.html">lsqvce.fit</a></td><td>The one user verb: fit(data, opts) &mdash; a plain data struct (the Manual, chapter 3) + Options &rarr; Results. Builds the loaders itself; reads the KIND from the data and what to estimate from Options.Estimate ("none" | "noise").</td></tr>
+<tr><td class="name"><a href="lsqvce.fit.html">lsqvce.fit</a></td><td>The one user verb: fit(data, opts) &mdash; a plain data struct (the API reference, chapter The data struct) + Options &rarr; Results. Builds the loaders itself; reads the KIND from the data and what to estimate from Options.Estimate ("none" | "noise").</td></tr>
 <tr><td class="name"><a href="lsqvce.Options.html">lsqvce.Options</a></td><td>The one settings object: every knob named, typed, defaulted to the engines' own defaults.</td></tr>
 <tr><td class="name"><a href="lsqvce.Results.html">lsqvce.Results</a></td><td>What comes back: x, sigma0, diagnostics, report(), coefficients(), summary(), convergence().</td></tr>
 <tr><td class="name"><a href="lsqvce.report.html">lsqvce.report</a></td><td>The level-0..4 verdict (R.report forwards here).</td></tr>
@@ -252,7 +263,7 @@ library code: <code>demo_gravity.m</code> is the closed-loop oracle with measure
 <tr><td class="name">examples/demo_grace.m</td><td>End-to-end walk-through of the VCE loop on multi-axis and scalar streams.</td></tr>
 <tr><td class="name">examples/demo_grace_dataLoader.m</td><td>Synthetic GRACE-FO data generator for the VCE demo.</td></tr>
 <tr><td class="name">examples/demo_gravfire.m</td><td>A GRAVFIRE bundle (commonData / myOptions / systemsData) through fit.</td></tr>
-<tr><td class="name">examples/demo_fit.m</td><td>The 2.0 user path end to end: a data struct, an Options, fit, report -- on all three data kinds (START HERE).</td></tr>
+<tr><td class="name">examples/demo_fit.m</td><td>The 2.0 user path end to end: a data struct, an Options, fit, report -- on all three data kinds.</td></tr>
 <tr><td class="name">examples/demo_gravity.m</td><td>GRACE-like gravity recovery on a PHYSICALLY STRUCTURED design.</td></tr>
 <tr><td class="name">examples/demo_gravity_dataLoader.m</td><td>GRACE-like gravity-recovery data for DEMO_GRAVITY.</td></tr>
 <tr><td class="name">examples/demo_gravity_design.m</td><td>Spherical-harmonic potential design along an orbit.</td></tr>
@@ -261,32 +272,34 @@ library code: <code>demo_gravity.m</code> is the closed-loop oracle with measure
 <tr><td class="name">examples/demo_noisePolicy.m</td><td>Per stream: estimate a shape, only a level, or nothing.</td></tr>
 <tr><td class="name">examples/demo_priors.m</td><td>Regularisation written in the columns LSQVCE.LAYOUT announces.</td></tr>
 <tr><td class="name">examples/demo_sensors.m</td><td>The full hierarchy: satellite system / sensor / day.</td></tr>
+<tr><td class="name">examples/demo_tutorial.m</td><td>Your first streaming adjustment, from declaration to verdict (START HERE; the Manual's tutorial).</td></tr>
 <tr><td class="name">examples/demo_workflow.m</td><td>Build your OWN least-squares case, from scratch.</td></tr>
 </table>
 <h2>Manuals</h2>
 <div class="note"><b>Three documents, each with one job.</b>
 The <a href="lsqvce_manual.html">Manual</a> (also <code>lsqvce_manual.pdf</code>) says how to use the
-toolbox: installation, the workflow step by step, declaring your problem, choosing the stochastic
-model, priors, reading the report, and the examples. The <a href="lsqvce_api.html">API reference</a>
+toolbox: installation, the key concepts, a tutorial, the workflow step by step, declaring your
+problem (with <code>prepareDay</code>), choosing the stochastic model, priors, reading the report,
+the examples and troubleshooting. The <a href="lsqvce_api.html">API reference</a>
 (also <code>lsqvce_api.pdf</code>) states what every interface accepts and returns: the
-<code>data</code> struct, <code>buildDay</code>, covariance specifications, <code>Options</code>,
+<code>data</code> struct, <code>buildDay</code> and <code>prepareDay</code>, covariance specifications, <code>Options</code>,
 <code>Results</code> and every identifier. <code>lsqvce_theory.pdf</code> is the mathematical
 framework. The per-unit pages below are generated from the help blocks.</div>
 <table>
 <tr><td class="name"><a href="lsqvce_manual.html">Manual</a></td>
-    <td>install, workflow, declaring a problem, stochastic model, priors, the report, the examples</td></tr>
+    <td>install, concepts, tutorial, workflow, declaring a problem, stochastic model, priors, the report, the examples, troubleshooting</td></tr>
 <tr><td class="name"><a href="lsqvce_api.html">API reference</a></td>
-    <td>data contract, buildDay, covariance specs, Options, Results, identifiers</td></tr>
+    <td>data contract, buildDay and prepareDay, covariance specs, Options, Results, identifiers</td></tr>
 </table>
 
 <h2>Tests</h2>
-<pre class="example">run_all_lsqvce                    % THE gate: all 18 suites + a full log
-run_lsqvce                        % one suite, interactively</pre>
-<div class="warn"><b>Use <code>run_all_lsqvce</code>, not
-<code>runtests('tests')</code>.</b> <code>runtests</code> on a folder SKIPS a file
+<pre class="example">cd('dev/tests'); ci_gate          % THE gate: every suite + a full log, or an error
+run_lsqvce                        % one suite, interactively (from dev/tests)</pre>
+<div class="warn"><b>Use <code>ci_gate</code>, not
+<code>runtests('dev/tests')</code>.</b> <code>runtests</code> on a folder SKIPS a file
 that fails to load and still reports the remainder as green &mdash; a suite can
-look clean while an entire file never ran. <code>run_all_lsqvce</code> counts
-load failures as failures and writes <code>tests/last_run_all.txt</code>.</div>
+look clean while an entire file never ran. The gate counts load failures as failures
+and writes its log under <code>dev/tests</code>.</div>
 
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
 </body></html>

@@ -71,7 +71,8 @@ classdef Options
 %                                   EVERY pass of every iterative run (the
 %                                   variance-component loop, IRLS, Gauss-Newton)
 %                                   with ONE ctx struct: .driver .pass .x .Cxx
-%                                   .sigma0, the loop state (noise: .C .Cgroups
+%                                   .sigma0 .s0sq, the loop state (noise: .S
+%                                   .Sgroups .C .Cgroups
 %                                   .sigma2 .arcKeys .streams .sigma .white
 %                                   .whitePval .maxDev .binRatio .xStep
 %                                   .skips; IRLS: .factor
@@ -166,6 +167,9 @@ classdef Options
 %   was "all", which put streams of different physics in one law -- measured:
 %   no gain from pooling identical spectra, eff 37-132 for different ones).
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-29 (CET, UTC+01:00), WP-159: the OnPass ctx lists .s0sq,
+%   .S and .Sgroups, which the noise loop has always passed. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-154 (review 12.84, M1): Noise.Smooth
 %   defaults to 1 (it was 0): measured better in x, formal errors and passes,
 %   the levels as unbiased; a Grid tied to the arc length was measured too and

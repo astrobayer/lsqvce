@@ -129,5 +129,6 @@ uses to write estimates back into your tables.
 
 Both in-memory kinds run with `Estimate = "none"` (variance components need the
 streams of a streaming system, `lsqvce:fit:modelKind`); `Robust` selects
-M-estimation. Their per-observation diagnostics are in the whitened frame,
+M-estimation, except on the nonlinear form: `Robust` with `x0` is refused
+(`lsqvce:fit:notYet`; linearise first). Their per-observation diagnostics are in the whitened frame,
 `R.diag.v = sqrt(p).*v`.

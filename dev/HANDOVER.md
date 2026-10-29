@@ -12791,3 +12791,57 @@ RELEASE_NOTES, DEVELOPMENT.md (812 declared). Version 6.35.0 (a new user functio
 **Limits, recorded.** Gauss-Newton runs are refused (a linearised combination would need the
 re-linearisation the bootstrap is meant to avoid). The weights are fixed by design. Locals that
 span days have no per-day contributions; declare them per day or per arc.
+
+
+### 12.94 WP-159 — the Manual for a first-time user; documentation drift (2026-10-29, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 159 | The Manual rewritten for a first-time user (new chapters Key concepts, Your first adjustment, Troubleshooting; prepareDay in the workflow and in Declaring), a runnable tutorial example with prepareDay (examples/demo_tutorial.m, guarded by test_fit), and a drift sweep of README, help blocks, API reference and the landing page against the code; version 6.35.1 | 158 | IN PROGRESS (2026-10-29) |
+
+**The user's request (2026-10-29):** "Please check the documentation, help text, manual and SOP.
+They seem drifted. For example, I am missing the usage of prepareDay. Extend also the description
+of the manual and make it more readable. It shall be usable by a first time user." No document
+named SOP exists in the tree; read as the step-by-step procedure of the Manual (*The workflow,
+step by step*) and the README's usage guidelines.
+
+**What changed.**
+- Manual: 01_purpose -> 01_introduction (rewritten: what it does, the six user names, "is it for
+  you?", a reading path); 02_install (a first-run check with demo_tutorial); NEW 03_concepts (the
+  vocabulary, the data tree, buildDay/prepareDay, the pass loop as pseudocode, a glossary); NEW
+  04_tutorial (a straight line, then the streaming case of demo_tutorial, every figure measured);
+  05_workflow (a step table, buildDay's arguments in plain words, a NEW step 4 prepareDay);
+  06_declaring (a prepareDay section as a question table; the GRACE-FO example declared as ONE
+  system with posC/posD/kbr and a prepareDay, as the chapter's own "Several systems" demands --
+  the old example split the KBR over two per-satellite systems); NEW 13_troubleshooting (the
+  declaration, read-time, solve and "numbers look wrong" cases by identifier). The other chapters
+  renumbered by git mv; cross-references are by title and hold.
+- examples/demo_tutorial.m (new): the tutorial line for line; test_examples has its row;
+  test_fit.testDemoTutorialIsTheManualsTutorial checks its ACCURACY claims (converged, PASS,
+  truth within 3 sigma, sigma0 within 0.1 of 1, the declared run's formal errors >= 1.3x too
+  small). DEVELOPMENT.md: 813 declared.
+- Drift (a read-only sweep of code against README, Manual, API, help blocks and the index
+  pages; 41 findings, the ones below fixed): README (five -> six names, 14 -> 12 knobs, Noise.Grid
+  is the bin count, `ar` is not a law type, `var`/`custom` named, Robust not with x0,
+  Parallel.DistributeDays, the gate is ci_gate); report.m help (the NV list is the arguments
+  block's, .message/.integrityOK, Diagnostics.Test); Results.m help (received from fit, an
+  example through fit, meta.warnings, noise.checks/.robust.truncation/.frozen, five ids it
+  raises); fit.m (every Results method); Options.m (ctx .s0sq .S .Sgroups); Contents.m (six
+  names); API 01/04/05/06 (Robust with x0, Verbose 0..2, ctx S/Sgroups, priorScaleHeld,
+  badContributions, noise fields) and build_manual.py (solveContributions' help in the API's
+  user-tier chapter); Manual 07 (var refused under noise, a wrong chapter reference), 09
+  (SkipThreshold is per stream), 11 (the suite runs demo_gravfire on a generated bundle); the
+  "v5 data struct" wording in five example help blocks; html/index.html (the "Gravity recovery
+  workflow" called diagnoseAccum / buildAccumulator, which do not exist, now a fit-based
+  declaration; the Tests box names ci_gate); helptoc.xml (two empty sections removed); info.xml
+  (R2020a -> R2024a, the Manual's requirement).
+- Not changed, on purpose: the demos that pass Noise=struct('Smooth', 1) explicitly are quoted
+  as written (the Manual reproduces their code); the stamps that say "v5" are history.
+
+**Measured.** demo_tutorial (MCP bridge, R2026a): declared noise a = 0.8011 +- 0.0005,
+b = -0.3006 +- 0.0005, sigma0 0.993; estimated noise 0.8012 +- 0.0008, -0.3004 +- 0.0008,
+sigma0 1.000, converged in 4 passes, PASS. A system with 'arc' locals and no `arcs` is refused
+(lsqvce:fit:localPlan), so the tutorial declares arcs = 2 -- the first draft wrongly blamed
+prepareDay for needing it. Audit (WSL, Debian pandoc 3.1.3): CLEAN after the rebuild; the first
+run cited lsqvce:fit:prepareUnused / preparedField / localPlan, which exist only as fit's
+relabelling at run time, so the Manual cites the makeLoader ids and says how fit reports them.

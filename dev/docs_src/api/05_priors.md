@@ -18,7 +18,7 @@ data.systems(k).priors(l) = struct(...)   % on system k's local parameters: L in
 | `sigma` | ONE standard deviation for all rows of the group; relative weights inside a group go into L |
 | `from` | the pass at which the group becomes active (default 1). A single solve reports a group with `from > 1` (`lsqvce:fit:priorNotActive`) and skips it. |
 | `name` | label (default: the pattern); a local group becomes the stream `prior_<name>` of its system |
-| `estimate` | `"none"` (default): σ fixed; `"scale"`: σ is estimated in every pass of `Estimate = "noise"` |
+| `estimate` | `"none"` (default): σ fixed; `"scale"`: σ is estimated in every pass of `Estimate = "noise"` (in a run that cannot estimate it — `Estimate = "none"`, or the in-memory kinds — the group keeps its declared σ, with the warning `lsqvce:fit:priorScaleHeld`) |
 
 Malformed fields, or an `L` of the wrong width, are refused by name
 (`lsqvce:fit:badPrior`).

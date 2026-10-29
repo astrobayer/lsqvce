@@ -1,9 +1,10 @@
 % LSQVCE  Batch least squares: accumulation, variance components, and judgment.
-% Version 6.35.0  19-Oct-2026
+% Version 6.35.1  29-Oct-2026
 %
 % lsqvce -- least-squares adjustment with variance component estimation.
 %
-% THE USER TIER (five names since R5-D8; HANDOVER §11.4). Start with the
+% THE USER TIER (six names: five since R5-D8, solveContributions since WP-158).
+% New here? Run demo_tutorial and read the Manual's tutorial beside it. Start with the
 % Manual (doc lsqvce) for how to use it, the API reference for the data you declare.
 %
 %   fit            - the one user verb: fit(data, opts) -> Results
