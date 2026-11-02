@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.TaskDefinition</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.TaskDefinition</div>
+<h1>lsqvce.TaskDefinition</h1>
+<div class="purpose">Declare a least-squares task: parameters, systems, streams, priors.</div>
+<h2>Description</h2>
+<pre class="example">task = lsqvce.TaskDefinition(Days=days)
+task = lsqvce.TaskDefinition(Days=days, Name=label)
+task = lsqvce.TaskDefinition.fromMatrices(A, l)
+task = lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p)
+task = lsqvce.TaskDefinition.fromBatches(@batchFcn, NumBatches=K, NumUnknowns=u)
+task = lsqvce.TaskDefinition.fromBatches(@batchFcn, NumBatches=K, X0=x0)
+
+A TaskDefinition is a handle object you fill with flat add-calls. Every
+call checks its arguments at once and names the one at fault; nothing is
+read until LSQVCE.FIT(task, ...) runs. disp(task) prints what was
+declared: parameter templates per scope, systems, streams and priors.
+
+WHERE THE DAILY WORK GOES. A system&#x27;s Prepare function (addSystem) runs
+once per system and day, before its streams; each stream&#x27;s Build function
+(addStream) runs once per stream and day and returns that day&#x27;s arcs.
+Both are called as  f(day, ctx)  with a LSQVCE.DAYCONTEXT.
+
+The task compiles to the declaration struct of the engines
+(task.declaration()); the estimate, the noise model and every diagnostic
+are the engines&#x27; own -- this class does no arithmetic.
+
+METHODS
+  addCommon(task, names, Name=Value)    common parameters (every system sees them)
+    Scope  &quot;common&quot; (default) | &quot;day&quot;   constant over the run, or one per calendar day
+    Valid  [start end] fractional MJD | [] (default: always)   when a &quot;day&quot; row exists
+    Info   table, one row per name      your own columns, readable in ctx.Common
+  sys = addSystem(task, name, Name=Value)   an observing system (LSQVCE.SYSTEMDEFINITION)
+    Prepare  @(day, ctx) -&gt; anything    once per system and day; result = ctx.Prepared
+    Settings struct                     paths, models, thresholds; ctx.Settings
+    Days     integer row vector         the system&#x27;s calendar (default: the task&#x27;s)
+    Arcs     count | id vector | @(day, stream) -&gt; ids   the arc schedule; needed by
+                                        Scope=&quot;arc&quot; locals (default: none, the arcs
+                                        are what Build returns)
+    Id       number | single character  an identifier (give every system one, or none)
+  addPrior(task, name, Name=Value)      a prior group on the common parameters
+    On       regular expression on parameter names (give On or L)
+    L        q x nc operator in the columns task.layout() announces
+    Value    a-priori value, scalar or q x 1 (default 0)
+    Sigma    one standard deviation for the group (required)
+    Estimate &quot;none&quot; (default) | &quot;scale&quot;   estimate the group&#x27;s sigma
+    From     pass at which the group becomes active (default 1)
+  lay = layout(task)                    the columns of A and B, with names
+  data = declaration(task)              the engine-tier declaration struct
+STATIC CONSTRUCTORS (in-memory tasks; both take addPrior with L only)
+  fromMatrices(A, l, Weights=p)         A m x u, l m x 1, p m x 1 weights (1./sigma.^2)
+  fromBatches(@batchFcn, NumBatches=K, NumUnknowns=u)   [A, l, p] = batchFcn(k)
+  fromBatches(@batchFcn, NumBatches=K, X0=x0)          [J, w, p] = batchFcn(k, x)</pre>
+<h3>Input</h3>
+<pre class="example">Days  1 x D double   integer day identifiers (e.g. MJD), each once
+Name  1x1 string     a label for the run (default &quot;&quot;)</pre>
+<h3>Output</h3>
+<pre class="example">task  1x1 lsqvce.TaskDefinition   the declaration, empty until filled</pre>
+<h3>Accuracy</h3>
+<pre class="example">  Not applicable: bookkeeping -- names, scopes and handles turned into the
+  engines&#x27; declaration; no floating-point result. A fit of a
+  TaskDefinition equals the fit of the hand-written declaration BITWISE
+  (test_taskDefinition, testCompiledTaskFitsBitwiseLikeTheStruct).
+
+ERRORS  (raised by the call that makes the mistake, before any data is read)
+  lsqvce:TaskDefinition:duplicateName    a name is used twice: commons, the
+                                         locals of a system, a local named like
+                                         a common, systems, streams, priors
+  lsqvce:TaskDefinition:badName          a stream name that is not a valid
+                                         MATLAB identifier (it becomes a field)
+  lsqvce:TaskDefinition:badValid         Valid is not [] or [start end] with
+                                         start &lt;= end
+  lsqvce:TaskDefinition:infoRows         Info has not one row per name
+  lsqvce:TaskDefinition:badHandle        Prepare or Build is not a function
+                                         handle taking (day, ctx)
+  lsqvce:TaskDefinition:missingArgument  a required Name-Value argument is
+                                         missing (Build, Noise, Sigma, NumBatches)
+  lsqvce:TaskDefinition:priorTarget      a prior gives both On and L, or neither
+  lsqvce:TaskDefinition:wrongKind        addCommon / addSystem / a prior with On
+                                         on an in-memory task
+  lsqvce:TaskDefinition:badArcs          a system mixes scheduled and
+                                         unscheduled streams
+  lsqvce:TaskDefinition:incomplete       declaration() of a task without a
+                                         common parameter, a system, a stream
+                                         per system, or a calendar
+  MATLAB:validators:*                    a Name-Value value of the wrong kind
+                                         (Scope, Estimate, Days, ...)</pre>
+<h3>Example</h3>
+<pre class="example">  task = lsqvce.TaskDefinition(Days=1:3);
+  task.addCommon([&quot;a&quot; &quot;b&quot;]);
+  sys = task.addSystem(&quot;line&quot;);
+  sys.addStream(&quot;y&quot;, Build=@buildLine, Noise=lsqvce.Noise.white(0.1));
+  R = lsqvce.fit(task);
+  % with  function out = buildLine(day, ctx)
+  %           t = (0:99).&#x27; + 100 * day;   out = ctx.newDay();
+  %           out.addArc([ones(100, 1), t / 1e3], 2 + 3e-3 * t + 0.1 * randn(100, 1), t);
+  %       end
+
+See also LSQVCE.SYSTEMDEFINITION, LSQVCE.NOISE, LSQVCE.DAYCONTEXT, LSQVCE.DAYDATA,
+         LSQVCE.FIT, LSQVCE.LAYOUT, LSQVCE.OPTIONS
+
+Created 2026-11-02 (CET, UTC+01:00) with assistance from Claude
+(Anthropic), model Claude Opus 5.5 -- level v7, WP-160.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

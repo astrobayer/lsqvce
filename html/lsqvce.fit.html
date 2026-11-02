@@ -44,7 +44,8 @@ a { color: #0b5ea8; }
 <h1>lsqvce.fit</h1>
 <div class="purpose">Fit a least-squares adjustment (optionally with VCE) to declared data.</div>
 <h2>Description</h2>
-<pre class="example">R = lsqvce.fit(data)                        every default (one GLS solve)
+<pre class="example">R = lsqvce.fit(task)                        a lsqvce.TaskDefinition (v7, WP-160)
+R = lsqvce.fit(data)                        every default (one GLS solve)
 R = lsqvce.fit(data, opts)                  a lsqvce.Options object
 R = lsqvce.fit(data, Name, Value, ...)      the Options properties, straight on fit
 R = lsqvce.fit(data, opts, Name, Value)     both: the pairs override opts</pre>
@@ -99,7 +100,9 @@ prior on its null space.
 WATCHING A RUN: Options.OnPass fires after every pass with the pass state,
 the live accumulator, `data` and every system&#x27;s processingOptions.</pre>
 <h3>Input</h3>
-<pre class="example">data   1x1 struct    the declaration (kind A, B or C as above)
+<pre class="example">task   1x1 lsqvce.TaskDefinition   the declaration as flat add-calls; fit
+                     compiles it with task.declaration() to the struct below
+data   1x1 struct    the declaration (kind A, B or C as above)
 opts   1x1 lsqvce.Options   default lsqvce.Options()
 Name, Value          any property of lsqvce.Options</pre>
 <h3>Output</h3>
@@ -217,6 +220,9 @@ See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT, LSQVCE.ENGINE.DECLARATIO
          LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
          LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 
+Updated 2026-11-02 (CET, UTC+01:00), WP-160: fit takes a
+lsqvce.TaskDefinition and fits its compiled declaration. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-29 (CET, UTC+01:00), WP-159: OUTPUT lists every method
 of Results. With assistance from Claude (Anthropic), model Claude Opus
 5.5.

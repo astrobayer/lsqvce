@@ -9,7 +9,12 @@ function lay = layout(data)
 %   data.systems(k).priors(l).L (columns of B) can be written in it -- the
 %   only knowledge the user's regularisation and the toolbox share.
 %
-%   INPUT   data  1x1 struct  a kind-A declaration (the API reference)
+%   lay = lsqvce.layout(task)   a lsqvce.TaskDefinition: the same layout, plus
+%                               .common(j).name, .systems(k).name and
+%                               .systems(k).local(c).name (WP-160)
+%
+%   INPUT   data  1x1 struct  a kind-A declaration (the API reference), or a
+%                             1x1 lsqvce.TaskDefinition
 %   OUTPUT  lay   1x1 struct
 %     .nc            1x1        columns of A
 %     .common        nc x 1 struct (.row .day)      the template row and (for 'day' rows) the day of every column of A
@@ -38,6 +43,9 @@ function lay = layout(data)
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the API reference
 %
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-160: a lsqvce.TaskDefinition
+%   is laid out with names. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, "Not applicable" with its reason. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -52,6 +60,10 @@ function lay = layout(data)
 %   out of the help text (it lives in RELEASE_NOTES.md and dev/HANDOVER.md);
 %   references point at the API reference. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
+    if isa(data, 'lsqvce.TaskDefinition')
+        lay = data.layout();                  % WP-160: the same layout, with names
+        return
+    end
     [spec, systems] = lsqvce.engine.declaration(data);
     cp = spec.commonPlan;
     common = struct('row', cell(cp.nc, 1), 'day', cell(cp.nc, 1));

@@ -4,6 +4,11 @@
     <tocitem target="html/lsqvce_manual.html">Manual (install, concepts, tutorial, workflow, declaring a problem, the report, the examples, troubleshooting)</tocitem>
     <tocitem target="html/lsqvce_api.html">API reference (data contract, buildDay and prepareDay, Options, Results, identifiers)</tocitem>
     <tocitem target="html/index.html">Start here (USER tier)
+      <tocitem target="html/lsqvce.TaskDefinition.html">lsqvce.TaskDefinition</tocitem>
+      <tocitem target="html/lsqvce.SystemDefinition.html">lsqvce.SystemDefinition</tocitem>
+      <tocitem target="html/lsqvce.Noise.html">lsqvce.Noise</tocitem>
+      <tocitem target="html/lsqvce.DayContext.html">lsqvce.DayContext</tocitem>
+      <tocitem target="html/lsqvce.DayData.html">lsqvce.DayData</tocitem>
       <tocitem target="html/lsqvce.fit.html">lsqvce.fit</tocitem>
       <tocitem target="html/lsqvce.Options.html">lsqvce.Options</tocitem>
       <tocitem target="html/lsqvce.Results.html">lsqvce.Results</tocitem>

@@ -146,6 +146,11 @@ reveals only the fraction <code>r_i</code> of any error present
 
 <h2>Function reference</h2>
 <h3>Start here &mdash; the USER tier</h3><table>
+<tr><td class="name"><a href="lsqvce.TaskDefinition.html">lsqvce.TaskDefinition</a></td><td>The declaration (v7): flat add-calls for common parameters, systems, streams and priors; a system&rsquo;s Prepare runs once per day, a stream&rsquo;s Build once per day.</td></tr>
+<tr><td class="name"><a href="lsqvce.SystemDefinition.html">lsqvce.SystemDefinition</a></td><td>One system of a task: addLocal, addStream (with its Build and Noise), addPrior.</td></tr>
+<tr><td class="name"><a href="lsqvce.Noise.html">lsqvce.Noise</a></td><td>The temporal law and level of a stream: white, arma, psd, acf, var, custom.</td></tr>
+<tr><td class="name"><a href="lsqvce.DayContext.html">lsqvce.DayContext</a></td><td>What Prepare and Build know about their day: names, Settings, Prepared, the arc schedule, columns by name.</td></tr>
+<tr><td class="name"><a href="lsqvce.DayData.html">lsqvce.DayData</a></td><td>The arcs one Build returns: addArc, local partials by name (Local=) or as B.</td></tr>
 <tr><td class="name"><a href="lsqvce.layout.html">lsqvce.layout</a></td><td>The column layout of A and B announced before fit (declare priors in it).</td></tr>
 <tr><td class="name"><a href="lsqvce.fit.html">lsqvce.fit</a></td><td>The one user verb: fit(data, opts) &mdash; a plain data struct (the API reference, chapter The data struct) + Options &rarr; Results. Builds the loaders itself; reads the KIND from the data and what to estimate from Options.Estimate ("none" | "noise").</td></tr>
 <tr><td class="name"><a href="lsqvce.Options.html">lsqvce.Options</a></td><td>The one settings object: every knob named, typed, defaulted to the engines' own defaults.</td></tr>

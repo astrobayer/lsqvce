@@ -1,5 +1,10 @@
 name,tier,role
 layout,USER,the column layout of A and B announced before fit (for data.priors / systems(k).priors)
+TaskDefinition,USER,"the declaration: flat add-calls (commons, systems, streams, priors) compiled for fit (v7, WP-160)"
+SystemDefinition,USER,"one system of a TaskDefinition: locals, streams with their Build, priors; Prepare per day"
+Noise,USER,"the temporal law and level of a stream: white, arma, psd, acf, var, custom"
+DayContext,USER,"what Prepare and Build know about their day: names, Settings, Prepared, schedule, columns"
+DayData,USER,"the arcs one Build returns: addArc with local partials by name or as B"
 fit,USER,"the one user verb: fit(data, opts) -> Results"
 Options,USER,the one settings object for fit (typed knobs with engine defaults)
 Results,USER,"rich result object: solution, diagnostics, provenance, report()"

@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-19 — WP-158 OPEN (tier A; model Claude Opus 5.5; user: "Look at the open issues and fix them", interface "New lsqvce.solveContributions", locals "on request"): issue #183 -- R.contributions() and lsqvce.solveContributions(C, c), a bootstrap over days without re-reading them, fit reproduced to 2e-10 (bound 1e-8); version 6.35.0; §12.93.
+Last substantive update: 2026-11-02 — LEVEL v7 OPEN on `claude/level-v7` (tier A; model Claude Opus 5.5; user: "I find the declaration of parameters and noise very cryptical. Suggest a more intuitive and easy to use way", decisions D1-D6 and N1 the same day): `lsqvce.TaskDefinition` becomes the only user-tier declaration, compiled to the v6.35.1 data struct; WP-160 (classes and compiler) IN PROGRESS, WP-161 (docs, examples, templates) and WP-162 (the struct leaves the user tier, v7.0.0) OPEN; §12.95.
+Preceding entry: Last substantive update: 2026-10-19 — WP-158 OPEN (tier A; model Claude Opus 5.5; user: "Look at the open issues and fix them", interface "New lsqvce.solveContributions", locals "on request"): issue #183 -- R.contributions() and lsqvce.solveContributions(C, c), a bootstrap over days without re-reading them, fit reproduced to 2e-10 (bound 1e-8); version 6.35.0; §12.93.
 Preceding entry: Last substantive update: 2026-10-18 — WP-155 DONE (PR #208, merge f621c30; CI GREEN on 68a628e in the first round: ci_gate 790/790, inventory lsqvce:internal:testProbe only): speed without loss of precision, version 6.34.1; the closure in §12.92. Review 12.84's packages are all closed (153, 154, 157, 156, 155).
 Preceding entry: Last substantive update: 2026-10-18 — WP-155 OPEN (tier A; model Claude Opus 5.5; user: "#207 is merged"): speed without loss of precision -- a dense law whitened by solves (the explicit inverse was two thirds of the cost), the inverse law's lag sums by FFT, the robust snooping by projection; one pass at 24 576 observations 52 % faster at 4096-epoch arcs (45 % robust), results unchanged to 1.1e-14; Schur Cholesky and a factor cache measured and not adopted; version 6.34.1; §12.92.
 Preceding entry: Last substantive update: 2026-10-18 — WP-156 DONE (round 1 PR #205, merge 6d3b237; round 2 PR #206, merge c36dcee; CI GREEN on 88b25dd in the first round: ci_gate 786/786, inventory lsqvce:internal:testProbe only, the measure job reproducing the acceptance table): the robust variance estimator redesigned (design F, version 6.34.0), review 12.84 N3 retired; the white-stream offset traced to sampling; the closure in §12.91. Next: WP-155.
@@ -12845,3 +12846,72 @@ sigma0 1.000, converged in 4 passes, PASS. A system with 'arc' locals and no `ar
 prepareDay for needing it. Audit (WSL, Debian pandoc 3.1.3): CLEAN after the rebuild; the first
 run cited lsqvce:fit:prepareUnused / preparedField / localPlan, which exist only as fit's
 relabelling at run time, so the Manual cites the makeLoader ids and says how fit reports them.
+
+
+### 12.95 LEVEL v7 — `lsqvce.TaskDefinition`, a readable declaration (2026-11-02, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 160 | `lsqvce.TaskDefinition` and its companions `SystemDefinition`, `Noise`, `DayContext`, `DayData`: flat add-calls with name-value arguments, Prepare on the system (once per system and day), Build on the stream (once per stream and day), both called `(day, ctx)`; local partials by name (`Local=`) or as a raw `B=` with columns from `ctx.cols`; compiled to the v6.35.1 data struct; `fit` accepts a TaskDefinition; a new suite with the bitwise equivalence against a hand-written v6 struct | 159 | IN PROGRESS (2026-11-02) |
+| 161 | Manual and API reference rewritten around TaskDefinition; every example and template migrated; migration table v6 -> v7; old wording in superseded_claims.csv | 160 | OPEN |
+| 162 | The raw data struct leaves the user tier: `fit` and `layout` refuse it with a pointer to the migration table; tiers, Contents, help index; version 7.0.0 (BREAKING) | 161 | OPEN |
+
+**The user's request (2026-11-02):** "I find the declaration of parameters and noise very
+cryptical. Suggest a more intuitive and easy to use way. Point out clearly where the daily
+preparation function and daily build has to go for each stream. Avoid the usage of long struct
+chains as much as possible. Provide a table for each setting with available options and best
+practice." The design was written as a Claude Doc ("Design -- lsqvce.TaskDefinition, the
+declaration interface"); the user answered "Excellent suggestion" and decided:
+
+| # | decision |
+|---|---|
+| D1 | the declaration object is the ONLY user-tier way; the data struct moves to the engine tier; v7.0.0, BREAKING |
+| D2 | Prepare and Build take `(day, ctx)` only; no nargin variants |
+| D3 | the estimate policy (`Estimate`, `ArcFactors`) is set on `addStream`; `lsqvce.Noise` carries the law and its level only |
+| D4 | local partials by name (`Local={names, P}`) OR as a raw `B` whose columns come from `ctx.cols`; both for one arc refused |
+| D5 | every parameter has a mandatory, unique name |
+| D6 | in-memory tasks through `TaskDefinition.fromMatrices` / `fromBatches` |
+| N1 | the class is `lsqvce.TaskDefinition` (UpperCamelCase like Options / Results; the user's first spelling was taskDefinition) |
+
+**Design invariant (binding for 160-162):** no engine change. `task.declaration()` writes exactly
+the v6.35.1 data struct and `fit` hands it to the unchanged `lsqvce.engine.declaration`. The
+streams of a system compile to ONE generated `buildDay` that dispatches on the observation type
+to the stream's Build; Prepare compiles to `prepareDay`. Equivalence is proven BITWISE, not to a
+tolerance: the same arithmetic in the same order.
+
+**WP-160 round note (2026-11-02, tier A: MATLAB R2026a Update 4 through the MCP bridge, a separate
+clone on the user's PC).**
+- New user-tier classes, each with a full help block (ACCURACY "not applicable: bookkeeping"),
+  an HTML page, a tier row and a Contents entry: `TaskDefinition` (handle; addCommon,
+  addSystem, addPrior, layout, declaration, disp; fromMatrices, fromBatches), `SystemDefinition`
+  (handle, made by addSystem only; addLocal, addStream, addPrior), `Noise` (value; white, arma,
+  psd, acf, var, custom; MaxDenseArc), `DayContext` (value; Day, System, Stream, Settings,
+  Prepared, NumCommon, NumLocal, ArcIds, Common, Local; newDay, cols), `DayData` (handle;
+  addArc with Local= or B=, Sigma, Excluded, Arc). `fit` and `layout` take a TaskDefinition
+  (`layout` adds names). The API reference's user-tier chapter carries the eleven help blocks.
+- Compilation: the streams of a system become ONE generated buildDay
+  (`lsqvce.DayContext.runBuild`, hidden) that dispatches on the observation type; Prepare
+  becomes prepareDay (`runPrepare`). Columns by name read the engines' own `info` offsets
+  (offsetOf, dayOffset, sysOffset and the rows present on the day), so validity-limited rows
+  and per-stream schedules need no code of their own. The engine is unchanged.
+- 17 identifiers, all fired by the new suite: lsqvce:TaskDefinition:duplicateName / badName /
+  badValid / infoRows / badHandle / missingArgument / priorTarget / wrongKind / badArcs /
+  incomplete (declaration time), lsqvce:DayContext:unknownName / arcRequired / mixedTables /
+  badReturn / localAndB / badLocal / badArc (read time; they pass the engines' callDeclared
+  wrapper unchanged). Scalar argument constraints are MATLAB validators at the signature.
+- test_taskDefinition (10 points, registered; 28 suites, 823 declared): the fixture covers
+  'common' and 'day' commons, 'arc' / 'day' / 'system' locals, a validity-limited local, a
+  Prepare, a scalar stream with excluded rows and arc factors off, a three-axis stream with a
+  per-axis Sigma, common priors by On and by L, a local prior by On. MEASURED: its compiled
+  declaration equals the hand-written v6 struct field by field, and fit(task) equals
+  fit(struct) BITWISE (isequal) in x, sigma0 and Cxx -- a single solve and a noise run of three
+  passes; Local= against B= bitwise; Local rows of several names against one per name bitwise;
+  fromMatrices bitwise, fromBatches to 1e-12 against the matrix kind. Overhead: fit(task) /
+  fit(struct) = 1.43-1.63 over four runs on this 600-row fixture (~1.7 ms per build: ctx.Local's
+  table 0.6 ms, addArc and cols the rest; profiled) -- the budget is 2.0, the worst case, since a
+  real Build costs orders of magnitude more than the wrappers.
+- Not in WP-160, on purpose: `R.toTable` still writes into the v6 cell tables; with names on
+  every parameter a TaskDefinition can return a MATLAB table (Name, Scope, Day, Arc, Estimate,
+  Std) -- proposed for WP-161 with the documentation. Per-example equivalence comes with
+  WP-161's migration of the examples (the migrated example against its v6 declaration).
+

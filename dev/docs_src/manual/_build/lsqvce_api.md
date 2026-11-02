@@ -672,7 +672,438 @@ fit's is. Contributions exist only where the days are separable:
 
 # Help of the user-tier units
 
-The help blocks of the six user-tier units, verbatim: `help lsqvce.<name>` shows the same text and `doc lsqvce.<name>` the same page. Generated from the code at build time.
+The help blocks of the eleven user-tier units, verbatim: `help lsqvce.<name>` shows the same text and `doc lsqvce.<name>` the same page. Generated from the code at build time.
+
+
+## lsqvce.TaskDefinition
+
+LSQVCE.TASKDEFINITION  Declare a least-squares task: parameters, systems, streams, priors.
+
+```
+LSQVCE.TASKDEFINITION  Declare a least-squares task: parameters, systems, streams, priors.
+
+  task = lsqvce.TaskDefinition(Days=days)
+  task = lsqvce.TaskDefinition(Days=days, Name=label)
+  task = lsqvce.TaskDefinition.fromMatrices(A, l)
+  task = lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p)
+  task = lsqvce.TaskDefinition.fromBatches(@batchFcn, NumBatches=K, NumUnknowns=u)
+  task = lsqvce.TaskDefinition.fromBatches(@batchFcn, NumBatches=K, X0=x0)
+
+  A TaskDefinition is a handle object you fill with flat add-calls. Every
+  call checks its arguments at once and names the one at fault; nothing is
+  read until LSQVCE.FIT(task, ...) runs. disp(task) prints what was
+  declared: parameter templates per scope, systems, streams and priors.
+
+  WHERE THE DAILY WORK GOES. A system's Prepare function (addSystem) runs
+  once per system and day, before its streams; each stream's Build function
+  (addStream) runs once per stream and day and returns that day's arcs.
+  Both are called as  f(day, ctx)  with a LSQVCE.DAYCONTEXT.
+
+  The task compiles to the declaration struct of the engines
+  (task.declaration()); the estimate, the noise model and every diagnostic
+  are the engines' own -- this class does no arithmetic.
+
+  METHODS
+    addCommon(task, names, Name=Value)    common parameters (every system sees them)
+      Scope  "common" (default) | "day"   constant over the run, or one per calendar day
+      Valid  [start end] fractional MJD | [] (default: always)   when a "day" row exists
+      Info   table, one row per name      your own columns, readable in ctx.Common
+    sys = addSystem(task, name, Name=Value)   an observing system (LSQVCE.SYSTEMDEFINITION)
+      Prepare  @(day, ctx) -> anything    once per system and day; result = ctx.Prepared
+      Settings struct                     paths, models, thresholds; ctx.Settings
+      Days     integer row vector         the system's calendar (default: the task's)
+      Arcs     count | id vector | @(day, stream) -> ids   the arc schedule; needed by
+                                          Scope="arc" locals (default: none, the arcs
+                                          are what Build returns)
+      Id       number | single character  an identifier (give every system one, or none)
+    addPrior(task, name, Name=Value)      a prior group on the common parameters
+      On       regular expression on parameter names (give On or L)
+      L        q x nc operator in the columns task.layout() announces
+      Value    a-priori value, scalar or q x 1 (default 0)
+      Sigma    one standard deviation for the group (required)
+      Estimate "none" (default) | "scale"   estimate the group's sigma
+      From     pass at which the group becomes active (default 1)
+    lay = layout(task)                    the columns of A and B, with names
+    data = declaration(task)              the engine-tier declaration struct
+  STATIC CONSTRUCTORS (in-memory tasks; both take addPrior with L only)
+    fromMatrices(A, l, Weights=p)         A m x u, l m x 1, p m x 1 weights (1./sigma.^2)
+    fromBatches(@batchFcn, NumBatches=K, NumUnknowns=u)   [A, l, p] = batchFcn(k)
+    fromBatches(@batchFcn, NumBatches=K, X0=x0)          [J, w, p] = batchFcn(k, x)
+
+  INPUT
+    Days  1 x D double   integer day identifiers (e.g. MJD), each once
+    Name  1x1 string     a label for the run (default "")
+  OUTPUT
+    task  1x1 lsqvce.TaskDefinition   the declaration, empty until filled
+
+  ACCURACY
+    Not applicable: bookkeeping -- names, scopes and handles turned into the
+    engines' declaration; no floating-point result. A fit of a
+    TaskDefinition equals the fit of the hand-written declaration BITWISE
+    (test_taskDefinition, testCompiledTaskFitsBitwiseLikeTheStruct).
+
+  ERRORS  (raised by the call that makes the mistake, before any data is read)
+    lsqvce:TaskDefinition:duplicateName    a name is used twice: commons, the
+                                           locals of a system, a local named like
+                                           a common, systems, streams, priors
+    lsqvce:TaskDefinition:badName          a stream name that is not a valid
+                                           MATLAB identifier (it becomes a field)
+    lsqvce:TaskDefinition:badValid         Valid is not [] or [start end] with
+                                           start <= end
+    lsqvce:TaskDefinition:infoRows         Info has not one row per name
+    lsqvce:TaskDefinition:badHandle        Prepare or Build is not a function
+                                           handle taking (day, ctx)
+    lsqvce:TaskDefinition:missingArgument  a required Name-Value argument is
+                                           missing (Build, Noise, Sigma, NumBatches)
+    lsqvce:TaskDefinition:priorTarget      a prior gives both On and L, or neither
+    lsqvce:TaskDefinition:wrongKind        addCommon / addSystem / a prior with On
+                                           on an in-memory task
+    lsqvce:TaskDefinition:badArcs          a system mixes scheduled and
+                                           unscheduled streams
+    lsqvce:TaskDefinition:incomplete       declaration() of a task without a
+                                           common parameter, a system, a stream
+                                           per system, or a calendar
+    MATLAB:validators:*                    a Name-Value value of the wrong kind
+                                           (Scope, Estimate, Days, ...)
+
+  EXAMPLE
+    task = lsqvce.TaskDefinition(Days=1:3);
+    task.addCommon(["a" "b"]);
+    sys = task.addSystem("line");
+    sys.addStream("y", Build=@buildLine, Noise=lsqvce.Noise.white(0.1));
+    R = lsqvce.fit(task);
+    % with  function out = buildLine(day, ctx)
+    %           t = (0:99).' + 100 * day;   out = ctx.newDay();
+    %           out.addArc([ones(100, 1), t / 1e3], 2 + 3e-3 * t + 0.1 * randn(100, 1), t);
+    %       end
+
+  See also LSQVCE.SYSTEMDEFINITION, LSQVCE.NOISE, LSQVCE.DAYCONTEXT, LSQVCE.DAYDATA,
+           LSQVCE.FIT, LSQVCE.LAYOUT, LSQVCE.OPTIONS
+```
+
+
+## lsqvce.SystemDefinition
+
+LSQVCE.SYSTEMDEFINITION  One observing system of a task: local parameters, streams, priors.
+
+```
+LSQVCE.SYSTEMDEFINITION  One observing system of a task: local parameters, streams, priors.
+
+  sys = task.addSystem(name, Name=Value)        made by LSQVCE.TASKDEFINITION only
+  sys.addLocal(names, Name=Value)
+  sys.addStream(name, Build=@build, Noise=noise, Name=Value)
+  sys.addPrior(name, Name=Value)
+
+  A system is one satellite, one receiver, or a pair whose observation
+  depends on the local parameters of both (a range-rate between two
+  spacecraft is ONE system). Systems share only the common parameters;
+  each has its own locals, streams, calendar and priors.
+
+  WHERE THE DAILY WORK GOES. The system's Prepare (given to addSystem) runs
+  once per day, before the first stream of the day; each stream's Build
+  (given to addStream) runs once per day and returns the stream's arcs:
+      P   = prepare(day, ctx)       % its result reaches every Build as ctx.Prepared
+      out = build(day, ctx)         % out = ctx.newDay(); out.addArc(...)
+  (LSQVCE.DAYCONTEXT, LSQVCE.DAYDATA). With Options.CacheDays = 1 a day is
+  built twice per pass (accumulation, residual sweep); CacheDays = Inf builds
+  it once per run. Both functions must return the same result for the same day.
+
+  METHODS
+    addLocal(sys, names, Name=Value)      local parameters, eliminated arc by arc
+      Scope  "arc" (default) | "day" | "system"   constant over one arc, one day of
+                                          the system, or the whole run; "arc" needs
+                                          an Arcs schedule on the system or stream
+      Valid  [start end] fractional MJD | [] (default: always)   when the row exists
+      Info   table, one row per name      your own columns, readable in ctx.Local
+    addStream(sys, name, Name=Value)      an observation stream (one observation type)
+      Build      @(day, ctx) -> LSQVCE.DAYDATA   required; once per stream and day
+      Noise      LSQVCE.NOISE              required; the temporal law and its level
+      Estimate   "law" | "scale" | "none"  what Options.Estimate="noise" may change: the
+                                          shape and level (default "law"), the level
+                                          only, or nothing
+      ArcFactors logical                   one variance factor per arc (default:
+                                          Options.ArcFactors)
+      Axes       integer >= 1              axes per epoch, rows epoch-major (default 1)
+      Arcs       as addSystem's Arcs       this stream's own schedule (default: the
+                                          system's)
+    addPrior(sys, name, Name=Value)       a prior group on this system's locals
+      On, L, Value, Sigma, Estimate, From  as LSQVCE.TASKDEFINITION/ADDPRIOR, with L
+                                          q x nl in the columns task.layout() announces
+
+  INPUT   (addSystem's, stored read-only)
+    Name      1x1 string     the system's name, unique in the task
+    Prepare   function_handle | []   @(day, ctx)
+    Settings  1x1 struct     your values; ctx.Settings in Prepare and Build
+    Days      1 x D double   the system's calendar ([] = the task's)
+    Arcs      [] | double | function_handle   the arc schedule
+    Id        [] | number | char   the system's identifier
+  OUTPUT
+    sys       1x1 lsqvce.SystemDefinition   a handle: add-calls change the task
+
+  ACCURACY
+    Not applicable: bookkeeping (names, scopes, handles); no floating-point
+    result. Its compiled system is pinned bitwise against the hand-written
+    one in test_taskDefinition.
+
+  ERRORS
+    lsqvce:TaskDefinition:duplicateName    a local, stream or prior name used twice
+    lsqvce:TaskDefinition:badName          a stream name that is not a MATLAB identifier
+    lsqvce:TaskDefinition:badValid         Valid is not [] or [start end], start <= end
+    lsqvce:TaskDefinition:infoRows         Info has not one row per name
+    lsqvce:TaskDefinition:badHandle        Build is not a function handle of (day, ctx)
+    lsqvce:TaskDefinition:missingArgument  addStream without Build or Noise; a prior
+                                           without Sigma
+    lsqvce:TaskDefinition:priorTarget      a prior gives both On and L, or neither
+    lsqvce:TaskDefinition:badArcs          (at declaration) some streams have a
+                                           schedule and others none
+    lsqvce:TaskDefinition:incomplete       (at declaration) a system without a stream,
+                                           or without a calendar
+    MATLAB:validators:*                    Scope, Estimate, Axes of the wrong kind
+
+  EXAMPLE
+    task = lsqvce.TaskDefinition(Days=59396:59426);
+    task.addCommon(compose("C%d_%d", [2 2 2].', [0 1 2].'));
+    grace = task.addSystem("GRACE-FO", Prepare=@prepareGrace, Arcs=4);
+    grace.addLocal(["x0" "y0" "z0" "vx0" "vy0" "vz0"], Scope="arc");
+    grace.addLocal("accScale", Scope="day");
+    grace.addPrior("accScale", On="^accScale", Value=1, Sigma=0.02, Estimate="scale");
+    grace.addStream("kbr", Build=@buildKbr, Noise=lsqvce.Noise.white(1e-7));
+
+  See also LSQVCE.TASKDEFINITION, LSQVCE.NOISE, LSQVCE.DAYCONTEXT, LSQVCE.DAYDATA
+```
+
+
+## lsqvce.Noise
+
+LSQVCE.NOISE  The temporal law and level of one stream's noise.
+
+```
+LSQVCE.NOISE  The temporal law and level of one stream's noise.
+
+  n = lsqvce.Noise.white(sigma)            white noise
+  n = lsqvce.Noise.arma(ar, sigma)         a known whitening filter, MA = 1
+  n = lsqvce.Noise.arma(ar, sigma, MA=ma)
+  n = lsqvce.Noise.psd(f, S)               a measured one-sided spectrum, f from 0 Hz
+  n = lsqvce.Noise.acf(@rho, sigma)        correlation as a function of the lag
+  n = lsqvce.Noise.var(ar, Sigma)          vector AR: axes correlated in time
+  n = lsqvce.Noise.custom(@covFcn)         any dense covariance of an arc
+  n = lsqvce.Noise.<law>(..., MaxDenseArc=m)
+
+  One constructor per law replaces the struct('type', ...) specification of
+  a stream. The object states the LAW and its LEVEL only; what
+  Options.Estimate="noise" may change about it is a setting of the stream
+  (LSQVCE.SYSTEMDEFINITION/ADDSTREAM: Estimate, ArcFactors). The accuracy
+  of each epoch is not part of the law either: Build passes it with each
+  arc (LSQVCE.DAYDATA/ADDARC, Sigma=). sigma is always a STANDARD
+  DEVIATION, never a variance. Under the stream's Estimate="law" (the
+  default) only sigma is used, as the starting level, and the shape is
+  estimated from white noise.
+
+  LAWS
+    white(sigma)        sigma scalar, or a column of per-row sigmas (a fixed
+                        structure: its level can be estimated, its shape not)
+    arma(ar, sigma)     ar = [1 a1 ... ap], sigma the innovation standard
+                        deviation; MA = [1 b1 ... bq] (default 1), roots strictly
+                        inside the unit circle
+    psd(f, S)           f (Hz, one-sided, starting at 0) and S (unit^2/Hz),
+                        columns of one length; prepend f = 0 when the grid
+                        starts higher ([0; f], [S(1); S])
+    acf(@rho, sigma)    rho(dt, opt) the correlation at lag dt (seconds)
+    var(ar, Sigma)      ar d x d x p, Sigma d x d; no per-arc Sigma with it
+    custom(@covFcn)     C = covFcn(t, opt) the covariance of an arc at epochs t
+  NAME-VALUE (every law)
+    MaxDenseArc  positive integer   the longest arc factorised densely
+                                    (default 20 000 epochs; 3.2 GB of factor)
+  COST per arc of m rows: white O(m), arma O(m p), var O(m p d^2), psd O(m^3)
+  (Toeplitz) or O(m p) with Options.Noise.Whitener = "ar", acf / custom O(m^3).
+
+  INPUT   as the call forms above; every number finite
+  OUTPUT  n  1x1 lsqvce.Noise   properties Law (string), Parameters (struct),
+                                MaxDenseArc ([] = the default)
+
+  ACCURACY
+    Not applicable: it stores a specification; the law's arithmetic is
+    LSQVCE.ENGINE.COVMODEL's. Each constructor equals the engines' covariance
+    specification field by field (test_taskDefinition).
+
+  ERRORS
+    MATLAB:validators:*                 a non-positive or non-finite sigma, a
+                                        handle that is not a function handle, a
+                                        non-integer MaxDenseArc
+    MATLAB:validation:UnableToConvert   a non-numeric argument
+    (the law's own consistency -- spectrum grid, MA invertibility -- is checked
+    by LSQVCE.ENGINE.COVMODEL when fit runs, under lsqvce:covModel:*)
+
+  EXAMPLE
+    lsqvce.Noise.white(1e-7)                       % let the data find the colour
+    lsqvce.Noise.arma([1 -1.6 0.9 -0.25], 1e-7)    % a known whitening filter
+    lsqvce.Noise.psd([0; 1e-3; 1e-2], [4e-14; 4e-14; 1e-14])
+
+  See also LSQVCE.SYSTEMDEFINITION, LSQVCE.TASKDEFINITION, LSQVCE.ENGINE.COVMODEL,
+           LSQVCE.ENGINE.CHECKPSD
+```
+
+
+## lsqvce.DayContext
+
+LSQVCE.DAYCONTEXT  What Prepare and Build know about the day they serve (read-only).
+
+```
+LSQVCE.DAYCONTEXT  What Prepare and Build know about the day they serve (read-only).
+
+  P   = prepare(day, ctx)                 a system's Prepare (addSystem)
+  out = build(day, ctx)                   a stream's Build (addStream)
+  out  = ctx.newDay()                     an empty LSQVCE.DAYDATA for this stream
+  cols = ctx.cols(names)                  columns of named parameters on this day
+  cols = ctx.cols(names, Arc=id)          the same for Scope="arc" locals of arc id
+
+  The toolbox makes one DayContext per call of your Prepare and Build. It
+  carries the day, the names of the system and stream, your Settings, the
+  result of Prepare, the parameter templates by name, and the arc schedule
+  of the day. Build fills ctx.newDay() with arcs (LSQVCE.DAYDATA/ADDARC) and
+  returns it.
+
+  COLUMNS BY NAME. Local partials are normally given BY NAME
+  (out.addArc(A, l, t, Local={names, P})): the toolbox places them. When the
+  partials already form one matrix B (m x ctx.NumLocal), take every column
+  from ctx.cols and never compute an offset:
+      B = sparse(m, ctx.NumLocal);
+      B(:, ctx.cols(["x0" "y0" "z0"], Arc=id)) = Pxyz;
+      B(:, ctx.cols("accScale")) = Pacc;
+      out.addArc(A, l, t, B=B);
+  ctx.cols of common parameters gives columns of A (a Scope="day" common
+  moves with the day); of local parameters, columns of B. One call names
+  commons or locals, not both.
+
+  PROPERTIES (read-only)
+    Day        1x1 double     the day being built (an entry of the calendar)
+    System     1x1 string     the system's name
+    Stream     1x1 string     the stream's name ("" in Prepare)
+    Settings   1x1 struct     the system's Settings
+    Prepared   any            what Prepare returned for this day ([] in Prepare,
+                              or without Prepare)
+    NumCommon  1x1 double     nc, the columns of A
+    NumLocal   1x1 double     nl, the columns of B of this system (0 without locals)
+    ArcIds     1 x A double   the stream's scheduled arc ids of this day ([] when
+                              the system declares no schedule: the arcs are what
+                              Build adds)
+    Common     table          Name, Scope, OnDay, Info of every common template
+    Local      table          Name, Scope, OnDay, Info of every local template
+  METHODS
+    newDay(ctx)                  -> LSQVCE.DAYDATA
+    cols(ctx, names, Arc=id)     names 1 x n string -> 1 x n double columns;
+                                 Arc (a scheduled arc id) is needed by Scope="arc"
+                                 locals and ignored by the others
+
+  INPUT   (made by the toolbox; you never construct one)
+  OUTPUT  ctx  1x1 lsqvce.DayContext
+
+  ACCURACY
+    Not applicable: integer bookkeeping over the engines' column plans; the
+    columns equal the engines' layout (test_taskDefinition).
+
+  ERRORS  (raised while the day is read; fit passes them unchanged)
+    lsqvce:DayContext:unknownName   a name that is not a parameter of this task
+                                    and system, or not instantiated on this day
+    lsqvce:DayContext:arcRequired   a Scope="arc" local asked for without Arc=id,
+                                    or with an id the day does not schedule
+    lsqvce:DayContext:mixedTables   one cols call names commons and locals
+    lsqvce:DayContext:badReturn     Build returned something other than the
+                                    LSQVCE.DAYDATA of ctx.newDay()
+
+  EXAMPLE
+    function out = buildKbr(day, ctx)
+        P = ctx.Prepared;                         % what Prepare returned today
+        out = ctx.newDay();
+        for a = 1:numel(P.arc)
+            out.addArc(P.arc(a).A, P.arc(a).omc, P.arc(a).t, ...
+                       Local={"kbrBias", ones(numel(P.arc(a).t), 1)});
+        end
+    end
+
+  See also LSQVCE.DAYDATA, LSQVCE.SYSTEMDEFINITION, LSQVCE.TASKDEFINITION
+```
+
+
+## lsqvce.DayData
+
+LSQVCE.DAYDATA  The arcs one Build returns for one stream and one day.
+
+```
+LSQVCE.DAYDATA  The arcs one Build returns for one stream and one day.
+
+  out = ctx.newDay()                              made by LSQVCE.DAYCONTEXT only
+  out.addArc(A, l, t)                             one arc, no local parameters
+  out.addArc(A, l, t, Local={names, P; ...})      local partials by name
+  out.addArc(A, l, t, B=B)                        local partials as one m x nl matrix
+  out.addArc(..., Sigma=s, Excluded=e, Arc=id)
+
+  Build adds the arcs of its day one by one and returns OUT. Every row is
+  RAW: observed minus computed, never whitened or scaled by a weight -- the
+  toolbox whitens each arc from the stream's LSQVCE.NOISE and its per-epoch
+  Sigma, and eliminates the local parameters arc by arc. An arc may be
+  empty (0 rows): a data gap.
+
+  LOCAL PARTIALS, ONE OF TWO WAYS PER ARC
+    Local={names, P}   P m x numel(names); several rows {names1, P1; names2, P2}.
+                       The scope of each name decides its column: this arc's
+                       block (Scope="arc"), this day's (Scope="day") or the
+                       system's (Scope="system"). The usual way.
+    B=B                m x ctx.NumLocal (may be sparse), every column taken from
+                       ctx.cols(names, Arc=id) -- for partials that already form
+                       one matrix. Never computes an offset by hand.
+  Neither: the arc sees no local parameter (B is all zero).
+
+  ARC SCHEDULE. Without a declared schedule (no Arcs on the system or
+  stream) the arcs are those added, in order. With one, the arcs are
+  ctx.ArcIds: addArc fills them in order, Arc=id places an arc out of
+  order, and a scheduled id never added is a data gap.
+
+  INPUT (addArc)
+    A         m x nc double      design of the common parameters, nc = ctx.NumCommon,
+                                 columns in addCommon order (Scope="day" commons at
+                                 ctx.cols(names))
+    l         m x 1 double       observed minus computed
+    t         m x 1 double       epoch of each row in SECONDS
+  NAME-VALUE (addArc)
+    Local     n x 2 cell         {names, partials} rows (default: none)
+    B         m x nl double      the local design as one matrix (default: none)
+    Sigma     e x 1 | e x d | e x d x d double   the per-epoch accuracy: standard
+                                 deviations per epoch, per axis, or covariances
+                                 (e = m / d epochs); relative to the law's sigma
+                                 (default: none, D = I)
+    Excluded  m x 1 logical      rows of weight 0, zero in A, B and l, kept for their
+                                 index (default: none)
+    Arc       scheduled arc id   place this arc (default: the next scheduled one)
+  OUTPUT
+    out       1x1 lsqvce.DayData   a handle: addArc adds to it
+
+  ACCURACY
+    Not applicable: it places given numbers into the engines' arc cells
+    without arithmetic. Local= and the equivalent B= give the bitwise same
+    fit (test_taskDefinition).
+
+  ERRORS  (raised while the day is read; fit passes them unchanged)
+    lsqvce:DayContext:localAndB     one arc gives both Local and B
+    lsqvce:DayContext:badLocal      Local is not an n x 2 cell of {names, P} with P
+                                    m x numel(names), or names a column twice
+    lsqvce:DayContext:badArc        Arc without a schedule, an id the day does not
+                                    schedule, an arc added twice, or more arcs than
+                                    scheduled
+    lsqvce:DayContext:unknownName   a Local name that is not a local parameter of the
+                                    system on this day
+    lsqvce:DayContext:arcRequired   an arc-scoped Local without a scheduled arc
+    lsqvce:makeLoader:*             the engines' checks of the day (row counts,
+                                    Sigma shapes), with day and stream named
+
+  EXAMPLE
+    out = ctx.newDay();
+    out.addArc(A1, l1, t1, Local={["x0" "y0" "z0"], P1; "kbrBias", ones(numel(t1), 1)});
+    out.addArc(A2, l2, t2, Local={["x0" "y0" "z0"], P2; "kbrBias", ones(numel(t2), 1)}, ...
+               Excluded=flagged2);
+
+  See also LSQVCE.DAYCONTEXT, LSQVCE.SYSTEMDEFINITION, LSQVCE.NOISE
+```
 
 
 ## lsqvce.fit
@@ -682,6 +1113,7 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
 ```
 LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared data.
 
+  R = lsqvce.fit(task)                        a lsqvce.TaskDefinition (v7, WP-160)
   R = lsqvce.fit(data)                        every default (one GLS solve)
   R = lsqvce.fit(data, opts)                  a lsqvce.Options object
   R = lsqvce.fit(data, Name, Value, ...)      the Options properties, straight on fit
@@ -739,6 +1171,8 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
   the live accumulator, `data` and every system's processingOptions.
 
   INPUT
+    task   1x1 lsqvce.TaskDefinition   the declaration as flat add-calls; fit
+                         compiles it with task.declaration() to the struct below
     data   1x1 struct    the declaration (kind A, B or C as above)
     opts   1x1 lsqvce.Options   default lsqvce.Options()
     Name, Value          any property of lsqvce.Options
@@ -1293,7 +1727,12 @@ LSQVCE.LAYOUT  The column layout fit will use -- so you can declare priors in it
   data.systems(k).priors(l).L (columns of B) can be written in it -- the
   only knowledge the user's regularisation and the toolbox share.
 
-  INPUT   data  1x1 struct  a kind-A declaration (the API reference)
+  lay = lsqvce.layout(task)   a lsqvce.TaskDefinition: the same layout, plus
+                              .common(j).name, .systems(k).name and
+                              .systems(k).local(c).name
+
+  INPUT   data  1x1 struct  a kind-A declaration (the API reference), or a
+                            1x1 lsqvce.TaskDefinition
   OUTPUT  lay   1x1 struct
     .nc            1x1        columns of A
     .common        nc x 1 struct (.row .day)      the template row and (for 'day' rows) the day of every column of A
@@ -1856,3 +2295,20 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:crossCorr:badLength` | kernel.crossCorr | error | v6.21.0 |
 | `lsqvce:gcv:badData` | engine.gcvLambda | error | v6.24.0 |
 | `lsqvce:gcv:nullUnobserved` | engine.gcvLambda | error | v6.24.0 |
+| `lsqvce:TaskDefinition:duplicateName` | SystemDefinition, TaskDefinition | error | v7.0.0 |
+| `lsqvce:TaskDefinition:badName` | SystemDefinition | error | v7.0.0 |
+| `lsqvce:TaskDefinition:badValid` | TaskDefinition | error | v7.0.0 |
+| `lsqvce:TaskDefinition:infoRows` | TaskDefinition | error | v7.0.0 |
+| `lsqvce:TaskDefinition:badHandle` | TaskDefinition | error | v7.0.0 |
+| `lsqvce:TaskDefinition:missingArgument` | SystemDefinition, TaskDefinition | error | v7.0.0 |
+| `lsqvce:TaskDefinition:priorTarget` | TaskDefinition | error | v7.0.0 |
+| `lsqvce:TaskDefinition:wrongKind` | TaskDefinition | error | v7.0.0 |
+| `lsqvce:TaskDefinition:badArcs` | SystemDefinition | error | v7.0.0 |
+| `lsqvce:TaskDefinition:incomplete` | SystemDefinition, TaskDefinition | error | v7.0.0 |
+| `lsqvce:DayContext:unknownName` | DayContext | error | v7.0.0 |
+| `lsqvce:DayContext:arcRequired` | DayContext | error | v7.0.0 |
+| `lsqvce:DayContext:mixedTables` | DayContext | error | v7.0.0 |
+| `lsqvce:DayContext:badReturn` | DayContext | error | v7.0.0 |
+| `lsqvce:DayContext:localAndB` | DayData | error | v7.0.0 |
+| `lsqvce:DayContext:badLocal` | DayData | error | v7.0.0 |
+| `lsqvce:DayContext:badArc` | DayData | error | v7.0.0 |

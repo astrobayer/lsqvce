@@ -1,6 +1,7 @@
 function R = fit(data, opts, nv)
 %LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared data.
 %
+%   R = lsqvce.fit(task)                        a lsqvce.TaskDefinition (v7, WP-160)
 %   R = lsqvce.fit(data)                        every default (one GLS solve)
 %   R = lsqvce.fit(data, opts)                  a lsqvce.Options object
 %   R = lsqvce.fit(data, Name, Value, ...)      the Options properties, straight on fit
@@ -58,6 +59,8 @@ function R = fit(data, opts, nv)
 %   the live accumulator, `data` and every system's processingOptions.
 %
 %   INPUT
+%     task   1x1 lsqvce.TaskDefinition   the declaration as flat add-calls; fit
+%                          compiles it with task.declaration() to the struct below
 %     data   1x1 struct    the declaration (kind A, B or C as above)
 %     opts   1x1 lsqvce.Options   default lsqvce.Options()
 %     Name, Value          any property of lsqvce.Options
@@ -178,6 +181,9 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-160: fit takes a
+%   lsqvce.TaskDefinition and fits its compiled declaration. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-29 (CET, UTC+01:00), WP-159: OUTPUT lists every method
 %   of Results. With assistance from Claude (Anthropic), model Claude Opus
 %   5.5.
@@ -263,10 +269,13 @@ function R = fit(data, opts, nv)
 %   references point at the API reference. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
 arguments
-    data (1,1) struct
+    data (1,1) {mustBeA(data, ["struct", "lsqvce.TaskDefinition"])}
     opts (1,1) lsqvce.Options = lsqvce.Options()
     nv.?lsqvce.Options
 end
+    if isa(data, 'lsqvce.TaskDefinition')
+        data = data.declaration();             % WP-160: the one compile step
+    end
     f = fieldnames(nv);
     for k = 1:numel(f)
         % WP-131: a partial GROUP struct overrides the fields it names on OPTS,

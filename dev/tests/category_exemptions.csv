@@ -261,3 +261,14 @@ kernel.wSnoop,speed,its cost is inside its caller's budget (the noise sweep, O(m
 kernel.truncationDeficit,vectorisation,already the vectorised form (FFT lag sums in column blocks, the private columnLagSums the speed budget pins through redundancyLags); a loop reference would be the slower twin
 kernel.truncationDeficit,speed,its cost is inside its caller's budget (the noise sweep, O(m^2 log m) against the sweep's O(m^3) factor; measured 0.12 s at m = 4000, HANDOVER 12.91); a standalone budget would pin FFTW, not the toolbox
 solveContributions,vectorisation,already the vectorised form (one merge of stacked square-root rows per day and one solve); a loop reference would be the slower twin
+TaskDefinition,metamorphic,the fit-level invariances in test_metamorphic carry over: a task compiles to the declaration those tests transport, pinned bitwise in test_taskDefinition testCompiledTaskFitsBitwiseLikeTheStruct
+SystemDefinition,metamorphic,as TaskDefinition: compiled to the declaration test_metamorphic transports, pinned bitwise in test_taskDefinition
+SystemDefinition,speed,its compiled Build/Prepare wrappers are the per-build cost timed by test_taskDefinition testTaskOverheadIsSmall (named there through TaskDefinition)
+Noise,metamorphic,a specification without arithmetic; the law-level invariances are covModels (test_metamorphic through fit)
+Noise,speed,a constructor of a struct; the laws whitening cost is covModels, budgeted in test_speedBudget
+DayContext,metamorphic,integer bookkeeping over the engines column plans; the fit it feeds is pinned bitwise in test_taskDefinition
+DayContext,speed,its per-build cost is the ratio budget test_taskDefinition testTaskOverheadIsSmall (named there through TaskDefinition)
+DayContext,vectorisation,Local rows of several names against one row per name are pinned bitwise through fit in test_taskDefinition testLocalByNameEqualsLocalAsMatrix
+DayData,metamorphic,it places given numbers into the engines cells without arithmetic; the fit it feeds is pinned bitwise in test_taskDefinition
+DayData,speed,its per-build cost is the ratio budget test_taskDefinition testTaskOverheadIsSmall (named there through TaskDefinition)
+DayData,vectorisation,Local rows of several names against one row per name are pinned bitwise through fit in test_taskDefinition testLocalByNameEqualsLocalAsMatrix

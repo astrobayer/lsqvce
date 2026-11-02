@@ -1,5 +1,22 @@
 # lsqvce release notes
 
+## Unreleased — level v7 (WP-160: `lsqvce.TaskDefinition`)
+
+No estimate changes. A new way to declare a task, compiled to the declaration of 6.35.1:
+
+- `lsqvce.TaskDefinition` with flat calls and name-value arguments: `addCommon`, `addSystem`,
+  `addPrior`; a system's `addLocal`, `addStream`, `addPrior`. Every call is validated on the
+  spot. `R = lsqvce.fit(task)`.
+- The daily work has two fixed homes: a system's `Prepare` (once per system and day) and a
+  stream's `Build` (once per stream and day), both called as `f(day, ctx)` with a
+  `lsqvce.DayContext`. Build returns `ctx.newDay()` filled with `addArc`; local partials are
+  given by name (`Local={names, P}`) or as a matrix `B` whose columns come from `ctx.cols`.
+- `lsqvce.Noise.white / arma / psd / acf / var / custom` replace the covariance structs; what
+  is estimated about a stream is set on `addStream` (`Estimate`, `ArcFactors`).
+- `TaskDefinition.fromMatrices` and `fromBatches` for in-memory tasks.
+- A fit of a task equals the fit of the equivalent struct bitwise. The struct stays accepted
+  until the level closes with 7.0.0.
+
 ## 6.35.1 — 2026-10-29 (WP-159: the Manual for a first-time user; documentation drift)
 
 No estimate changes.
