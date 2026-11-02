@@ -1,17 +1,40 @@
-function data = gravfire_data(commonData, myOptions, systemsData, opt)
-%GRAVFIRE_DATA  Map a GRAVFIRE preprocessing bundle onto the lsqvce `data` struct.
-%   data = gravfire_data(commonData, myOptions, systemsData)
-%   data = gravfire_data(..., 'DesignFcn', @myDesign)      % your A/B builder
-%   data = gravfire_data(..., 'DryRun', true)              % random A/B: pipeline check
+function [task, data] = gravfire_data(commonData, myOptions, systemsData, opt)
+%GRAVFIRE_DATA  Declare a GRAVFIRE preprocessing bundle as an lsqvce.TaskDefinition.
+%   task = gravfire_data(commonData, myOptions, systemsData)
+%   task = gravfire_data(..., 'DesignFcn', @myDesign)      % your A/B builder
+%   task = gravfire_data(..., 'DryRun', true)              % random A/B: pipeline check
+%   [task, data] = gravfire_data(...)                      % + the engines' declaration struct
 %
 %   TEMPLATE (R5 M0 close-out, HANDOVER §12.8): the GRAVFIRE bundle
 %   (commonData / myOptions / systemsData, as saved in testdata.mat) already
-%   contains everything the v5 data contract asks for EXCEPT the design
+%   contains everything a task declaration asks for EXCEPT the design
 %   matrices. This function is the declaration half; the design half is the
 %   'DesignFcn' you supply (the variational-equation partials of GRAVFIRE).
-%   Every rule of the API reference is applied here once, and the file is
-%   meant to be READ as the step-by-step guide dev/GRAVFIRE_INTERFACE.md:
-%   the section numbers in the comments below are its steps.
+%   The file is meant to be READ as the step-by-step guide
+%   dev/GRAVFIRE_INTERFACE.md: the STEP numbers in the comments are its steps.
+%
+%   THE DECLARATION IS A LSQVCE.TASKDEFINITION, filled by flat add-calls. Each
+%   call checks its arguments at once and names the one at fault, before any
+%   file is read; R = lsqvce.fit(task, opts) then reads the days.
+%     lsqvce.TaskDefinition(Days=...)    the calendar, myOptions.days
+%     task.addCommon(names, Info=T)      the Stokes rows, columns of A in this order;
+%                                        every row needs a UNIQUE name, so the name is
+%                                        type_degree_order ('c_2_0', 's_2_1'), and the
+%                                        14 GRAVFIRE columns travel as Info (one table
+%                                        row per name, variables col1 .. col14;
+%                                        ctx.Common.Info in Build)
+%     sys = task.addSystem("GRACE", ...) ONE system: GraceA + GraceB + KBR -- the
+%                                        range-rate couples the locals of both
+%                                        satellites, so they cannot be two systems
+%     sys.addLocal(names, Scope="day")   ONE day's local templates; the toolbox
+%                                        instantiates them on every calendar day
+%     sys.addStream(type, Build=@b, Noise=lsqvce.Noise.white(sigma))
+%                                        posA, posB, kbr: one Build per stream, the
+%                                        STARTING temporal law (the estimator updates it)
+%     task.addPrior / sys.addPrior       column 11 (Tikhonov) of the two tables
+%   There is NO arc schedule: the pieces Build adds with out.addArc ARE the
+%   arcs of the day (the locals are 'day'-scoped, so no plan needs the piece
+%   count before a read).
 %
 %   INPUT
 %     commonData   1x1 struct   .parameter  R x 14 cell, the common table
@@ -21,25 +44,38 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %                               EXPANDED local table (one row per day and satellite),
 %                               .numberOfPieces (days x groups), .variance (1 x groups)
 %   NAME-VALUE
-%     'DesignFcn'  function_handle   [A, B] = f(o, day, obsType, common, local, po, info)
-%                  o = the (day, group) bundle struct; must return A (m x info.nc) and
-%                  B (m x info.nl), rows EPOCH-MAJOR for multi-axis streams, m = EVERY
-%                  epoch of the day times its axes -- the flagged epochs included
-%                  (their rows are zeroed and weighted out, whatever you return). Default:
-%                  a function that ERRORS with gravfire:designMissing (so a forgotten
-%                  design step fails loudly, wrapped by lsqvce:makeLoader:buildDay).
+%     'DesignFcn'  function_handle   [A, B] = f(o, day, ctx)
+%                  o = the (day, group) bundle struct, ctx = the LSQVCE.DAYCONTEXT of
+%                  the stream's Build (ctx.Stream the observation type, ctx.Settings
+%                  the options bound in STEP 6, ctx.Common / ctx.Local the templates
+%                  with their GRAVFIRE columns as Info). Must return A (m x
+%                  ctx.NumCommon, columns in addCommon order) and B (m x ctx.NumLocal,
+%                  every column from ctx.cols(names) -- the locals are 'day'-scoped,
+%                  so a name gives its column on this day; never an offset by hand),
+%                  rows EPOCH-MAJOR for multi-axis streams, m = EVERY epoch of the day
+%                  times its axes -- the flagged epochs included (their rows are
+%                  zeroed and weighted out, whatever you return). Default: a function
+%                  that ERRORS with gravfire:designMissing (so a forgotten design step
+%                  fails loudly, wrapped by lsqvce:makeLoader:buildDay).
 %     'DryRun'     logical, default false   replace the design step by DETERMINISTIC
 %                  random A/B (seeded per day and observation type) so that the
-%                  declaration, the arc cut, Cep, nl/nc enforcement and the whole
-%                  fit pipeline can be exercised BEFORE the design step exists.
-%                  The numbers of a dry run mean nothing.
+%                  declaration, the cut into pieces, the per-epoch covariance, the
+%                  column counts and the whole fit pipeline can be exercised BEFORE the
+%                  design step exists. The numbers of a dry run mean nothing.
 %   OUTPUT
-%     data  1x1 struct   the v6 lsqvce declaration: commonParams, days, priors,
-%           systems(1) with id, name, buildDay, covariance, localParams,
-%           priors, processingOptions -- and NO arc schedule: the pieces
-%           buildDay returns as cells ARE the arcs of the day (v6, R6 WP-102).  The two priors fields are the DECLARED
-%           regularisation (the API reference): data.priors from column 11
-%           of the common table, data.systems.priors from the local templates.
+%     task  1x1 lsqvce.TaskDefinition   the declaration: R = lsqvce.fit(task, opts);
+%           disp(task) lists it, task.layout() names every column of A and B
+%     data  1x1 struct   task.declaration(), the engines' declaration struct the task
+%           compiles to (commonParams {scope, name} rows, days, priors, systems(1)
+%           with id, name, buildDay, covariance, localParams, priors,
+%           processingOptions) -- for engine-tier work and for inspecting the
+%           compiled tables; fit(task) and fit(data) are the same fit
+%
+%   ACCURACY
+%     Not applicable: bookkeeping -- the bundle's tables, flags and per-epoch
+%     covariances are placed into the declaration and the days unchanged; the
+%     one conversion is the local spans and knots from [MJD sec] / MJD.frac to
+%     seconds of day (STEP 4). A dry run's numbers are random and mean nothing.
 %
 %   ERRORS
 %     gravfire:designMissing        DryRun false and no DesignFcn given (raised at read time)
@@ -49,17 +85,29 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %     gravfire:badConstraint        column 11 is malformed, or the rows of one label
 %                                   disagree on sigma or on the activation pass, or
 %                                   (local rows) on the a-priori value, column 10
-%     (+ every declaration check of lsqvce.fit, raised before any read; the API reference, chapter buildDay)
+%     lsqvce:TaskDefinition:duplicateName   two common rows with one type, degree and
+%                                   order, or two local templates of one name (raised by
+%                                   the add-call); the other declaration checks are
+%                                   lsqvce:TaskDefinition:* too (LSQVCE.TASKDEFINITION)
+%     lsqvce:DayContext:*           a mistake of Build while a day is read (a
+%                                   DesignFcn asking ctx.cols for an unknown name)
 %
 %   EXAMPLE
 %     S    = load('testdata.mat');
-%     data = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DryRun', true);
-%     R    = lsqvce.fit(data, lsqvce.Options(Verbose=1));   % pipeline check
-%     data = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DesignFcn', @gravfireDesign);
-%     R    = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Noise=struct('Grid', 2160), MaxPasses=7));
+%     task = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DryRun', true);
+%     R    = lsqvce.fit(task, lsqvce.Options(Verbose=1));   % pipeline check
+%     task = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DesignFcn', @gravfireDesign);
+%     R    = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Noise=struct('Grid', 2160), MaxPasses=7));
 %
-%   See also LSQVCE.FIT, LSQVCE.OPTIONS, the API reference, dev/GRAVFIRE_INTERFACE.md
+%   See also LSQVCE.TASKDEFINITION, LSQVCE.SYSTEMDEFINITION, LSQVCE.DAYCONTEXT,
+%            LSQVCE.DAYDATA, LSQVCE.NOISE, LSQVCE.FIT, LSQVCE.OPTIONS,
+%            dev/GRAVFIRE_INTERFACE.md
 %
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as a lsqvce.TaskDefinition
+%   (addCommon / addSystem / addLocal / addStream / addPrior, the GRAVFIRE columns as
+%   Info); one Build per stream adds the pieces as arcs; DesignFcn is f(o, day, ctx);
+%   returns the task, and data = task.declaration() as a second output. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): THE CELLS ARE THE
 %   ARCS -- buildGravfireDay returns one cell per piece (A, B, l, t, Cep),
 %   the arc schedule (STEP 5, arcsFcn) is gone: the locals are 'day'-scoped,
@@ -70,8 +118,8 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %   VERIFIED 2026-09-02 on the user's testdata.mat (R2026a): the declaration
 %   passes every declaration check of fit; DryRun + Estimate="none" accumulates 2 days x 16
 %   pieces (4 posA + 4 posB + 8 kbr), nc = 117, nl = 144 derived from the 72
-%   templates, Cep accepted, in 2.0 s. Estimate="noise", Pool="stream", ArcFactors=false runs (62 s, 2 passes).
-%   R5 M3 made the 3-axis pieces fast on the joint estimator (38.6 s for both
+%   templates, Cep accepted, in 2.0 s. Estimate="noise", Pool="stream", ArcFactors=false runs
+%   (62 s, 2 passes). R5 M3 made the 3-axis pieces fast on the joint estimator (38.6 s for both
 %   days at 2160 lags, HANDOVER §12.5 round 3c).
 %
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the v5 data contract is
@@ -108,40 +156,33 @@ end
     sd   = systemsData{1};
     days = double(myOptions.days(:).');                       % 1 x D, integers (MJD)
 
-    % ---- STEP 1: the common table -- scope token first, your 14 columns after
-    data.commonParams = [repmat({'common'}, size(commonData.parameter, 1), 1), ...
-                         commonData.parameter];
+    % ---- STEP 2: the calendar -- the task is made with it (STEP 1 needs the task)
+    task = lsqvce.TaskDefinition(Days=days);
 
-    % ---- STEP 2: the calendar
-    data.days = days;
+    % ---- STEP 1: the common parameters -- one unique name per row, in table
+    %      order (the columns of A); your 14 columns ride along as Info
+    P = commonData.parameter;                                 % R x 14
+    task.addCommon(commonNames(P), Info=gravfireInfo(P));
 
-    % ---- STEP 3: observation types are FIELD NAMES of `covariance`
+    % ---- STEP 3: observation types are the STREAM names
     groups = myOptions.observationGroups;                     % 1 x G cell of structs
     G      = numel(groups);
     obsTypes = cell(1, G);
     for g = 1:G
         obsTypes{g} = obsTypeOf(groups{g});
     end
-    % The covariance spec declares the TEMPORAL law only (white to start; the
-    % estimator updates it). The per-epoch error information of the positions
-    % -- the 3x3 covariance from iSpp -- comes back from buildDay WITH the day
-    % (D.Cep, STEP 10) and the toolbox composes C = D (R_t kron I_3) D (R6
-    % WP-90: no 'separable' type, no axis count stated here).
-    cov = struct();
-    for g = 1:G
-        cov.(obsTypes{g}) = struct('type', 'diag', 'sigma', sqrt(sd.variance(g)));
-    end
 
-    % ---- STEP 4: the local table -- ONE day's templates, all 'day'-scoped,
+    % ---- STEP 4: the local templates -- ONE day's rows, all 'day'-scoped,
     %      times as seconds-of-day (the day itself is NOT in a template)
-    localParams = templateFromExpanded(sd.parameter, days(1));
+    T = templateFromExpanded(sd.parameter, days(1));          % n x 14
 
     % ---- STEP 5: the arc schedule -- NONE (v6). The pieces of a (day, group)
-    %      come back from buildDay as cells, one per piece, and the toolbox
-    %      takes them as the arcs of the day. numberOfPieces is not restated.
-    %      (A schedule is required only for 'arc'-scoped template rows.)
+    %      are the arcs Build adds, one addArc per piece, and the toolbox takes
+    %      them as the arcs of the day. numberOfPieces is not restated.
+    %      (A schedule, addSystem's Arcs, is required only by Scope="arc" locals.)
 
-    % ---- STEP 6: what buildDay needs, bound once
+    % ---- STEP 6: what Build needs, bound once -- the system's Settings,
+    %      read in Build as ctx.Settings
     po = struct();
     po.days      = days;
     po.obsTypes  = obsTypes;                                  % 1 x G cell
@@ -150,46 +191,68 @@ end
     po.dryRun    = opt.DryRun;
     po.myOptions = myOptions;
 
-    % ---- STEP 7: the system
-    s = struct();
-    s.id                = 1;                                  % numeric or ONE char (API reference, The data struct)
-    s.name              = 'GRACE';                            % the label lives here
-    s.buildDay          = @buildGravfireDay;
-    s.covariance        = cov;
-    s.localParams       = localParams;
-    s.processingOptions = po;
-    data.systems = s;
+    % ---- STEP 7: the system, its local templates and its streams. Id is
+    %      numeric or ONE character; the label is the name. The stream's Noise
+    %      is the TEMPORAL law only (white to start; the estimator updates it):
+    %      the per-epoch error information of the positions -- the 3x3
+    %      covariance from iSpp -- comes back from Build with each arc (Sigma=,
+    %      STEP 9) and the toolbox composes C = D (R_t kron I_3) D; the axis
+    %      count is derived from it, so no Axes is declared.
+    sys = task.addSystem("GRACE", Settings=po, Id=1);
+    if ~isempty(T)
+        sys.addLocal(string(T(:, 1)), Scope="day", Info=gravfireInfo(T));
+    end
+    for g = 1:G
+        sys.addStream(obsTypes{g}, Build=@buildGravfireDay, ...
+                      Noise=lsqvce.Noise.white(sqrt(sd.variance(g))));
+    end
 
-    % ---- STEP 6 (R5-D8 round 1): column 11 -> data.priors ------------------
+    % ---- STEP 6 (R5-D8 round 1): column 11 on COMMON rows -> task.addPrior
     % Your constraining factor {'Tikhonov', k, sigma[, label]} on a COMMON row
     % j constrains that parameter to x0 = column 10 (the a-priori, [] -> 0)
-    % with standard deviation sigma, from pass k on. ONE struct per GROUP:
-    % without a label the row is its own group, L = e_j' and sigma fixed
-    % (estimate "none" -- one row has redundancy <= 1); a 4th entry is a group
-    % LABEL, and its rows become ONE struct whose L stacks their unit rows,
-    % with one shared sigma estimated by VCE (estimate "scale", Koch-Kusche).
-    % A group is declared by L OR by a name pattern, never both (round 6). In
-    % your 15-column table (token in column 1) these are columns 11 and 12.
-    data.priors = priorsFromColumn11(commonData.parameter, opt.DryRun);
-    % ---- STEP 7 (R5-D8 round 6): column 11 on LOCAL rows -> systems.priors --
-    % Regularisation of local parameters is DECLARED, never computed:
-    % data.systems(k).priors(l) is one struct per GROUP, given EITHER by
-    % 'group' -- a regexp on the NAME column of localParams (column 2 of the
-    % 15-column template), from which the toolbox builds L with one row per
-    % matched template row per INSTANCE, so a 'day' row contributes one row
-    % per day and the group spans the calendar -- OR by 'L', written in the
-    % columns of B as lsqvce.layout(data) announces them. Never both. Rows
-    % sharing a label (4th entry of column 11, e.g. 'accscale') are ONE group
-    % with one sigma and estimate "scale"; without a label each constrained
-    % row is its own group with a fixed sigma. How many groups your bundle
-    % yields therefore depends on how many template rows carry a constraint
-    % and how they are labelled. The helper below emits the 'group' form.
-    data.systems.priors = gravfireLocalPriors(data, localParams);
+    % with standard deviation sigma, from pass k on. ONE prior group per
+    % label: without a label the row is its own group, L = e_j' and sigma
+    % fixed (Estimate="none" -- one row has redundancy <= 1); a 4th entry is a
+    % group LABEL, and its rows become ONE group whose L stacks their unit
+    % rows, with one shared sigma estimated by VCE (Estimate="scale",
+    % Koch-Kusche). A group is declared by L OR by a name pattern (On=), never
+    % both; these are declared by L, in the columns of A (addCommon order).
+    cp = priorsFromColumn11(P);
+    for k = 1:numel(cp)
+        task.addPrior(cp(k).name, L=cp(k).L, Value=cp(k).x0, Sigma=cp(k).sigma, ...
+                      Estimate=cp(k).estimate, From=cp(k).from);
+    end
+    % ---- STEP 7 (R5-D8 round 6): column 11 on LOCAL rows -> sys.addPrior
+    % Regularisation of local parameters is DECLARED, never computed: one
+    % prior group per label on the system, given EITHER by On= -- a regexp on
+    % the local NAMES, from which the toolbox builds L with one row per matched
+    % template per INSTANCE, so a 'day' template contributes one row per day
+    % and the group spans the calendar -- OR by L=, written in the columns of B
+    % as task.layout() announces them. Never both. Rows sharing a label (4th
+    % entry of column 11, e.g. 'accscale') are ONE group with one sigma and
+    % Estimate="scale"; without a label each constrained row is its own group
+    % with a fixed sigma. How many groups your bundle yields therefore depends
+    % on how many templates carry a constraint and how they are labelled. The
+    % helper below emits the On= form.
+    lp = gravfireLocalPriors(T);
+    for k = 1:numel(lp)
+        sys.addPrior(lp(k).name, On=lp(k).group, Value=lp(k).x0, Sigma=lp(k).sigma, ...
+                     Estimate=lp(k).estimate, From=lp(k).from);
+    end
+
+    if nargout > 1
+        data = task.declaration();
+    end
 end
 
 % ======================================================================
-function D = buildGravfireDay(day, obsType, common, local, po, info)
-%BUILDGRAVFIREDAY  One (day, observation type): raw A, B, l, t, Cep -- ONE CELL PER PIECE.
+function out = buildGravfireDay(day, ctx)
+%BUILDGRAVFIREDAY  One (day, observation type): raw A, B, l, t, Sigma -- ONE ARC PER PIECE.
+%   The Build of every stream (addStream): ctx.Stream names the observation
+%   type, ctx.Settings holds what STEP 6 bound. Returns the LSQVCE.DAYDATA of
+%   ctx.newDay(), one addArc per piece in piece order.
+    po      = ctx.Settings;
+    obsType = char(ctx.Stream);                               % 'posA' | 'posB' | 'kbr'
     g  = groupIndex(po.obsTypes, obsType);
     d  = find(po.days == day, 1);
     o  = po.bundles{d, g};
@@ -198,7 +261,7 @@ function D = buildGravfireDay(day, obsType, common, local, po, info)
     % The flagged epochs STAY on the grid with weight 0 (WP-148): removing one
     % leaves a gap inside its piece that a 'psd' law, counting lags in
     % samples, takes for ONE step (lsqvce:covModel:unevenGrid). Their rows are
-    % zeroed below and marked D.excluded; the toolbox deletes them from the
+    % zeroed below and passed as Excluded; the toolbox deletes them from the
     % law's covariance, so their values -- NaN included -- never matter.
     flag  = logical(o.nanIndexOfPiece{1}(:));                 % nEp x 1
     lobs  = o.lobs{1};                                        % nEp x nAx
@@ -224,37 +287,38 @@ function D = buildGravfireDay(day, obsType, common, local, po, info)
     end
 
     % STEP 10: the design matrices -- yours, or the dry-run stand-in (whole
-    % day, m x nc / m x nl; the cut into pieces follows)
+    % day, m x ctx.NumCommon / m x ctx.NumLocal; the cut into pieces follows)
+    nc = ctx.NumCommon;
+    nl = ctx.NumLocal;
     if po.dryRun
         sd = mod(7919 * day + sum(double(obsType)), 2^31 - 1);
         rs = RandStream('mt19937ar', 'Seed', sd);             % deterministic per call
-        A = randn(rs, m, info.nc);
-        B = randn(rs, m, info.nl);
+        A = randn(rs, m, nc);
+        B = randn(rs, m, nl);
     else
-        [A, B] = po.designFcn(o, day, obsType, common, local, po, info);
-        if ~isequal(size(A), [m info.nc]) || ~isequal(size(B), [m info.nl])
+        [A, B] = po.designFcn(o, day, ctx);
+        if ~isequal(size(A), [m nc]) || ~isequal(size(B), [m nl])
             error('gravfire:designShape', ...
                   ['DesignFcn returned A %s / B %s; expected A [%d %d] and B [%d %d] ' ...
                    '(day %d, %s).'], mat2str(size(A)), mat2str(size(B)), ...
-                   m, info.nc, m, info.nl, day, obsType);
+                   m, nc, m, nl, day, obsType);
         end
     end
     A(ex, :) = 0;  B(ex, :) = 0;                              % weight 0: zero rows (API reference)
 
-    % STEP 11: THE CELLS ARE THE ARCS (v6) -- one cell per piece, in piece
-    % order; the toolbox takes them as this day's arcs (ids 1:nPiece)
-    ids  = unique(piece(:)).';
-    nP   = numel(ids);
-    D = struct('A', {cell(1, nP)}, 'B', {cell(1, nP)}, 'l', {cell(1, nP)}, 't', {cell(1, nP)}, ...
-               'excluded', {cell(1, nP)});
-    if nAx > 1, D.Cep = cell(1, nP); end
-    for k = 1:nP
+    % STEP 11: THE PIECES ARE THE ARCS (v6) -- one addArc per piece, in piece
+    % order; the toolbox takes them as this day's arcs (ids 1:nPiece). B is
+    % the DesignFcn's m x nl matrix (B=), Sigma the piece's per-epoch
+    % covariance, Excluded its flagged rows.
+    ids = unique(piece(:)).';
+    out = ctx.newDay();
+    for k = 1:numel(ids)
         ep   = find(piece == ids(k));                          % this piece's epochs
         rows = (ep(:) - 1) * nAx + (1:nAx);                   % nEp_k x nAx, epoch per row
         rows = reshape(rows.', [], 1);                         % their epoch-major rows
-        D.A{k} = A(rows, :);  D.B{k} = B(rows, :);  D.l{k} = l(rows);  D.t{k} = t(rows);
-        D.excluded{k} = ex(rows);
-        if nAx > 1, D.Cep{k} = Cep(ep, :, :); end
+        sigma = [];
+        if nAx > 1, sigma = Cep(ep, :, :); end
+        out.addArc(A(rows, :), l(rows), t(rows), B=B(rows, :), Sigma=sigma, Excluded=ex(rows));
     end
 end
 
@@ -285,14 +349,47 @@ function g = groupIndex(obsTypes, obsType)
     g = find(strcmp(obsTypes, char(obsType)), 1);
 end
 
-function T = templateFromExpanded(P, day0)
+function names = commonNames(P)
+%COMMONNAMES  The unique name of every common row, type_degree_order ('c_2_0').
+%   INPUT   P      R x 14 cell   the common table (columns 1-3: 'c'|'s', degree, order)
+%   OUTPUT  names  1 x R string
+    names = strings(1, size(P, 1));
+    for j = 1:size(P, 1)
+        names(j) = commonName(P, j);
+    end
+end
+
+function nm = commonName(P, j)
+%COMMONNAME  The name of common row j -- the ONE rule, used by addCommon and the priors.
+    nm = sprintf('%s_%d_%d', char(string(P{j, 1})), double(P{j, 2}), double(P{j, 3}));
+end
+
+function T = gravfireInfo(P)
+%GRAVFIREINFO  The GRAVFIRE columns of a parameter table as an Info table.
+%   One table row per parameter; variable colK holds GRAVFIRE column K as a
+%   cell column, its entries as the bundle has them (ctx.Common.Info /
+%   ctx.Local.Info in Build give one struct per parameter with fields col1 ..).
+%   INPUT   P  n x C cell
+%   OUTPUT  T  n x C table
+    vars = cell(1, size(P, 2));
+    for c = 1:size(P, 2)
+        vars{c} = P(:, c);
+    end
+    T = table(vars{:}, 'VariableNames', compose('col%d', 1:size(P, 2)));
+end
+
+function P = templateFromExpanded(P, day0)
 %TEMPLATEFROMEXPANDED  One day's rows of the EXPANDED local table, as templates.
 %   Selects the rows whose flag column (6) names day0, converts the absolute
 %   [MJD sec] spans (columns 2, 3) to seconds-of-day, converts the knot table
 %   (column 4: [MJD-fraction value]) to seconds-of-day, and drops the day from
-%   the flags. Column 1 becomes the scope token 'day'; the 14 GRAVFIRE columns
-%   follow unchanged in position. When GRAVFIRE emits templates itself, this
-%   helper disappears.
+%   the flags. The 14 GRAVFIRE columns stay in position (column 1 the name);
+%   the scope is addLocal's Scope="day". The spans are NOT declared as
+%   validity (addLocal's Valid): the templates of day0 serve every calendar
+%   day. When GRAVFIRE emits templates itself, this helper disappears.
+%   INPUT   P     N x 14 cell   the expanded local table
+%           day0  1x1 double    the day whose rows are the templates (MJD)
+%   OUTPUT  P     n x 14 cell   one day's templates
     flags = P(:, 6);
     sel   = cellfun(@(f) ~isempty(f) && f(1) == day0, flags);
     P     = P(sel, :);
@@ -309,25 +406,22 @@ function T = templateFromExpanded(P, day0)
         f = P{k, 6};
         if ~isempty(f), P{k, 6} = f(2:end); end               % drop the day
     end
-    T = [repmat({'day'}, n, 1), P];
 end
 
 %==========================================================================
-function priors = priorsFromColumn11(P, ~)
-%PRIORSFROMCOLUMN11  Common-row constraints -> data.priors (R5-D8 round 1).
-%   P is the ORIGINAL 14-column table (before the token is prepended):
-%   column 10 = a-priori value ([] -> 0), column 11 = 'none' | [] |
-%   {'Tikhonov', fromPass, sigma[, label]}.
+function priors = priorsFromColumn11(P)
+%PRIORSFROMCOLUMN11  Common-row constraints -> the prior groups of task.addPrior (R5-D8 round 1).
+%   P is the 14-column common table: column 10 = a-priori value ([] -> 0),
+%   column 11 = 'none' | [] | {'Tikhonov', fromPass, sigma[, label]}.
 %   ONE struct per GROUP, regrouped for R5-D8 round 6: rows sharing a label
-%   become one struct whose L STACKS their unit rows e_j', with one shared
+%   become one group whose L STACKS their unit rows e_j', with one shared
 %   sigma and one activation pass, estimated by VCE (estimate "scale",
 %   Koch-Kusche -- several rows are what make a sigma estimable); a row
-%   without a label is its own struct, L = e_j' and sigma fixed (estimate
-%   "none": one row has redundancy <= 1). A group is declared EITHER by
-%   'group' -- a name pattern on commonParams -- OR by L, never both
-%   (lsqvce:fit:badPrior); the common names are SYNTHESISED here rather than
-%   a column of the table, so every group is declared by L and no 'group'
-%   field is written. Members of one label must agree on sigma and fromPass.
+%   without a label is its own group, L = e_j' and sigma fixed (estimate
+%   "none": one row has redundancy <= 1). Every group is declared by L in
+%   the columns of A (addCommon order). Members of one label must agree on
+%   sigma and fromPass.
+%   OUTPUT  priors  1xG struct (.L .x0 .sigma .name .estimate .from) | []
     priors = struct('L', {}, 'x0', {}, 'sigma', {}, 'name', {}, 'estimate', {}, 'from', {});
     nc = size(P, 1);
     groups = containers.Map('KeyType', 'char', 'ValueType', 'any');  order = {};
@@ -335,16 +429,18 @@ function priors = priorsFromColumn11(P, ~)
         c = P{j, 11};
         if isNoneConstraint(c), continue, end
         if ~iscell(c) || numel(c) < 3 || ~ischar(c{1})
-            error('gravfire:badConstraint', 'row %d: column 11 must be ''none'' or {''Tikhonov'', fromPass, sigma[, label]}.', j);
+            error('gravfire:badConstraint', ...
+                  'row %d: column 11 must be ''none'' or {''Tikhonov'', fromPass, sigma[, label]}.', j);
         end
         if ~strcmpi(c{1}, 'Tikhonov')
-            error('gravfire:badConstraint', 'row %d: unknown constraint kind ''%s'' (only Tikhonov is mapped).', j, c{1});
+            error('gravfire:badConstraint', ...
+                  'row %d: unknown constraint kind ''%s'' (only Tikhonov is mapped).', j, c{1});
         end
         x0 = 0;
         if ~isempty(P{j, 10}), x0 = double(P{j, 10}); end
         lab = '';
         if numel(c) >= 4 && ~isempty(c{4}), lab = char(string(c{4})); end
-        nm  = sprintf('%s_%d_%d', char(string(P{j, 1})), double(P{j, 2}), double(P{j, 3}));
+        nm  = commonName(P, j);
         key = lab;  if isempty(key), key = nm; end
         if ~isKey(groups, key)
             groups(key) = struct('rows', [], 'x0', [], 'sigma', double(c{3}), ...
@@ -377,26 +473,29 @@ function priors = priorsFromColumn11(P, ~)
 end
 
 %==========================================================================
-function P = gravfireLocalPriors(~, localParams)
-%GRAVFIRELOCALPRIORS  Column 11 of the LOCAL template rows -> data.systems.priors (R5-D8 round 6).
-%   One struct per GROUP in the PATTERN form: rows sharing a label (4th entry
-%   of column 11 -> column 12 here) become one struct whose 'group' is the
-%   regexp of their names ('^(GraceA_xaccscale|GraceB_xaccscale)$'); rows
-%   without a label are one struct each. The toolbox builds L from the names
-%   (column 2 of the 15-column template) for every instance -- per day for a
-%   'day' row. x0 = column 10 (-> 11), sigma and fromPass from the entry;
-%   estimate "scale" for labelled groups (Koch-Kusche), "none" otherwise.
+function P = gravfireLocalPriors(T)
+%GRAVFIRELOCALPRIORS  Column 11 of the LOCAL templates -> the prior groups of sys.addPrior (R5-D8 round 6).
+%   One struct per GROUP in the PATTERN form (On=): templates sharing a label
+%   (4th entry of column 11) become one group whose pattern is the regexp of
+%   their names ('^(GraceA_xaccscale|GraceB_xaccscale)$'); templates without
+%   a label are one group each. The toolbox builds L from the names (column 1)
+%   for every instance -- per day for a 'day' template. x0 = column 10, sigma
+%   and fromPass from the entry; estimate "scale" for labelled groups
+%   (Koch-Kusche), "none" otherwise.
+%   INPUT   T  n x 14 cell   one day's local templates (templateFromExpanded)
+%   OUTPUT  P  1xG struct (.group .x0 .sigma .from .name .estimate) | []
     P = struct('group', {}, 'x0', {}, 'sigma', {}, 'from', {}, 'name', {}, 'estimate', {});
     groups = containers.Map('KeyType', 'char', 'ValueType', 'any');  order = {};
-    for j = 1:size(localParams, 1)
-        c = localParams{j, 12};
+    for j = 1:size(T, 1)
+        c = T{j, 11};
         if isNoneConstraint(c), continue, end
         if ~iscell(c) || numel(c) < 3 || ~ischar(c{1}) || ~strcmpi(c{1}, 'Tikhonov')
-            error('gravfire:badConstraint', 'local row %d: column 11 must be ''none'' or {''Tikhonov'', fromPass, sigma[, label]}.', j);
+            error('gravfire:badConstraint', ...
+                  'local row %d: column 11 must be ''none'' or {''Tikhonov'', fromPass, sigma[, label]}.', j);
         end
-        x0 = 0;  if ~isempty(localParams{j, 11}), x0 = double(localParams{j, 11}); end
+        x0 = 0;  if ~isempty(T{j, 10}), x0 = double(T{j, 10}); end
         lab = '';  if numel(c) >= 4 && ~isempty(c{4}), lab = char(string(c{4})); end
-        nm = char(string(localParams{j, 2}));
+        nm = char(string(T{j, 1}));
         key = lab;  if isempty(key), key = nm; end
         if ~isKey(groups, key)
             groups(key) = struct('names', {{}}, 'x0', x0, 'sigma', double(c{3}), 'from', double(c{2}), ...
@@ -405,7 +504,9 @@ function P = gravfireLocalPriors(~, localParams)
         end
         g = groups(key);
         if g.sigma ~= double(c{3})
-            error('gravfire:badConstraint', 'group ''%s'': members must share one sigma (row %d has %g, the group %g).', key, j, double(c{3}), g.sigma);
+            error('gravfire:badConstraint', ...
+                  'group ''%s'': members must share one sigma (row %d has %g, the group %g).', ...
+                  key, j, double(c{3}), g.sigma);
         end
         % WP-144 (A4): a later member's fromPass and a-priori value were
         % DROPPED -- the group kept its first member's (reproduced). fromPass
@@ -413,12 +514,14 @@ function P = gravfireLocalPriors(~, localParams)
         % builds L per member and per day in the toolbox's order, so one value
         % per member cannot be written here without restating that order.
         if g.from ~= double(c{2})
-            error('gravfire:badConstraint', 'group ''%s'': members must share one fromPass (row %d has %g, the group %g).', key, j, double(c{2}), g.from);
+            error('gravfire:badConstraint', ...
+                  'group ''%s'': members must share one fromPass (row %d has %g, the group %g).', ...
+                  key, j, double(c{2}), g.from);
         end
         if g.x0 ~= x0
             error('gravfire:badConstraint', ['group ''%s'': members of a local group must share one a-priori ' ...
                   'value, column 10 (row %d has %g, the group %g); give them separate labels, or ' ...
-                  'declare the group by L in the columns lsqvce.layout announces.'], key, j, x0, g.x0);
+                  'declare the group by L in the columns task.layout() announces.'], key, j, x0, g.x0);
         end
         g.names{end+1} = regexptranslate('escape', nm);
         groups(key) = g;
