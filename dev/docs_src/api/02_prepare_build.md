@@ -81,7 +81,7 @@ it varies along the arc, the composed covariance therefore depends on the frame 
 axis order (XYZ against NEU: about 2 % of C). A constant or diagonal `Sigma` does not.
 
 The axis count d is `size(Sigma, 2)`, the same for the whole day, and must agree with the
-stream's `Axes`; e·d must equal the arc's row count. Rows of a multi-axis stream are
+stream's `Axes` when one above 1 is declared; e·d must equal the arc's row count. Rows of a multi-axis stream are
 **epoch-major** (x₁ y₁ z₁ x₂ …) and every arc holds whole epochs. `Sigma` is relative to
 the law's `sigma`: declare `lsqvce.Noise.white(1)` when `Sigma` already carries the
 absolute accuracy. A multi-axis day without `Sigma` is whitened with D = I and reported

@@ -774,7 +774,8 @@ function testDemoNoisePolicyIsTheWorkedPolicyExample(tc)
     if isa(d, 'lsqvce.TaskDefinition'), d = d.declaration(); end
     ot = fieldnames(d.systems(1).covariance);
     d.systems(1).covariance.(ot{1}).estimate = "lwa";
-    tc.verifyError(@() lsqvce.fit(d, Verbose=false), 'lsqvce:fit:badEstimate');
+    % (the policy is read where it acts: under Estimate="noise", before any pass)
+    tc.verifyError(@() lsqvce.fit(d, Estimate="noise", MaxPasses=1, Verbose=false), 'lsqvce:fit:badEstimate');
 end
 
 %% ------------------------------------------- arc factors (R6 WP-97, F-01)

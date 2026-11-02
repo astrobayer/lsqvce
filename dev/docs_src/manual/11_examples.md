@@ -640,7 +640,7 @@ The help block records the numbers of one measured run.
 ## `demo_gravfire` and `template/gravfire_data.m`: a GRAVFIRE bundle
 
 **Purpose.** This example maps a GRAVFIRE preprocessing bundle
-(`commonData`, `myOptions`, `systemsData`) onto `data` and runs it through
+(`commonData`, `myOptions`, `systemsData`) onto a task and runs it through
 `lsqvce.fit`. The bundle contains:
 
 - Stokes coefficients as the common block;
@@ -670,9 +670,9 @@ prints what it would do and returns `[]`.
 **Logic.** With a bundle, the demo:
 
 1. adds `template/` to the path and loads the file;
-2. calls `gravfire_data(..., 'DryRun', true)`;
-3. runs `lsqvce.fit(data, Verbose=...)`, or for `"noise"`
-   `lsqvce.fit(data, Estimate="noise", Pool="obsType", Noise=struct('Grid', 2160), MaxPasses=Passes, CacheDays=Inf, OnPass=watch)`,
+2. calls `task = gravfire_data(..., 'DryRun', true)`;
+3. runs `lsqvce.fit(task, Verbose=...)`, or for `"noise"`
+   `lsqvce.fit(task, Estimate="noise", Pool="obsType", Noise=struct('Grid', 2160), MaxPasses=Passes, CacheDays=Inf, OnPass=watch)`,
    with the not-converged warning suppressed;
 4. prints `R.report` when `Verbose > 0`.
 
@@ -683,45 +683,49 @@ the real design step, so the demo tests the pipeline, not gravity recovery.
 **`gravfire_data(commonData, myOptions, systemsData, Name=Value)`.** The
 name-value options are:
 
-- `'DesignFcn'`: your function
-  `[A, B] = f(o, day, obsType, common, local, po, info)`, returning
-  `m × info.nc` and `m × info.nl` with rows in epoch-major order;
+- `'DesignFcn'`: your function `[A, B] = f(o, day, ctx)`, with `o` the bundle of that
+  (day, group) and `ctx` the stream's `lsqvce.DayContext`, returning
+  `m × ctx.NumCommon` and `m × ctx.NumLocal` (every local column from `ctx.cols`) with
+  rows in epoch-major order;
 - `'DryRun'`: deterministic random `A` and `B`, seeded per day and
   observation type.
 
-The function returns a `data` struct with `commonParams`, `days`, `priors`
-and one system (`id 1`, `name 'GRACE'`) with `buildDay`, `covariance`,
-`localParams`, `priors` and `processingOptions`. It declares no arc
-schedule: the pieces that `buildDay` returns as cells are the arcs.
+`[task, data] = gravfire_data(...)` returns the `lsqvce.TaskDefinition` and, second,
+its compiled declaration (`task.declaration()`) for engine-tier work. The task has the
+calendar of `myOptions.days`, one common per Stokes row named `type_degree_order`
+(`c_2_0`, `s_2_1`, …) with the 14 GRAVFIRE columns as `Info`, and one system `"GRACE"`
+(`Id=1`, the bundle options as `Settings`) with one day's local templates as
+`Scope="day"` and three streams. It declares no arc schedule: the pieces each `Build`
+adds are the arcs.
 
-The comments are numbered as steps:
+The comments are numbered as steps (the steps of `dev/GRAVFIRE_INTERFACE.md`):
 
-1. Prefix the 14-column common table with `'common'`.
+1. Name the common rows uniquely and add them with their 14 columns as `Info`.
 2. Take the calendar from `myOptions.days`.
-3. Name the observation types: `posA`/`posB` for `kinematicPosition`, `kbr`
-   for `range-rate`. Each gets a white `diag` with
-   `sigma = sqrt(variance(g))`.
-4. Take one day's rows of the expanded local table as `'day'`-scoped
+3. Name the streams: `posA`/`posB` for `kinematicPosition`, `kbr`
+   for `range-rate`. Each gets `lsqvce.Noise.white(sqrt(variance(g)))`.
+4. Take one day's rows of the expanded local table as `"day"`-scoped
    templates, with times in seconds of the day.
 5. (No arc schedule.)
-6. Bind everything `buildDay` needs into `processingOptions`.
-7. Assemble the system.
+6. Bind everything `Build` needs into the system's `Settings`.
+7. Add the system, its locals and its streams.
 
-The local function `buildGravfireDay` does the following:
+The local function `buildGravfireDay` is every stream's `Build`. It:
 
-- drops flagged epochs;
-- builds epoch-major `l` and `t`;
-- converts `iSpp` into a per-epoch 3×3 `Cep`;
+- builds epoch-major `l` and `t` for the whole day;
+- converts `iSpp` into a per-epoch 3×3 `Sigma`;
 - calls the design step;
-- cuts the day into one cell per piece.
+- adds one arc per piece with `out.addArc(..., B=, Sigma=, Excluded=)`, the flagged
+  epochs kept on the grid with weight 0.
 
 Regularisation comes from column 11 of the tables:
 `{'Tikhonov', fromPass, sigma[, label]}`. On common rows, `priorsFromColumn11`
-builds `data.priors` in the `L` form. On local rows, `gravfireLocalPriors`
-builds `data.systems.priors` in the `group` (regular-expression) form.
-Labelled groups get `estimate "scale"`; unlabelled rows get `"none"`. The rows of one
+builds the groups that `task.addPrior` declares in the `L` form. On local rows,
+`gravfireLocalPriors` builds the groups that `sys.addPrior` declares in the `On`
+(regular-expression) form. Labelled groups get `Estimate="scale"`; unlabelled rows get
+`"none"`. The rows of one
 label must share sigma and `fromPass`, and on local rows also the a-priori value
-(column 10): the `group` form expands its rows in the toolbox's order, so one value per
+(column 10): the `On` form expands its rows in the toolbox's order, so one value per
 member cannot be written there. The test suite runs the whole template on a generated
 bundle (`dev/tests/fixture_gravfire_bundle.m`).
 
@@ -739,7 +743,7 @@ The help also refers to `dev/GRAVFIRE_INTERFACE.md`, the step-by-step guide.
 ## `template/kbr_variational.m`: GRACE-FO range-rates by the variational equations
 
 **Purpose.** This is a real-data template. It turns GRACE-FO Level-1B data
-into a `data` declaration for a gravity field in fully normalised spherical
+into a `lsqvce.TaskDefinition` for a gravity field in fully normalised spherical
 harmonics:
 
 - range-rates (KBR1B) of the C/D pair;
@@ -758,10 +762,10 @@ fly, so `Psi` is never stored.
 cfg = struct('days', 60000:60029, 'dataDir', '/data/gracefo/L1B', ...
              'gravityField', '/data/models/GOCO06s.gfc', ...
              'trf2crf', @myIers2010, 'degree', [2 60], 'arcsPerDay', 4);
-[data, kit] = kbr_variational(cfg);
-R  = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Noise=struct('Grid', 1080)));
+[task, kit] = kbr_variational(cfg);
+R  = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Noise=struct('Grid', 1080)));
 dC = kit.unitCommon .* R.x;                            % physical corrections
-cfg.fieldUpdate = dC;  data = kbr_variational(cfg);    % second linearisation
+cfg.fieldUpdate = dC;  task = kbr_variational(cfg);    % second linearisation
 ```
 
 **Configuration.** Four fields of `cfg` are required:
@@ -793,18 +797,20 @@ The other fields default as follows:
 | `background` | no other forces |
 | `maxAccGap` | 10 s |
 
-**Outputs.** `data` has:
+**Outputs.** `[task, kit, data] = kbr_variational(cfg)`. The `task` has:
 
-- `commonParams`: C_nm and S_nm with a unit of 1e-10 in column 5;
-- `days`;
-- one system (`id 1`, `'GRACE-FO'`) with:
-  - `'arc'` rows: initial position and velocity per satellite, and the KBR
+- the commons `C_n_m` and `S_n_m`, each with its unit (1e-10) as `Info`;
+- the calendar `cfg.days`;
+- one system `"GRACE-FO"` (`Id=1`) with:
+  - `"arc"` locals: initial position and velocity per satellite (`C_x0`, …), and the KBR
     bias, drift and once-per-revolution cos/sin terms;
-  - `'day'` rows: accelerometer bias and scale per satellite;
-  - `arcs`, `covariance`, `processingOptions`, `prepareDay` and `buildDay`.
+  - `"day"` locals: accelerometer bias and scale per satellite;
+  - the arc schedule (`cfg.arcsPerDay` or `cfg.arcs`), the `Prepare` `prepareKbrDay`,
+    and one stream per entry of `cfg.obsTypes`, each with the `Build` `buildKbrDay`.
 
-Every column carries a declared unit, so the physical value is
-`unit .* estimate`. Position streams carry their sigmas in `Cep`.
+Every parameter carries a declared unit as `Info`, so the physical value is
+`unit .* estimate`. Position streams carry their sigmas in each arc's `Sigma`. `data` is
+the compiled declaration (`task.declaration()`), for engine-tier work.
 
 `kit` exposes the physics as function handles:
 
@@ -813,12 +819,12 @@ Every column carries a declared unit, so the physical value is
 - `propagate` and `accModel`;
 - `eraRotation`, `readGfc`, `readL1B`, `prepareDay` and `buildDay`.
 
-`prepareKbrDay`, the system's `prepareDay`, integrates the whole day once
-each time the day is built and forms the rows of every stream;
-`buildKbrDay` picks its stream out of `procOpt.prepared`. Only the current
-day's integration is kept; `CacheDays` keeps the built rows. Called
-directly, `kit.buildDay` needs `procOpt.prepared` set to what
-`kit.prepareDay` returns for the day.
+`prepareKbrDay`, the system's `Prepare`, integrates every arc of the day once each time
+the day is built and forms the rows of every stream, taking the columns of each arc's
+locals from `ctx.cols(names, Arc=id)` (helper `arcColumns`); `buildKbrDay` picks its
+stream out of `ctx.Prepared` and adds each arc with `Arc=id`. Only the current day's
+integration is kept; `CacheDays` keeps the built rows. `kit.prepareDay` and
+`kit.buildDay` take `(day, ctx)`, so only the toolbox calls them.
 
 **Limitations.** The help lists these:
 
@@ -836,33 +842,32 @@ Errors carry `kbrvar:` identifiers, for example `kbrvar:badConfig`,
 
 ## `template/lsqvce_template.m`: the engine-tier starting point
 
-**Purpose.** This template builds the cell array of `Loader` objects that
-the engine-tier functions take (`lsqvce.engine.adjustBlock`,
-`lsqvce.engine.adjustRobust`). Use it when your pipeline is driven by a
-`procOpt` configuration struct and you want the `Loader` objects in hand.
-On the user path you do not need it: declare `data` and call `lsqvce.fit`.
+**Purpose.** This template declares a `lsqvce.TaskDefinition` from a `procOpt`
+configuration struct and builds from it the cell array of `Loader` objects that the
+engine-tier functions take (`lsqvce.engine.adjustBlock`, `lsqvce.engine.adjustRobust`).
+Use it when your pipeline is driven by `procOpt` and you want the `Loader` objects in
+hand. On the user path you do not need them: `lsqvce.fit(task)` runs the task.
 
-**Run.** Copy the file, rename it, and write the stub `myBuildDay`:
+**Run.** Copy the file, rename it, and write the stub `myBuild`:
 
 ```matlab
-L = myCase(procOpt);
+[L, task] = myCase(procOpt);
 R = lsqvce.engine.adjustBlock(L, procOpt.days);
 R.report();
 ```
 
 **Structure.**
 
-- **`buildLoaders`** is real code. It makes one
-  `lsqvce.engine.makeLoader` per entry of `procOpt.observationGroups`,
-  with:
-  - the observation types;
-  - a white, unit a-priori covariance (`aprioriCovariance`);
-  - the five-argument `buildDay`;
-  - `systemId`, which must be numeric or a single character;
-  - `days`, `commonParams`, `localParams` and `processingOptions`.
-- **`myBuildDay`** is a stub. It raises `lsqvce_template:notImplemented`
-  until you replace it. It must be deterministic and return `A`, `B`, `l`,
-  `t` and optionally `Cep` as one cell per arc, with multi-axis rows in
+- **`declareTask`** is real code. It makes one `task.addSystem` per entry of
+  `procOpt.observationGroups`, with its `"day"` / `"arc"` / `"system"` locals and one
+  `addStream` per observation type, each with a white, unit a-priori `Noise`
+  (`aprioriNoise`) and the `Build` `myBuild`. The tables of `procOpt` carry the scope in
+  column 1 and a unique name in column 2.
+- The Loaders come from `lsqvce.engine.declaration(task.declaration())`, the step `fit`
+  uses.
+- **`myBuild(day, ctx)`** is a stub. It raises `lsqvce_template:notImplemented`
+  until you replace it. It must be deterministic and add the day's arcs with
+  `out.addArc(A, l, t, ...)`, the per-epoch accuracy as `Sigma`, with multi-axis rows in
   epoch-major order.
 - A `procOpt` without `observationGroups` or `days` raises
   `lsqvce_template:badProcOpt`.

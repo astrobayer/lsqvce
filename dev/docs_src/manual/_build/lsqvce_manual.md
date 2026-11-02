@@ -40,17 +40,21 @@ well on a small problem: a levelling network, a calibration, or a curve fit.
 
 ```matlab
 lsqvce_setup                                   % once, to install
-R = lsqvce.fit(data, Estimate="noise");        % the one verb
+R = lsqvce.fit(task, Estimate="noise");        % the one verb
 R.report                                       % the verdict
 ```
 
-`data` is a plain MATLAB struct that describes your problem. The options say how to run
-it. `R` holds everything that comes back. You never call anything else unless you want
-to. The toolbox has exactly six user-facing names:
+`task` is a `lsqvce.TaskDefinition` that describes your problem, filled with flat `add`
+calls. The options say how to run it. `R` holds everything that comes back. The toolbox
+has these user-facing names:
 
 | name | what it is |
 |---|---|
-| `lsqvce.fit` | runs the adjustment: `R = lsqvce.fit(data, opts)` |
+| `lsqvce.TaskDefinition` | the declaration: parameters, systems, streams, priors (`addCommon`, `addSystem`, `addPrior`) |
+| `lsqvce.SystemDefinition` | one system of a task, made by `addSystem`: `addLocal`, `addStream`, `addPrior` |
+| `lsqvce.Noise` | the noise law of a stream: `white`, `arma`, `psd`, `acf`, `var`, `custom` |
+| `lsqvce.DayContext`, `lsqvce.DayData` | what your daily functions receive and return |
+| `lsqvce.fit` | runs the adjustment: `R = lsqvce.fit(task, opts)` |
 | `lsqvce.Options` | every setting of a run, with safe defaults |
 | `lsqvce.Results` | what `fit` returns: estimates, errors, diagnostics, plots |
 | `lsqvce.report` | prints the verdict (`R.report` calls it for you) |
@@ -70,7 +74,7 @@ to. The toolbox has exactly six user-facing names:
 | document | answers | where |
 |---|---|---|
 | **this Manual** | *How do I use it?* Installation, concepts, a tutorial, the workflow, declaring your problem, the noise model, priors, reading the report, the examples | `doc lsqvce`, `lsqvce_manual.pdf` |
-| **the API reference** | *What exactly does each interface accept and return?* The `data` struct, `buildDay` and `prepareDay`, covariance specifications, `Options`, `Results`, every error identifier | `html/lsqvce_api.html`, `lsqvce_api.pdf` |
+| **the API reference** | *What exactly does each interface accept and return?* The task definition, `Prepare` and `Build`, the noise laws, `Options`, `Results`, every error identifier | `html/lsqvce_api.html`, `lsqvce_api.pdf` |
 | **the theory** | *What is computed, and why?* The mathematical framework | `lsqvce_theory.pdf` |
 
 Every function also has its own page: `doc lsqvce.<name>` or `help lsqvce.<name>`.
@@ -82,7 +86,7 @@ Every function also has its own page: `doc lsqvce.<name>` or `help lsqvce.<name>
 1. *Installation* — five minutes.
 2. *Key concepts* — the vocabulary every later chapter uses: common and local
    parameters, systems, days, arcs, streams, and the two functions you write
-   (`buildDay` and, optionally, `prepareDay`).
+   (a stream's `Build` and, optionally, a system's `Prepare`).
 3. *Your first adjustment* — a complete, runnable example
    (`examples/demo_tutorial.m`). Run it, then change it.
 4. *The workflow, step by step* — the same path for your own data, with every decision
@@ -142,7 +146,7 @@ lsqvce_setup('uninstall')  % removes the two path entries and the Help browser i
 |---|---|
 | `+lsqvce/` | the package: the user tier (`fit`, `Options`, `Results`, `report`, `layout`, `solveContributions`) and the `engine`, `kernel` and `util` tiers below it |
 | `examples/` | runnable examples (chapter *The examples*); start with `demo_tutorial` |
-| `template/` | starting points for your own case: `kbr_variational.m` (GRACE-FO Level-1B range-rates and orbits), `gravfire_data.m` (a GRAVFIRE bundle to the `data` struct), `lsqvce_template.m` |
+| `template/` | starting points for your own case: `kbr_variational.m` (GRACE-FO Level-1B range-rates and orbits), `gravfire_data.m` (a GRAVFIRE bundle to a task definition), `lsqvce_template.m` |
 | `html/` | this Manual, the API reference and one page per public unit |
 | `lsqvce_manual.pdf`, `lsqvce_api.pdf`, `lsqvce_theory.pdf` | the three documents as PDF |
 | `RELEASE_NOTES.md` | what changed in each version |
@@ -153,7 +157,7 @@ lsqvce_setup('uninstall')  % removes the two path entries and the Help browser i
 
 This chapter introduces the vocabulary the rest of the Manual uses. It has no code to run.
 Read it once before the tutorial. The words in **bold** are the names you will meet as
-field names, options and chapter titles.
+method names, options and chapter titles.
 
 ## The adjustment in one paragraph
 
@@ -166,13 +170,13 @@ again until the weights settle. lsqvce does all of that in one call, `lsqvce.fit
 
 ## Three kinds of problem
 
-`fit` recognises the kind of your problem from the fields of `data`:
+Every problem is declared as one `lsqvce.TaskDefinition`, made in one of three ways:
 
-| kind | fields you give | use it when |
+| kind | made with | use it when |
 |---|---|---|
-| **matrices** | `A`, `l`, `p` | the whole design matrix fits in memory |
-| **batched** | `batchFcn`, `numBatches`, `numUnknowns` (or `x0`) | it does not fit, or the model is nonlinear; your function returns one block of rows at a time |
-| **streaming** | `commonParams`, `days`, `systems` | the data come per day and per arc, from several instruments, with nuisance parameters and correlated noise |
+| **matrices** | `TaskDefinition.fromMatrices(A, l, Weights=p)` | the whole design matrix fits in memory |
+| **batched** | `TaskDefinition.fromBatches(@batchFcn, NumBatches=K, NumUnknowns=u)` (or `X0=x0`) | it does not fit, or the model is nonlinear; your function returns one block of rows at a time |
+| **streaming** | `TaskDefinition(Days=...)` and its `add` calls | the data come per day and per arc, from several instruments, with nuisance parameters and correlated noise |
 
 The first two are ordinary least squares with diagnostics. The streaming kind is what the
 toolbox is built for, and the rest of this chapter describes it.
@@ -181,39 +185,40 @@ toolbox is built for, and the rest of this chapter describes it.
 
 Ask of every unknown: *over what span is it constant, and who sees it?*
 
-- **Common parameters** (`data.commonParams`) are seen by all data, for example the
+- **Common parameters** (`task.addCommon`) are seen by all data, for example the
   gravity-field coefficients or station coordinates. They are what you want to know.
-- **Local parameters** (`localParams` of a system) belong to one **arc**, one **day** or
+- **Local parameters** (`sys.addLocal` of a system) belong to one **arc**, one **day** or
   one **system**, for example an initial orbit state, an accelerometer bias, or a
   per-arc offset. They are nuisance parameters. The toolbox eliminates them arc by arc
   while it reads the data, so their number does not cost memory.
 
-You declare both as tables with one row per *kind* of parameter. Column 1 is the scope
-(`'common'`, `'day'`, `'arc'` or `'system'`); the other columns are yours (a name, a
-degree and order, whatever helps you). The toolbox instantiates each row once per scope
-and counts the columns itself: you never compute a column index by hand.
+You declare both **by name and scope**: `Scope="common"`, `"day"`, `"arc"` or `"system"`
+says over which span the parameter is constant. A declared name is a template: the
+toolbox instantiates it once per scope (an `"arc"` local once per arc) and counts the
+columns itself. Your code refers to parameters by name; you never compute a column index.
 
 ## Data: systems, days, arcs and streams
 
 ```
-data
-├── commonParams          what everybody estimates
-├── days                  the calendar, e.g. 1:30
-└── systems(k)            one per satellite, receiver, or instrument group
-     ├── localParams      its nuisance parameters
-     ├── covariance.<type>  one noise law per observation type  ──►  the streams
-     ├── prepareDay       (optional) the work all its streams of a day share
-     └── buildDay         the rows of one day and one observation type
+task = lsqvce.TaskDefinition(Days=1:30)       the calendar
+├── addCommon(names)                            what everybody estimates
+├── addPrior(name, ...)                         priors on the common parameters
+└── addSystem(name, Prepare=@p)                 one per satellite, receiver, instrument group
+     ├── Prepare                                (optional) once per day: what its streams share
+     ├── addLocal(names, Scope=...)             its nuisance parameters
+     ├── addPrior(name, ...)                    priors on its local parameters
+     └── addStream(name, Build=@b, Noise=...)   one per observation type  ──►  the streams
+          └── Build                             once per day: the rows of this stream
 ```
 
 - A **system** is one source of data with its own nuisance parameters, for example one
   satellite, or a satellite pair whose inter-satellite ranging depends on both orbits.
 - A **day** is the unit of reading. The toolbox asks for the data of one day at a time.
-- An **observation type** is a kind of measurement within a system, for example `'pos'`
-  and `'kbr'`. The observation types are the field names of the system's `covariance`
-  struct. Each (system, observation type) pair is one **stream**.
+- An **observation type** is a kind of measurement within a system, for example `"pos"`
+  and `"kbr"`. Each `addStream` declares one; each (system, observation type) pair is one
+  **stream**, with its own `Build` function and its own noise law.
 - An **arc** is one continuous piece of a stream on a day. The noise is correlated
-  within an arc and independent between arcs. `buildDay` returns one cell per arc.
+  within an arc and independent between arcs. `Build` adds the day's arcs one by one.
 
 ## The two functions you write
 
@@ -222,33 +227,34 @@ demand. This is what keeps memory small, but it has one consequence: **the toolb
 your functions more than once for the same day**, so they must return the same result
 every time.
 
-**`buildDay`** (required) returns the design rows and observations of one day for one
-observation type:
+**`Build`** (one per stream, required) returns the arcs of one day of its stream:
 
 ```matlab
-D = buildDay(day, obsType, common, local, procOpt, info)
-%   D.A{a}  design of the common parameters, arc a      (m_a x nc)
-%   D.B{a}  design of the local parameters,  arc a      (m_a x nl)
-%   D.l{a}  observed minus computed                     (m_a x 1)
-%   D.t{a}  epochs in seconds                           (m_a x 1)
+out = build(day, ctx)            % given to addStream(..., Build=@build)
+%   out = ctx.newDay();
+%   out.addArc(A, l, t, Local={names, P})   once per arc:
+%      A  design of the common parameters   (m x nc, columns in addCommon order)
+%      l  observed minus computed           (m x 1)
+%      t  epochs in seconds                 (m x 1)
+%      Local  the partials of local parameters, by name
 ```
 
-**`prepareDay`** (optional) does the work that every stream of a day shares, *once* per
-day, before the first `buildDay` of that day. Its result reaches every `buildDay` of the
-day as `procOpt.prepared`:
+**`Prepare`** (one per system, optional) does the work that every stream of a day
+shares, *once* per day, before the first `Build` of that day. Its result reaches every
+`Build` of the day as `ctx.Prepared`:
 
 ```matlab
-P = prepareDay(day, common, local, procOpt, info)
+P = prepare(day, ctx)            % given to addSystem(..., Prepare=@prepare)
 ```
 
-Without `prepareDay`, a system with two observation types computes anything they share
-twice per day: an orbit integration, a large file read, a coordinate rotation. With it,
-the shared work happens once per build of the day. The tutorial uses it; chapter
-*Declaring your problem* shows when it pays.
+Without `Prepare`, a system with two streams computes anything they share twice per day:
+an orbit integration, a large file read, a coordinate rotation. With it, the shared work
+happens once per build of the day. The tutorial uses it; chapter *Declaring your problem*
+shows when it pays.
 
-Both functions take *as many arguments as they declare*. `@(day, obsType)` is a valid
-`buildDay` when you need nothing else. `info`, the 6th argument, tells you where each
-block of local parameters sits in `B`.
+Both receive the same two arguments: the day and a `lsqvce.DayContext`, `ctx`, which
+carries the names of the system and stream, your `Settings`, the arc schedule of the day
+(`ctx.ArcIds`) and the parameter names, and finds columns by name (`ctx.cols`).
 
 ## What `fit` does with them
 
@@ -257,9 +263,9 @@ For a run with `Estimate = "noise"`, `fit` repeats one **pass** until the noise 
 ```
 for every pass
     for every system and every day
-        P = prepareDay(day, ...)                  once per day (if declared)
-        for every observation type
-            D = buildDay(day, obsType, ...)       the day's rows, with procOpt.prepared = P
+        P = Prepare(day, ctx)                     once per day (if declared)
+        for every stream
+            out = Build(day, ctx)                 the day's arcs, with ctx.Prepared = P
             whiten every arc with the stream's current noise law
             eliminate the local parameters of the arc
             add the arc to the normal equations of the common parameters
@@ -277,11 +283,12 @@ the two reads.
 
 ## The noise model
 
-Each stream has a **noise law** (`covariance.<type>`): how its errors correlate from
-epoch to epoch (`type`), and how large they are (`sigma`). On top of that, every arc can
-have its own **arc factor**, which catches one bad pass without spoiling the whole stream.
-With `Estimate = "noise"` the toolbox estimates all of them. You start from an honest
-guess, usually white noise (`type = 'diag'`) with a realistic `sigma`.
+Each stream has a **noise law** (`addStream(..., Noise=lsqvce.Noise.<law>(...))`): how
+its errors correlate from epoch to epoch (the law) and how large they are (its `sigma`).
+On top of that, every arc can have its own **arc factor**, which catches one bad pass
+without spoiling the whole stream. With `Estimate = "noise"` the toolbox estimates all of
+them, as far as the stream's `Estimate` setting allows. You start from an honest guess,
+usually white noise (`lsqvce.Noise.white(sigma)`) with a realistic `sigma`.
 
 The result of all weights together is summarised by **σ₀** (`R.sigma0`), the a-posteriori
 standard deviation of unit weight. A σ₀ near 1 means the declared and the observed noise
@@ -309,20 +316,24 @@ The verdict is one of `PASS`, `PASS WITH WARNINGS`, `SUSPECT` and `INVALID` (see
 
 | term | meaning |
 |---|---|
-| arc | a continuous piece of one stream on one day; one cell of `buildDay`'s output |
+| arc | a continuous piece of one stream on one day; one `addArc` of its `Build` |
 | arc factor | a variance factor of one arc, estimated on top of the stream's level |
-| common parameter | an unknown seen by all data (`data.commonParams`) |
-| `Cep` | per-epoch accuracy delivered with the data (`D.Cep`), relative to the law's `sigma` |
+| Build | the function of a stream that returns its arcs of one day (`addStream`) |
+| common parameter | an unknown seen by all data (`task.addCommon`) |
+| context | the `lsqvce.DayContext` your Prepare and Build receive: names, settings, schedule, columns |
 | day | the unit in which the toolbox reads data |
 | local parameter | a nuisance unknown of one arc, day or system, eliminated on the fly |
-| observation type | a kind of measurement within a system; a field name of `covariance` |
+| observation type | a kind of measurement within a system; the name of an `addStream` |
 | pass | one solve plus one update of the noise model |
 | pool | streams that share one estimated spectral shape (`Options.Pool`) |
-| prior | pseudo-observations on the parameters (`data.priors`): datum, regularisation |
+| Prepare | the function of a system that computes, once per day, what its streams share |
+| prior | pseudo-observations on the parameters (`addPrior`): datum, regularisation |
 | redundancy | how much of an observation is checked by the others (0 to 1) |
+| `Sigma` | per-epoch accuracy delivered with an arc (`addArc(..., Sigma=)`), relative to the law's `sigma` |
 | σ₀ | a-posteriori standard deviation of unit weight; about 1 when the weights are right |
 | stream | one (system, observation type) pair, with one noise law |
-| system | one source of data with its own local parameters (`data.systems(k)`) |
+| system | one source of data with its own local parameters (`task.addSystem`) |
+| task | the whole declaration: one `lsqvce.TaskDefinition` |
 | whitening | transforming correlated errors into uncorrelated ones before the solve |
 
 
@@ -346,8 +357,8 @@ xTrue = [2; 0.5];
 sigma = 0.1;                                % the noise of every observation
 l     = A*xTrue + sigma*randn(size(t));     % simulated measurements
 
-data = struct('A', A, 'l', l, 'p', ones(size(t)) / sigma^2);   % p are WEIGHTS: 1/sigma^2
-R = lsqvce.fit(data);
+task = lsqvce.TaskDefinition.fromMatrices(A, l, Weights=ones(size(t)) / sigma^2);   % WEIGHTS: 1/sigma^2
+R = lsqvce.fit(task);
 R.report
 R.coefficients()
 ```
@@ -366,7 +377,7 @@ match the scatter of the data.
 
 Two things to remember from part 1:
 
-- `p` holds **weights**, `1/σ²`, not standard deviations.
+- `Weights` holds **weights**, `1/σ²`, not standard deviations.
 - A σ₀ far from 1 means the weights are wrong in scale. Fix that before anything else.
 
 If your problem fits in memory and the noise is known, this is all you need. The rest of
@@ -394,133 +405,128 @@ declare it white.
 | observation types | `'gauge'`, `'radar'` | the kinds of measurement |
 | what both streams share per day | the epochs and the signal basis | an orbit, a file, a rotation |
 
-### Step 1 — Declare the parameters and the calendar
+### Step 1 — Declare the task: its parameters and calendar
 
 ```matlab
-data = struct();
-data.commonParams = {'common', 'cosAmp'; 'common', 'sinAmp'};
-data.days = 1:5;
+task = lsqvce.TaskDefinition(Days=1:5);
+names = ["cosAmp" "sinAmp"];
+task.addCommon(names);                             % Scope="common" (default)
 ```
 
-One row per parameter. Column 1 is the scope; column 2 is a name of your choice.
+A task is one object you fill with `add` calls. `addCommon` declares the parameters every
+system sees, by name; `Scope="common"` means one value for the whole run.
 
-### Step 2 — Declare the system
+### Step 2 — Declare the system: its Prepare, locals and streams
 
 ```matlab
-sys = struct();
-sys.name        = 'platform';
-sys.localParams = {'arc', 'bias'};             % one offset per arc
-sys.arcs        = 2;                           % arcs 1 and 2 on every day
-sys.processingOptions = struct('epochs', 240, 'step', 30, ...
-                               'truth', [0.8; -0.3]);
-sys.prepareDay  = @prepareTutorialDay;         % once per day
-sys.buildDay    = @buildTutorialDay;           % once per day and observation type
-sys.covariance.gauge = struct('type', 'diag', 'sigma', 0.05);
-sys.covariance.radar = struct('type', 'diag', 'sigma', 0.02);   % colour unknown
-data.systems = sys;
+truth = [0.8; -0.3];                               % the simulator's truth
+sys = task.addSystem("platform", Prepare=@prepareTutorialDay, Arcs=2, ...   % arcs 1 and 2
+                     Settings=struct('epochs', 240, 'step', 30, 'truth', truth));
+sys.addLocal("bias", Scope="arc");                 % one offset per arc
+sys.addStream("gauge", Build=@buildGauge, Noise=lsqvce.Noise.white(0.05));
+sys.addStream("radar", Build=@buildRadar, Noise=lsqvce.Noise.white(0.02));   % colour unknown
 ```
 
 Line by line:
 
-- `localParams = {'arc', 'bias'}` asks for one parameter per arc. The toolbox counts
-  them (5 days × 2 arcs = 10) and tells `buildDay` where each one sits.
-- `arcs = 2` is the arc schedule: arcs 1 and 2 on every day. A system without `'arc'`
-  parameters may leave it out (its arcs are then simply the cells `buildDay` returns).
-  With `'arc'` parameters it is required, because their number must be known before
-  any data is read; leaving it out is an error that says so.
-- `processingOptions` is a struct of your own. The toolbox passes it unchanged to your
-  functions as `procOpt`. Here it carries the simulator's settings. In a real case it
-  carries a data directory, a model file, a reference frame.
-- The **field names of `covariance` are the observation types**. There is no separate
-  list. Each gets a noise law; `'diag'` is white noise of level `sigma`.
+- `addSystem` declares the platform. Its `Prepare` function runs **once per day**, before
+  the streams of that day; whatever it returns reaches every stream as `ctx.Prepared`.
+- `Arcs=2` is the arc schedule: arcs 1 and 2 on every day. A system without `"arc"`
+  parameters may leave it out (its arcs are then simply the arcs `Build` adds). With
+  `"arc"` parameters it is required, because their number must be known before any data
+  is read; leaving it out is an error that says so.
+- `Settings` is a struct of your own. The toolbox passes it unchanged to your functions
+  as `ctx.Settings`. Here it carries the simulator's settings. In a real case it carries a
+  data directory, a model file, a reference frame.
+- `addLocal("bias", Scope="arc")` asks for one parameter per arc. The toolbox counts them
+  (5 days × 2 arcs = 10) and places them; your code names them.
+- Each `addStream` is one observation type with its own `Build` function, which runs
+  **once per day** of that stream, and its own noise law. `lsqvce.Noise.white(0.05)` is
+  white noise of standard deviation 0.05.
 
-### Step 3 — Write `prepareDay`: what both instruments share
+### Step 3 — Write `Prepare`: what both instruments share
 
 Both streams need the epochs of every arc and the signal basis at those epochs. Computing
-this in `buildDay` would do it twice per day. `prepareDay` does it once:
+this in each `Build` would do it twice per day. `Prepare` does it once:
 
 ```matlab
-function P = prepareTutorialDay(day, ~, ~, procOpt, info)
-    nArc = numel(info.arcId);
+function P = prepareTutorialDay(day, ctx)
+    cfg  = ctx.Settings;
+    nArc = numel(ctx.ArcIds);
     P = struct('t', {cell(1, nArc)}, 'G', {cell(1, nArc)}, 'y', {cell(1, nArc)});
     for a = 1:nArc
-        start  = (day - 1) * 86400 + (info.arcId(a) - 1) * 43200;   % arcs at 0 h and 12 h
-        t      = start + (0:procOpt.epochs - 1).' * procOpt.step;
+        start  = (day - 1) * 86400 + (ctx.ArcIds(a) - 1) * 43200;  % arcs at 0 h and 12 h
+        t      = start + (0:cfg.epochs - 1).' * cfg.step;
         w      = 2 * pi / 3600;
         G      = [cos(w * t), sin(w * t)];
-        rs     = RandStream('mt19937ar', 'Seed', 100 * day + info.arcId(a));
-        bias   = 0.5 * randn(rs);                  % this arc's true offset
+        rs     = RandStream('mt19937ar', 'Seed', 100 * day + ctx.ArcIds(a));
+        bias   = 0.5 * randn(rs);                      % this arc's true offset
         P.t{a} = t;
         P.G{a} = G;
-        P.y{a} = G * procOpt.truth + bias;
+        P.y{a} = G * cfg.truth + bias;
     end
 end
 ```
 
-It receives the day, the two parameter tables (unused here, hence `~`), your
-`processingOptions` and `info`. `info.arcId` lists the arcs of this day. Whatever it
-returns, `P`, is handed to every `buildDay` of the same day.
+It receives the day and a `lsqvce.DayContext`, `ctx`: here its `Settings` and `ArcIds`,
+the arcs of this day. Whatever it returns, `P`, is handed to every `Build` of the same
+day.
 
-### Step 4 — Write `buildDay`: the rows of one instrument
+### Step 4 — Write `Build`: the rows of one instrument
 
 ```matlab
-function D = buildTutorialDay(day, obsType, ~, ~, procOpt, info)
-    P    = procOpt.prepared;                       % what prepareTutorialDay returned
-    nArc = numel(info.arcId);
-    D = struct('A', {cell(1, nArc)}, 'B', {cell(1, nArc)}, ...
-               'l', {cell(1, nArc)}, 't', {cell(1, nArc)});
-    for a = 1:nArc
+function out = buildGauge(day, ctx)
+    out = instrumentDay(day, ctx, @(rs, m) 0.05 * randn(rs, m, 1));    % white
+end
+
+function out = buildRadar(day, ctx)
+    phi = 0.5;                                                         % AR(1)
+    out = instrumentDay(day, ctx, @(rs, m) arNoise(rs, m, phi, 0.02));
+end
+
+function out = instrumentDay(day, ctx, noise)
+    P   = ctx.Prepared;                                % prepareTutorialDay's result
+    out = ctx.newDay();
+    c   = char(ctx.Stream);
+    for a = 1:numel(ctx.ArcIds)
         m  = numel(P.t{a});
-        rs = RandStream('mt19937ar', 'Seed', 1000 * day + 10 * info.arcId(a) + double(obsType(1)));
-        switch obsType
-            case 'gauge'
-                e = 0.05 * randn(rs, m, 1);                            % white
-            case 'radar'
-                phi = 0.5;                                             % AR(1)
-                e = filter(1, [1 -phi], 0.02 * sqrt(1 - phi^2) * randn(rs, m + 200, 1));
-                e = e(201:end);
-        end
-        B = zeros(m, info.nl);
-        B(:, info.offsetOf(info.arcId(a)) + (1:info.count(a))) = 1;   % this arc's offset
-        D.A{a} = P.G{a};                           % m x 2: the common parameters
-        D.B{a} = B;                                % m x 10: the local parameters
-        D.l{a} = P.y{a} + e;                       % observed minus computed
-        D.t{a} = P.t{a};                           % epochs in seconds
+        rs = RandStream('mt19937ar', 'Seed', 1000 * day + 10 * ctx.ArcIds(a) + double(c(1)));
+        out.addArc(P.G{a}, P.y{a} + noise(rs, m), P.t{a}, ...    % A, observed - computed, t [s]
+                   Local={"bias", ones(m, 1)});                  % this arc's offset
     end
 end
 ```
 
-The four rules every `buildDay` follows:
+(`arNoise` draws AR(1) noise of standard deviation 0.02; it is in the example file.) The
+four rules every `Build` follows:
 
-1. **One cell per arc** in each of `A`, `B`, `l`, `t`, all with the same number of rows.
-2. **Columns by `info`, never by hand.** `info.nl` is the total number of local
-   parameters; `info.offsetOf(arcId)` is where this arc's block starts; `info.count(a)`
-   is its width.
+1. **One `addArc` per arc**, with the design `A` of the common parameters (one column per
+   `addCommon` name, in that order), `l` and the epochs `t`, all with the same number of
+   rows.
+2. **Local parameters by name, never by column.** `Local={"bias", ones(m, 1)}` gives the
+   partial of the arc's `bias`; the toolbox knows which column that is on this day and arc.
 3. **Raw rows.** `l` is observed minus computed, unweighted and unwhitened. The toolbox
    applies the noise law itself.
-4. **Deterministic.** The toolbox reads every day more than once. Here the random
-   noise comes from a stream seeded on (day, arc, instrument), so every call returns the
-   same rows. Your file reader is deterministic anyway.
-
-Because `buildDay` uses `procOpt` (the 5th argument), it must declare at least five
-arguments; the toolbox refuses a `prepareDay` whose result could never arrive.
+4. **Deterministic.** The toolbox reads every day more than once. Here the random noise
+   comes from a stream seeded on (day, arc, instrument), so every call returns the same
+   rows. Your file reader is deterministic anyway.
 
 ### Step 5 — A first run under the declared noise
 
 ```matlab
-R1 = lsqvce.fit(data);
+R1 = lsqvce.fit(task);
 R1.coefficients()
 ```
 
 `Estimate = "none"` is the default: one solve with the weights you declared. Always run
-this first. It shows that the declaration is accepted (every declaration error names the
-field at fault) and that σ₀ is plausible. Here σ₀ = 0.993.
+this first. It shows that the declaration is accepted (a declaration mistake is refused by
+the call that makes it, with its name) and that σ₀ is plausible. Here σ₀ = 0.993.
 
 ### Step 6 — Estimate the noise
 
 ```matlab
 opts = lsqvce.Options(Estimate="noise", Seed=1);
-R = lsqvce.fit(data, opts);
+R = lsqvce.fit(task, opts);
 R.report
 ```
 
@@ -559,13 +565,13 @@ R.plot("residuals")      % the whitened residuals per stream
 ```
 
 `R.summary()` lists the streams as `x1|gauge` and `x1|radar`: `x1` is the system's id,
-given automatically because we declared none (set `sys.id` to choose one). The radar's
+given automatically because we declared none (`addSystem(..., Id='P')` chooses one). The radar's
 spectrum is no longer flat: the estimator found the colour we left out.
 
 ## Where to go from here
 
-- Replace the simulator in `prepareTutorialDay` and `buildTutorialDay` with your own
-  reader, and the two `commonParams` rows with your parameters. *The workflow, step by
+- Replace the simulator in `prepareTutorialDay` and the two `Build` functions with your
+  own reader, and the two `addCommon` names with your parameters. *The workflow, step by
   step* goes through the decisions in order.
 - *Declaring your problem* covers several systems, day and system scopes, data gaps,
   multi-axis observations and per-epoch accuracies.
@@ -584,29 +590,29 @@ them, each with the chapter that treats it in depth. If you have not yet run the
 | step | you decide | you write |
 |---|---|---|
 | 1 | which kind of problem | — |
-| 2 | the parameters and their scopes | `commonParams`, `localParams` |
-| 3 | how one day of one observation type becomes rows | `buildDay` |
-| 4 | whether the streams of a day share expensive work | `prepareDay` (optional) |
-| 5 | the systems and their starting noise | `data.systems`, `covariance` |
+| 2 | the parameters and their scopes | `task.addCommon`, `sys.addLocal` |
+| 3 | the systems, their streams and their starting noise | `task.addSystem`, `sys.addStream` |
+| 4 | how one day of one stream becomes rows | its `Build` function |
+| 5 | whether the streams of a day share expensive work | the system's `Prepare` (optional) |
 | 6 | — run once under the declared noise | |
 | 7 | — estimate the noise | `lsqvce.Options` |
-| 8 | regularisation, if needed | `data.priors` |
+| 8 | regularisation, if needed | `addPrior` |
 | 9 | — read the report and act on it | |
 | 10 | — take the results out | |
 
 ## Step 1 — Decide which kind of problem you have
 
-| your problem | kind | you supply |
+| your problem | kind | you write |
 |---|---|---|
-| the design matrix fits in memory, one block of unknowns | **matrices** | `data.A`, `data.l`, `data.p` |
-| too large for memory, or nonlinear, one block of unknowns | **batched** | `data.batchFcn`, `data.numBatches`, `data.numUnknowns` (or `data.x0`) |
-| data arrive per day and arc, several instruments, nuisance parameters per arc or day, correlated noise | **streaming** | `data.commonParams`, `data.days`, `data.systems` with your `buildDay` |
+| the design matrix fits in memory, one block of unknowns | **matrices** | `lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p)` |
+| too large for memory, or nonlinear, one block of unknowns | **batched** | `lsqvce.TaskDefinition.fromBatches(@batchFcn, NumBatches=K, NumUnknowns=u)` (or `X0=x0`) |
+| data arrive per day and arc, several instruments, nuisance parameters per arc or day, correlated noise | **streaming** | `lsqvce.TaskDefinition(Days=...)` and its `add` calls, with your `Build` functions |
 
 The first two are complete after one line:
 
 ```matlab
-data = struct('A', A, 'l', l, 'p', 1 ./ sigma.^2);     % weights, not sigmas
-R = lsqvce.fit(data);
+task = lsqvce.TaskDefinition.fromMatrices(A, l, Weights=1 ./ sigma.^2);   % weights, not sigmas
+R = lsqvce.fit(task);
 R.report
 ```
 
@@ -614,148 +620,141 @@ The rest of this chapter is the streaming kind, the one the toolbox is built for
 
 ## Step 2 — List the parameters
 
-Write two tables. `data.commonParams` holds the parameters every observation can see (for
-gravity recovery: the spherical-harmonic coefficients); `localParams` of a system holds
-the nuisance parameters that live on one arc, one day or the whole system (initial
-states, accelerometer calibration, empirical terms). Column 1 of every row says how often
-it is instantiated; the remaining columns are yours:
+Declare every parameter by name and scope. `addCommon` declares the parameters every
+observation can see (for gravity recovery: the spherical-harmonic coefficients); a
+system's `addLocal` declares the nuisance parameters that live on one arc, one day or the
+whole system (initial states, accelerometer calibration, empirical terms):
 
 ```matlab
-data.commonParams = [repmat({'common'}, nc, 1), myCoefficientNames];   % nc rows
-s.localParams = [ {'arc', 'bias'}; {'arc', 'drift'}; {'day', 'accScale'} ];
+task = lsqvce.TaskDefinition(Days=1:30);
+task.addCommon(myCoefficientNames);                    % Scope="common": one value per run
+sys = task.addSystem("mission", Settings=struct('dataDir', '/data/mission'), Arcs=4);
+sys.addLocal(["bias" "drift"], Scope="arc");           % one each per arc
+sys.addLocal("accScale", Scope="day");                 % one per day
 ```
 
-The toolbox derives every count and every column position from these tables. See
-*Declaring your problem*.
+The toolbox derives every count and every column position from the names and scopes. See
+*Declaring your problem* for the scopes, validity intervals and `Info` columns.
 
-## Step 3 — Write `buildDay`
-
-One function returns the data of one day and one observation type, one cell per arc:
+## Step 3 — Declare the streams and their noise
 
 ```matlab
-function D = myBuildDay(day, obsType, common, ~, procOpt)
-    arcs = readMyArcs(procOpt.dataDir, day, obsType);   % your reader, deterministic
-    n = numel(arcs);
-    D = struct('A', {cell(1, n)}, 'B', {cell(1, n)}, 'l', {cell(1, n)}, 't', {cell(1, n)});
-    for a = 1:n
+sys.addStream("range", Build=@buildRange, Noise=lsqvce.Noise.white(2e-7));   % white, 2e-7
+```
+
+Each `addStream` is one observation type: its name, its `Build` function and its noise
+law. Start with `lsqvce.Noise.white` and a realistic level; the estimator can find the
+colour (*Choosing the stochastic model*). The system's `Settings` (step 2) is a struct of
+your own that reaches your functions as `ctx.Settings`.
+
+## Step 4 — Write `Build`
+
+One function per stream returns the arcs of one day:
+
+```matlab
+function out = buildRange(day, ctx)
+    arcs = readMyArcs(ctx.Settings.dataDir, day, "range");   % your reader, deterministic
+    out = ctx.newDay();
+    for a = 1:numel(arcs)
         m = numel(arcs(a).omc);
-        D.A{a} = myPartials(arcs(a), common);   % m x nc
-        D.B{a} = zeros(m, 0);                   % no local parameters in this sketch
-        D.l{a} = arcs(a).omc;                   % observed minus computed
-        D.t{a} = arcs(a).tSeconds;              % epochs in seconds
+        out.addArc(myPartials(arcs(a)), arcs(a).omc, arcs(a).tSeconds, ...   % A, l, t [s]
+                   Local={["bias" "drift"], [ones(m, 1), arcs(a).tRel]});    % by name
     end
 end
 ```
 
-Return raw, unwhitened rows; never scale them by your weights. With local parameters, add
-a 6th argument `info` and place every column by its offsets (*Declaring your problem*).
+Return raw, unwhitened rows; never scale them by your weights. `A` has one column per
+common parameter, in `addCommon` order; the local partials go **by name** in `Local`, and
+the toolbox places them in this arc's (or this day's) columns.
 
-The six arguments, in plain words. Declare only as many as you use; the toolbox passes
-as many as your function declares (`@(day, obsType)` is fine):
+What the context gives you, in plain words:
 
-| argument | what you get |
+| `ctx.` | what you get |
 |---|---|
-| `day` | the day to build, one entry of `data.days` (or of the system's own `days`) |
-| `obsType` | the observation type to build, one field name of `covariance`, as a char |
-| `common` | your `data.commonParams` table, as you declared it |
-| `local` | the system's `localParams` table, as you declared it |
-| `procOpt` | the system's `processingOptions`, unchanged; with a `prepareDay`, also `procOpt.prepared` |
-| `info` | where each block of parameters sits on this day: `info.nc`, `info.nl`, `info.arcId`, `info.offsetOf(arcId)`, `info.count`, `info.dayOffset`, … (API reference, chapter `buildDay`) |
+| `Day` | the day being built, one entry of the calendar |
+| `System`, `Stream` | the names of the system and the stream |
+| `Settings` | the system's `Settings`, unchanged |
+| `Prepared` | what the system's `Prepare` returned for this day (step 5) |
+| `ArcIds` | the scheduled arcs of the day |
+| `NumCommon`, `NumLocal` | the number of columns of `A` and of the local design |
+| `Common`, `Local` | tables of every parameter: name, scope, whether it exists on this day, `Info` |
+| `cols(names)` | the columns of named parameters, for a local design you build as one matrix `B` |
 
-`buildDay` must be **deterministic**: the toolbox calls it at least twice per day and
-pass, and must get the same rows back each time.
+`Build` must be **deterministic**: the toolbox calls it at least twice per day and pass,
+and must get the same rows back each time.
 
-## Step 4 — Share the expensive work of a day: `prepareDay`
+## Step 5 — Share the expensive work of a day: `Prepare`
 
-`buildDay` is called once per day **and observation type**. If your system has several
-observation types that rest on one expensive computation — an orbit integration with its
-partials, a large file both streams read, an Earth-rotation matrix for every epoch — that
-computation would run once per type. Move it into the system's `prepareDay`:
+`Build` is called once per day **and stream**. If your system has several streams that
+rest on one expensive computation — an orbit integration with its partials, a large file
+both streams read, an Earth-rotation matrix for every epoch — that computation would run
+once per stream. Move it into the system's `Prepare`:
 
 ```matlab
-s.prepareDay = @myPrepareDay;              % P = myPrepareDay(day, common, local, procOpt, info)
-s.buildDay   = @myBuildDay;                % reads procOpt.prepared
+sys = task.addSystem("grace", Prepare=@myPrepare, Settings=struct('dataDir', '/data'));
+sys.addStream("pos", Build=@buildPos, Noise=lsqvce.Noise.white(0.02), Axes=3);
+sys.addStream("kbr", Build=@buildKbr, Noise=lsqvce.Noise.white(1e-7));
 
-function P = myPrepareDay(day, ~, ~, procOpt, info)
-    P.orbit = integrateOrbit(procOpt.dataDir, day, info);    % the expensive part, once
+function P = myPrepare(day, ctx)
+    P.orbit = integrateOrbit(ctx.Settings.dataDir, day);   % the expensive part, once
 end
 
-function D = myBuildDay(day, obsType, common, ~, procOpt, info)
-    P = procOpt.prepared;                  % what myPrepareDay returned for this day
-    switch obsType
-        case 'pos', D = positionRows(P.orbit, day, info);
-        case 'kbr', D = rangeRateRows(P.orbit, day, info);
-    end
+function out = buildKbr(day, ctx)
+    out = rangeRateArcs(ctx.Prepared.orbit, ctx);          % what myPrepare returned today
 end
 ```
 
 What to know:
 
-- It runs **once per build of a day**, before the first `buildDay` of that day, and its
-  result `P` reaches every `buildDay` of that day as `procOpt.prepared`.
-- Its arguments are `(day, common, local, procOpt, info)`; declare as many as you use,
-  none to all five.
-- `buildDay` must then declare at least five arguments, or it could never see
-  `procOpt.prepared` (refused as `lsqvce:makeLoader:prepareUnused`). `processingOptions`
-  must not have a field named `prepared` of its own (`lsqvce:makeLoader:preparedField`).
-  Through `fit`, both arrive under its own prefix (`ME.identifier` ends in
-  `:prepareUnused` or `:preparedField`), the original attached as the cause.
+- It runs **once per build of a day**, before the first `Build` of that day, and its
+  result `P` reaches every `Build` of that day as `ctx.Prepared`.
+- Its context carries the day, the system's `Settings` and its scheduled arcs
+  (`ctx.ArcIds`); `ctx.Stream` is empty.
+- `Settings` must not have a field named `prepared` of its own: that name carries the
+  result (`lsqvce:makeLoader:preparedField`, reported by `fit` under its own prefix).
 - Only the current day's result is kept. A day that is built again (the default
-  `CacheDays = 1` builds each day twice per pass) runs `prepareDay` again, so it must be
+  `CacheDays = 1` builds each day twice per pass) runs `Prepare` again, so it must be
   deterministic too. `CacheDays = Inf` builds every day only once per run, if memory
   allows.
 - If it throws, the error is `lsqvce:makeLoader:prepareDay`, naming the day, with your
   error attached as the cause.
 
-A system with one observation type gains nothing from `prepareDay`; leave it out. The
-tutorial (*Your first adjustment*) and `template/kbr_variational.m` use it.
-
-## Step 5 — Declare the system and its noise
-
-```matlab
-s = struct();
-s.buildDay = @myBuildDay;
-s.covariance.range = struct('type', 'diag', 'sigma', 2e-7);   % white noise, level 2e-7
-s.processingOptions = struct('dataDir', '/data/mission');
-data.days = 1:30;
-data.systems = s;
-```
-
-The fieldnames of `covariance` are your observation types. Start with a `diag` law and a
-realistic level; the estimator can find the colour (*Choosing the stochastic model*).
+A system with one stream gains nothing from `Prepare`; leave it out. The tutorial (*Your
+first adjustment*) and `template/kbr_variational.m` use it.
 
 ## Step 6 — First run: one solve under the declared model
 
 ```matlab
-R = lsqvce.fit(data);          % Estimate = "none"
+R = lsqvce.fit(task);          % Estimate = "none"
 R.report
 ```
 
-Check two things before anything else: that the run completes without a declaration error
-(every error names the field at fault), and that `R.sigma0` is plausible. A σ₀ far from 1
-means the declared accuracies are wrong in scale — fix that before estimating anything on
-top of it.
+Check two things before anything else: that the run completes (a declaration mistake is
+refused by the `add` call that makes it, or by `fit` naming the system and stream), and
+that `R.sigma0` is plausible. A σ₀ far from 1 means the declared accuracies are wrong in
+scale — fix that before estimating anything on top of it.
 
 ## Step 7 — Estimate the stochastic model
 
 ```matlab
 opts = lsqvce.Options(Estimate="noise", Pool="stream", Seed=1);
-R = lsqvce.fit(data, opts);
+R = lsqvce.fit(task, opts);
 R.report
 R.plot("psd"); R.plot("convergence");
 ```
 
 The loop re-solves until the noise laws settle. `Pool` decides which streams share one
 spectral shape; `ArcFactors` (default on) gives every arc its own variance factor; `Seed`
-makes the probe-based redundancies reproducible.
+makes the probe-based redundancies reproducible. What a stream lets the estimator change
+is its `Estimate` setting on `addStream` (`"law"`, `"scale"` or `"none"`).
 
 ## Step 8 — Add regularisation if the problem needs it
 
 A free network needs a datum; a high-degree gravity field needs a Kaula rule. Both are
-declared as priors in your columns:
+declared as priors on named parameters:
 
 ```matlab
-data.priors(1) = struct('group', '^C|^S', 'x0', 0, 'sigma', 1e-10, 'estimate', "scale");
+task.addPrior("kaula", On="^[CS]", Sigma=1e-10, Estimate="scale");
 ```
 
 See *Priors and regularisation*.
@@ -771,195 +770,238 @@ standard next step — snooping, a richer noise law, a functional model correcti
 
 ```matlab
 T = R.coefficients();                  % estimates, formal errors, confidence bounds
-[C, L] = R.toTable(data);              % your own tables with estimates written in
+P = R.toTable(task);                   % every parameter by name, day and arc, with its estimate
 save('run.mat', 'R');                  % R.meta records version, seeds and options
 ```
 
 
 # Declaring your problem
 
-This chapter shows how to map a real problem onto the `data` struct. The field-by-field
-contract — every field, its type, its default and every error — is in the API reference
-(chapters *The `data` struct* and *`buildDay`*).
+This chapter shows how to map a real problem onto a `lsqvce.TaskDefinition`. Every call
+is listed with its settings, their values, their defaults and the practice that works;
+the full reference of every class is in the API reference and in `help lsqvce.<name>`.
 
 ## The picture
 
-You describe one adjustment with three answers: *what is estimated for everybody*
-(`data.commonParams`), *which days are processed* (`data.days`), and *which systems
-deliver data* (`data.systems`, one entry per satellite, receiver or instrument). Each
-system points to one function you write, `buildDay`, that returns the design rows and
-observations of one day for one observation type. Everything else — reading the days in
-order, whitening every arc with its noise law, eliminating the local parameters,
-iterating the variance components — is done by the toolbox.
+You describe one adjustment with four kinds of call: *what is estimated for everybody*
+(`task.addCommon`), *which systems deliver data* (`task.addSystem`, one per satellite,
+receiver or instrument group), *what each system observes* (`sys.addStream`, one per
+observation type) and *what each system must estimate besides* (`sys.addLocal`). Priors
+are declared where their parameters live (`task.addPrior`, `sys.addPrior`).
 
-The design is block-arrow shaped: every arc sees the common parameters through its
-`A` and its own local parameters through its `B`. The local blocks are eliminated arc by
-arc, so the memory need is set by the number of common parameters, not by the number of
-observations.
+You write two kinds of function, and each has one fixed home:
 
-## Choosing the scope of each parameter
-
-Ask of every parameter: *over what span is it constant?*
-
-| constant over … | table | token | examples |
+| function | given to | runs | returns |
 |---|---|---|---|
-| the whole adjustment, seen by all systems | `commonParams` | `'common'` | gravity-field coefficients, station coordinates |
-| one calendar day, seen by all systems | `commonParams` | `'day'` | daily common terms |
-| one arc of one system | `localParams` | `'arc'` | initial position and velocity, per-arc biases |
-| one day of one system | `localParams` | `'day'` | accelerometer scale and bias |
-| the whole adjustment, one system | `localParams` | `'system'` | antenna offsets, instrument constants |
+| `Prepare(day, ctx)` | `task.addSystem(name, Prepare=@p)` | once per system and day, before its streams | anything; it reaches every `Build` of the day as `ctx.Prepared` |
+| `Build(day, ctx)` | `sys.addStream(name, Build=@b, ...)` | once per stream and day | `ctx.newDay()` filled with `addArc` |
 
-Rows are **templates**: the toolbox instantiates every row once per scope and derives the
-column counts. With `data.paramColumns` a row can also carry a validity interval and is
-then instantiated only on the days it covers — a one-day manoeuvre parameter is just a
-row with a one-day validity.
+Everything else — reading the days in order, whitening every arc with its noise law,
+eliminating the local parameters, iterating the variance components — is done by the
+toolbox.
 
-## Writing `buildDay` with local parameters
+The design is block-arrow shaped: every arc sees the common parameters through its `A`
+and its own local parameters through its local design. The local blocks are eliminated
+arc by arc, so the memory need is set by the number of common parameters, not by the
+number of observations.
 
-Declare the 6th argument and never compute a column offset yourself:
+## The task: `lsqvce.TaskDefinition`
 
 ```matlab
-function D = buildDayGrace(day, obsType, common, ~, procOpt, info)
-    raw  = readGraceDay(procOpt.dataDir, day, obsType);  % your reader, deterministic
-    nArc = numel(info.arcId);                            % the schedule's arcs, in order
-    D = struct('A', {cell(1, nArc)}, 'B', {cell(1, nArc)}, ...
-               'l', {cell(1, nArc)}, 't', {cell(1, nArc)});
-    for a = 1:nArc
-        arc = raw.arc(a);                                % empty on a data gap
-        D.A{a} = shPartials(arc, common);                % m_a x info.nc
-        D.l{a} = arc.observed - arc.computed;            % observed minus computed
-        D.t{a} = arc.tSeconds;
-        B = sparse(numel(D.l{a}), info.nl);
-        B(:, info.offsetOf(info.arcId(a)) + (1:info.count(a))) = arcPartials(arc);
-        if info.dayCount > 0                             % this day's 'day' block
-            B(:, info.dayOffset + (1:info.dayCount)) = accPartials(arc);
-        end
-        D.B{a} = B;
+task = lsqvce.TaskDefinition(Days=59396:59426, Name="March 2021");
+```
+
+| setting | values | default | best practice |
+|---|---|---|---|
+| `Days` | integer row vector, each day once (e.g. MJD) | required unless every system sets its own `Days` | the full campaign here; narrow per system only where a satellite is missing |
+| `Name` | string | `""` | a run label; it appears in `disp(task)` |
+
+`disp(task)` prints what was declared: the parameter templates per scope, the systems and
+their streams, the priors. Nothing is read before `lsqvce.fit(task)`.
+
+## Parameters: `addCommon` and `addLocal`
+
+Ask of every parameter: *over what span is it constant?* The answer is its scope.
+
+| constant over … | call | `Scope` | examples | best practice |
+|---|---|---|---|---|
+| the whole adjustment, seen by all systems | `task.addCommon` | `"common"` (default) | gravity-field coefficients, station coordinates | keep nc as small as the science allows: memory and time grow with nc² |
+| one calendar day, seen by all systems | `task.addCommon` | `"day"` | daily common terms | rare; every day must carry data |
+| one arc of one system | `sys.addLocal` | `"arc"` (default) | initial position and velocity, per-arc biases | needs an arc schedule (`Arcs`) on the system or stream |
+| one day of one system | `sys.addLocal` | `"day"` | accelerometer scale and bias | many days make a prior's σ estimable |
+| the whole adjustment, one system | `sys.addLocal` | `"system"` | antenna offsets, instrument constants | not with the bootstrap over days (`solveContributions`) |
+
+```matlab
+task.addCommon(compose("C%d_%d", n, m), Info=table(n, m));   % names + your own columns
+sys.addLocal(["x0" "y0" "z0" "vx0" "vy0" "vz0"], Scope="arc");
+sys.addLocal(["accScale" "accBias"], Scope="day");
+sys.addLocal("manoeuvre", Scope="day", Valid=[59410.25 59410.75]);   % one day only
+```
+
+| setting | values | default | best practice |
+|---|---|---|---|
+| `names` | string array, unique within the task (commons) or the system (locals) | required | readable, regex-friendly names; a shared prefix lets one prior cover a family |
+| `Scope` | `"common"`, `"day"` (commons); `"arc"`, `"day"`, `"system"` (locals) | `"common"` / `"arc"` | see the table above |
+| `Valid` | `[start end]` in fractional MJD, or `[]` | `[]` (always) | for one-off parameters on `"day"` / `"arc"` rows; such a row exists only on the days its interval overlaps |
+| `Info` | a table with one row per name | none | extra columns your `Build` needs (degree, order, axis); each template's row reaches `Build` as a struct, `ctx.Common.Info{k}` / `ctx.Local.Info{k}` |
+
+A name is a **template**: an `"arc"` local becomes one parameter per arc, a `"day"` local
+one per day. The toolbox counts and places them; your code always refers to them by name.
+A local may not share a name with a common parameter.
+
+## Systems: `addSystem` — where the daily preparation goes
+
+```matlab
+grace = task.addSystem("GRACE-FO", Prepare=@prepareGrace, Arcs=4, ...
+                       Settings=struct('dataDir', '/data/gracefo'));
+```
+
+| setting | values | default | best practice |
+|---|---|---|---|
+| `name` | string, unique in the task | required | a short label; it prefixes every stream in the report |
+| `Prepare` | function handle `@(day, ctx)` | none | every computation two or more streams of a day need; deterministic |
+| `Settings` | struct (paths, models, thresholds) | `struct()` | plain values only; one reader for several setups = one `Settings` per system, never a global |
+| `Days` | integer row vector | the task's `Days` | narrow only for a system absent on some days |
+| `Arcs` | a count, an id vector, or `@(day, stream) ids` | none: the arcs are those `Build` adds | required by `"arc"` locals; a resolver for ragged schedules and manoeuvres |
+| `Id` | number or single character | its position | give every system an id or none |
+
+A system is one satellite, one receiver, or a **pair whose observation depends on the
+local parameters of both**: the range-rate between two GRACE spacecraft belongs to one
+system that holds both satellites' parameters. Systems share only the common parameters;
+data that share no common parameters are separate tasks.
+
+### What `Prepare` is for
+
+| question | answer |
+|---|---|
+| when does it pay? | when two or more streams of one system share an expensive step: an orbit integration, the variational partials, a large file, Earth-rotation matrices. With one stream it gains nothing |
+| what does it get? | the day and a `lsqvce.DayContext`: `ctx.Settings`, `ctx.ArcIds` (the system's arcs of the day), the parameter tables |
+| what may it return? | anything: a struct, a cell, an object. The toolbox does not look inside |
+| how often does it run? | once each time the day is built: twice per pass with the default `CacheDays = 1`, once per run with `CacheDays = Inf`, and on every parallel worker that builds the day |
+| how much memory? | the current day's result only; it is dropped when the next day is prepared |
+| what must it be? | deterministic, like `Build` |
+| what if it fails? | `lsqvce:makeLoader:prepareDay`, naming the day, with your error as the cause |
+
+## Streams: `addStream` — where the daily build goes
+
+```matlab
+grace.addStream("kbr",  Build=@buildKbr,  Noise=lsqvce.Noise.white(1e-7));
+grace.addStream("posC", Build=@buildPosC, Noise=lsqvce.Noise.white(1), Estimate="scale", Axes=3);
+```
+
+| setting | values | default | best practice |
+|---|---|---|---|
+| `name` | a MATLAB identifier, unique in the system | required | the observation type (`"kbr"`, `"posC"`, `"acc"`); it names the stream in the report |
+| `Build` | function handle `@(day, ctx)` | required | one function per stream; take shared results from `ctx.Prepared`, never recompute them |
+| `Noise` | a `lsqvce.Noise` | required | start from `lsqvce.Noise.white(sigma)` at a realistic level (*Choosing the stochastic model*) |
+| `Estimate` | `"law"`, `"scale"`, `"none"` | `"law"` (`"scale"` for a per-row `sigma`) | `"law"` when the colour is unknown; `"scale"` for a trusted shape; `"none"` for reference streams |
+| `ArcFactors` | `true`, `false` | `Options.ArcFactors` (`true`) | `false` for few or short arcs |
+| `Axes` | integer ≥ 1 | 1 | 3 for positions; rows epoch-major (x₁ y₁ z₁ x₂ …) |
+| `Arcs` | as `addSystem` | the system's | only when this stream has its own schedule |
+
+### Writing `Build`
+
+```matlab
+function out = buildKbr(day, ctx)
+    P = ctx.Prepared;                                  % prepareGrace's result for today
+    out = ctx.newDay();
+    for a = 1:numel(ctx.ArcIds)
+        arc = P.kbr(a);                                % your arc, from the shared work
+        m = numel(arc.t);
+        out.addArc(arc.A, arc.observed - arc.computed, arc.t, ...      % A, l, t [s]
+                   Local={stateNames, arc.Pstate; "kbrBias", ones(m, 1)});
     end
 end
 ```
 
-`B` may be sparse; it usually is, because an arc touches only its own block.
+| `addArc` setting | values | default | best practice |
+|---|---|---|---|
+| `A` (1st) | m × nc, columns in `addCommon` order | required | the partials of the common parameters; `"day"` commons at `ctx.cols(names)` |
+| `l` (2nd) | m × 1 | required | observed minus computed, raw: never whitened or weighted |
+| `t` (3rd) | m × 1, seconds | required | the epochs; the whitener needs the lags |
+| `Local` | n × 2 cell `{names, partials; ...}` | none | **the usual way**: name every local partial; the scope decides whether it is this arc's, this day's or the system's column |
+| `B` | m × `ctx.NumLocal` (may be sparse) | none | when the partials already form one matrix; every column from `ctx.cols(names, Arc=id)`. One of `Local` or `B` per arc |
+| `Sigma` | e × 1, e × d or e × d × d per epoch | none | what the preprocessing knows per epoch; then declare the law with σ = 1 |
+| `Excluded` | m × 1 logical | none | keep rejected epochs on the grid with weight 0 (zero in `A`, local partials and `l`) |
+| `Arc` | a scheduled arc id | the next | only to add arcs out of order |
+
+When the local partials already exist as one matrix, build `B` from columns by name:
+
+```matlab
+B = sparse(m, ctx.NumLocal);
+B(:, ctx.cols(stateNames, Arc=ctx.ArcIds(a))) = arc.Pstate;
+B(:, ctx.cols("accScale")) = arc.Pacc;                 % a "day" local: no arc needed
+out.addArc(arc.A, l, arc.t, B=B);
+```
 
 ## Arcs and schedules
 
-The cells `buildDay` returns **are** the arcs of the day. Without an `arcs` field the
-toolbox takes them as they come, and days may differ in their number of arcs. Declare a
-schedule only when `'arc'` parameters need to be counted before any data is read:
+The arcs `Build` adds **are** the arcs of the day. Without `Arcs` the toolbox takes them
+as they come, and days may differ in their number of arcs. Declare a schedule when `"arc"`
+locals must be counted before any data is read:
 
 ```matlab
-s.arcs = 4;                                  % arcs 1..4 on every day
-s.arcs = @(day, obsType) arcTable{day};      % a resolver for ragged schedules
+sys = task.addSystem("S", Arcs=4);                          % arcs 1..4 on every day
+sys = task.addSystem("S", Arcs=@(day, stream) arcTable{day});   % a ragged schedule
 ```
 
-A data gap is an empty cell; a day without any data in a system belongs off that
-system's calendar (`s.days`).
-
-## Several systems
-
-Each satellite or instrument is one entry of `data.systems`, with its own `buildDay`,
-covariance specs, local parameters and calendar. Systems share only the common
-parameters. An observation that depends on the local parameters of two satellites — the
-range-rate between two GRACE spacecraft — belongs to **one** system whose local table
-holds both satellites' parameters. One reader for several setups takes the setup as data:
-plain values in `processingOptions`, its 5th argument, or a closure that binds a
-configuration (API reference, chapter `buildDay`, *Where the handle goes*).
-
-## Sharing the work of a day: `prepareDay`
-
-`buildDay` is called once per day **and observation type**. When several streams of a
-system rest on one expensive computation — the orbits of both satellites and their
-partials for the whole day, used by the kinematic orbits *and* by the range-rates — that
-computation would run once per stream. Give the system a `prepareDay` instead. It runs
-**once per build of a day**, before the first stream of the day is built, and every
-`buildDay` of that day finds its result in `procOpt.prepared`.
-
-```matlab
-s.prepareDay = @myPrepareDay;    % P = myPrepareDay(day, common, local, procOpt, info)
-s.buildDay   = @myBuildDay;      % D = myBuildDay(day, obsType, common, local, procOpt, info)
-```
-
-| question | answer |
-|---|---|
-| when does it pay? | when two or more observation types of one system share an expensive step: an orbit integration, the variational partials, a large file, Earth-rotation matrices. With one observation type it gains nothing |
-| what does it get? | as many of `(day, common, local, procOpt, info)` as it declares; `info` is the same day slice `buildDay` gets |
-| what may it return? | anything: a struct, a cell, an object. The toolbox does not look inside |
-| what must `buildDay` do? | declare at least five arguments, so that it receives `procOpt` (otherwise `lsqvce:makeLoader:prepareUnused`, reported by `fit` under its own prefix), and read `procOpt.prepared` |
-| how often does it run? | once each time the day is built: twice per pass with the default `CacheDays = 1`, once per run with `CacheDays = Inf`, and on every parallel worker that builds the day |
-| how much memory? | the current day's result only; it is dropped when the next day is prepared |
-| what must it be? | deterministic, like `buildDay` |
-| what if it fails? | `lsqvce:makeLoader:prepareDay`, naming the day, with your error as the cause |
-
-The tutorial (*Your first adjustment*, `examples/demo_tutorial.m`) is the smallest
-working example; the GRACE-FO pair below and `template/kbr_variational.m` are the real
-case. The full contract is in the API reference, chapter `buildDay`, *What all streams of
-a day share*.
+With a schedule, `ctx.ArcIds` lists the day's arcs; `addArc` fills them in order, `Arc=id`
+places one out of order, and a scheduled arc never added is a data gap. A day without any
+data in a system belongs off that system's calendar (`Days`).
 
 ## Multi-axis observations and their accuracy
 
-A stream with several axes per epoch — a kinematic orbit, a gradiometer — is returned
-epoch-major (x₁ y₁ z₁ x₂ …). What the preprocessing knows about the accuracy of every
-epoch travels with the day as `D.Cep`, one cell per arc:
+A stream with several axes per epoch — a kinematic orbit, a gradiometer — declares `Axes`
+and returns its rows epoch-major (x₁ y₁ z₁ x₂ …). What the preprocessing knows about the
+accuracy of every epoch travels with the arc as `Sigma`:
 
 ```matlab
-D.Cep{a} = sigmaPerEpoch;                                % n x 1   scalar stream
-D.Cep{a} = [sx sy sz];                                   % n x 3   per-axis sigmas
-D.Cep{a} = permute(reshape(Q.', 3, 3, []), [3 1 2]);     % n x 3 x 3 full covariance
+out.addArc(A, l, t, Sigma=sigmaPerEpoch);                          % n x 1   scalar stream
+out.addArc(A, l, t, Sigma=[sx sy sz]);                             % n x 3   per-axis sigmas
+out.addArc(A, l, t, Sigma=permute(reshape(Q.', 3, 3, []), [3 1 2]));   % n x 3 x 3 covariance
 ```
 
 The vector forms are standard deviations and the matrix form is a covariance — check one
-epoch by hand before a campaign. `Cep` is relative to the `sigma` of the covariance spec:
-declare `sigma = 1` when `Cep` already carries the absolute accuracy.
+epoch by hand before a campaign. `Sigma` is relative to the law's `sigma`: declare
+`lsqvce.Noise.white(1)` when `Sigma` already carries the absolute accuracy.
 
 ## A complete declaration: a GRACE-FO pair
 
 The range-rate between the two spacecraft depends on both orbits, so the pair is **one**
-system with three observation types: the kinematic positions of each satellite and the
+system with three streams: the kinematic positions of each satellite and the
 inter-satellite range-rate. All three rest on the same orbit integration, which therefore
-goes into `prepareDay`:
+goes into the system's `Prepare`:
 
 ```matlab
-data.commonParams = [repmat({'common'}, nSh, 1), shParameterTable(60)];
-data.days = 1:31;
+task = lsqvce.TaskDefinition(Days=59396:59426);
+task.addCommon(shNames(60));                                   % SH coefficients to degree 60
+task.addPrior("kaula", On="^[CS]", Sigma=1e-10, Estimate="scale");
 
-state = {'x0'; 'y0'; 'z0'; 'vx0'; 'vy0'; 'vz0'};
-s = struct();
-s.id = 'G';  s.name = 'GRACE-FO';
-s.prepareDay = @prepareGracePair;          % both orbits and their partials, once per day
-s.buildDay   = @buildDayGracePair;         % picks the rows of one observation type
-s.covariance.posC = struct('type', 'diag', 'sigma', 0.02);
-s.covariance.posD = struct('type', 'diag', 'sigma', 0.02);
-s.covariance.kbr  = struct('type', 'diag', 'sigma', 1e-7);   % colour: let the estimator find it
-s.arcs = @(day, obsType) arcSchedule(day);                    % 'arc' rows need a schedule
-s.localParams = [ ...
-    [repmat({'arc'}, 6, 1), strcat(state, 'C')];                       % initial state C
-    [repmat({'arc'}, 6, 1), strcat(state, 'D')];                       % initial state D
-    {'arc', 'kbrBias'; 'arc', 'kbrCos1cpr'};                           % KBR empiricals
-    [repmat({'day'}, 6, 1), {'accScaleC'; 'accBiasC'; 'accDriftC'; ...
-                             'accScaleD'; 'accBiasD'; 'accDriftD'}]];  % ACC per day
-s.processingOptions = struct('dataDir', '/data/gracefo');
-data.systems = s;
+state = ["x0" "y0" "z0" "vx0" "vy0" "vz0"];
+grace = task.addSystem("GRACE-FO", Id='G', Prepare=@prepareGracePair, ...   % both orbits, once a day
+                       Arcs=@(day, ~) arcSchedule(day), Settings=struct('dataDir', '/data/gracefo'));
+grace.addLocal([state + "C", state + "D"], Scope="arc");       % initial states of C and D
+grace.addLocal(["kbrBias" "kbrCos1cpr"], Scope="arc");         % KBR empiricals
+grace.addLocal(["accScale" "accBias" "accDrift"] + ["C"; "D"], Scope="day");   % ACC per day
+grace.addStream("posC", Build=@buildPosC, Noise=lsqvce.Noise.white(0.02), Axes=3);
+grace.addStream("posD", Build=@buildPosD, Noise=lsqvce.Noise.white(0.02), Axes=3);
+grace.addStream("kbr",  Build=@buildKbr,  Noise=lsqvce.Noise.white(1e-7));  % colour: estimated
 
-R = lsqvce.fit(data, Estimate="noise");
+R = lsqvce.fit(task, Estimate="noise", Seed=1);
 R.report
 ```
 
-with the two functions of the system:
+with the functions of the system:
 
 ```matlab
-function P = prepareGracePair(day, ~, ~, procOpt, info)
-    P.C = integrateWithPartials('C', day, procOpt, info);   % r, v and d[r;v]/dp
-    P.D = integrateWithPartials('D', day, procOpt, info);
+function P = prepareGracePair(day, ctx)
+    P.C = integrateWithPartials('C', day, ctx.Settings);   % r, v and d[r;v]/dp
+    P.D = integrateWithPartials('D', day, ctx.Settings);
 end
 
-function D = buildDayGracePair(day, obsType, ~, ~, procOpt, info)
-    P = procOpt.prepared;                  % prepareGracePair's result for this day
-    switch obsType
-        case 'posC', D = kinematicRows(P.C, day, info);
-        case 'posD', D = kinematicRows(P.D, day, info);
-        case 'kbr',  D = rangeRateRows(P.C, P.D, day, info);
-    end
-end
+function out = buildPosC(day, ctx), out = kinematicArcs(ctx.Prepared.C, "C", ctx); end
+function out = buildPosD(day, ctx), out = kinematicArcs(ctx.Prepared.D, "D", ctx); end
+function out = buildKbr(day, ctx),  out = rangeRateArcs(ctx.Prepared.C, ctx.Prepared.D, ctx); end
 ```
 
 A runnable builder of this shape for real Level-1B data is `template/kbr_variational.m`
@@ -967,72 +1009,87 @@ A runnable builder of this shape for real Level-1B data is `template/kbr_variati
 
 ## Checklist before the first run
 
-- `buildDay` returns `A`, `B`, `l`, `t` as one cell per arc, each arc with one row count;
-  `l` is observed minus computed; nothing is whitened.
-- Calling `buildDay` twice with the same arguments gives identical output.
-- `t` is in seconds.
-- `size(A, 2)` equals the derived nc, `size(B, 2)` the derived nl — build them from
-  `info.nc` / `info.nl` and place blocks by the `info` offsets.
-- Every observation type is a field of `covariance`.
-- `Cep`, if given, has one cell per arc and matches the rows (n·d = m).
-- No unknown field names in `data`: a typo is an error on purpose.
+- Every parameter has a name and the scope over which it is constant.
+- Every stream has its own `Build`; what several streams share is in the system's
+  `Prepare`.
+- `Build` adds one arc per `addArc`, with `A` (m × nc, `addCommon` order), `l` observed
+  minus computed, `t` in seconds; nothing is whitened.
+- Local partials go by name (`Local=`), or as `B` with columns from `ctx.cols` — never by
+  offset arithmetic.
+- Calling `Build` twice for the same day gives identical output.
+- `Sigma`, if given, matches the rows (epochs × axes = m).
+- `disp(task)` shows what you meant before the first `fit`.
 
 
 # Choosing the stochastic model
 
 The weights of a least-squares solution are the inverse of the noise covariance. This
 chapter says what to declare, what to let the data estimate, and how to read the
-estimate back. The laws and their fields are listed in the API reference (*Covariance
-specifications*); the mathematics is in the theory.
+estimate back. The laws and their arguments are listed in the API reference (*Noise
+laws*) and in `help lsqvce.Noise`; the mathematics is in the theory.
 
 ## Three facts, three places
 
 | fact | declared in | estimated? |
 |---|---|---|
-| the **temporal law** — how the errors of a stream correlate from epoch to epoch | `covariance.<type>.type` and its parameters | yes, with `Estimate = "noise"` |
-| the **level** of that law | `covariance.<type>.sigma` (a standard deviation) | yes |
-| the **per-epoch accuracy** — what the preprocessing knows about each observation | `D.Cep`, returned by `buildDay` | never: it is data |
+| the **temporal law** — how the errors of a stream correlate from epoch to epoch | `addStream(..., Noise=lsqvce.Noise.<law>(...))` | yes, with `Estimate = "noise"`, as the stream's `Estimate` allows |
+| the **level** of that law | the law's `sigma` (a standard deviation) | yes |
+| the **per-epoch accuracy** — what the preprocessing knows about each observation | `addArc(..., Sigma=)` in `Build` | never: it is data |
 
-The toolbox combines them per arc. A filter law (`diag`, `arma`, an AR-whitened `psd`, `var`)
+The toolbox combines them per arc. A filter law (`white`, `arma`, an AR-whitened `psd`, `var`)
 is applied in batches of up to 20 000 rows that overlap by the memory of the filter (for an
 `arma` law with an MA part, until its impulse response has decayed to rounding), so the
 batching does not change the result. A dense law (`acf`, `custom`, a `psd` whitened as
 Toeplitz) is factorised over the whole arc: exact, at a cost of O(m³) and m² memory for an
 arc of m rows — for arcs of many thousand epochs prefer a filter law. Above 20 000 epochs a
 dense law is refused (`lsqvce:covModel:denseArcTooLong`, 3.2 GB for the factor alone at that
-length); the field `maxDenseArc` on the covariance spec raises the limit deliberately. Under
+length); `MaxDenseArc=` on the law raises the limit deliberately. Under
 `Estimate = "noise"` the estimator's sweep forms every arc's covariance densely whatever the
 whitener, so there the same limit applies to every law, a filter law included.
 
 ## What to declare
 
-- **You do not know the colour of the noise.** Declare `type = 'diag'` with a realistic
-  `sigma` and run `Estimate = "noise"`: the estimator starts from white noise and finds
-  the spectral shape. Under `estimate = "law"` (the default) this is what happens to every
-  stream, whatever law it declares: the declared law contributes only its `sigma`, as the
-  starting level, and the shape is estimated from white noise. (For an `arma` law `sigma`
-  is an innovation standard deviation; as a level it is read as the marginal one.)
-- **You know the noise spectrum.** Declare `type = 'psd'` with `f` and `S`, or an `arma`
-  filter; set `estimate = "scale"` to keep the shape and estimate only the level, or
-  `"none"` to use it as given.
-- **Your axes are correlated in time across axes.** Declare a `var` law (no `Cep`). It
-  is used as declared: `Estimate = "noise"` has no path for it and refuses it
-  (`lsqvce:fit:varUnderNoise`).
+| law | constructor | use when | cost per arc of m rows |
+|---|---|---|---|
+| white | `lsqvce.Noise.white(sigma)` | the colour is unknown (the default start), or truly white | O(m) |
+| ARMA filter | `lsqvce.Noise.arma(ar, sigma, MA=ma)` | a whitening filter is known | O(m·p) |
+| spectrum | `lsqvce.Noise.psd(f, S)` | a measured one-sided spectrum, f from 0 Hz | O(m³) Toeplitz, O(m·p) with `Noise.Whitener="ar"` |
+| correlation | `lsqvce.Noise.acf(@rho, sigma)` | the correlation is known as a function of the lag | O(m³) |
+| vector AR | `lsqvce.Noise.var(ar, Sigma)` | axes correlated in time across axes | O(m·p·d²) |
+| any | `lsqvce.Noise.custom(@covFcn)` | anything else | O(m³) |
+
+| stream's `Estimate` | under `Estimate = "noise"` | use for |
+|---|---|---|
+| `"law"` (default; `"scale"` for a per-row `sigma`) | shape and level estimated; the declared law gives only its `sigma`, as the starting level | the colour is unknown |
+| `"scale"` | the declared shape kept, its level estimated | a trusted spectrum or filter of uncertain level |
+| `"none"` | used exactly as declared | a reference stream, a stream you trust completely |
+
+- **You do not know the colour of the noise.** Declare `lsqvce.Noise.white(sigma)` with a
+  realistic `sigma` and run `Estimate = "noise"`: the estimator starts from white noise and
+  finds the spectral shape. Under the stream's `Estimate = "law"` (the default) this is
+  what happens to every stream, whatever law it declares. (For an `arma` law `sigma` is an
+  innovation standard deviation; as a level it is read as the marginal one.)
+- **You know the noise spectrum.** Declare `lsqvce.Noise.psd(f, S)` or an `arma` filter
+  and set the stream's `Estimate = "scale"` to keep the shape and estimate only the level,
+  or `"none"` to use it as given.
+- **Your axes are correlated in time across axes.** Declare `lsqvce.Noise.var` (no
+  per-arc `Sigma`). It is used as declared: `Estimate = "noise"` has no path for it and
+  refuses it (`lsqvce:fit:varUnderNoise`).
 - **A stream you trust completely** — a prior stream, a reference — takes
-  `estimate = "none"`.
+  `Estimate = "none"` on its `addStream`.
 
 ## Running the estimator
 
 ```matlab
 opts = lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=true, ...
                       MaxPasses=7, Seed=1, Noise=struct('Grid', 120, 'Whitener', "ar"));
-R = lsqvce.fit(data, opts);
+R = lsqvce.fit(task, opts);
 ```
 
 Per pass the toolbox solves under the current laws, sweeps every arc once for its
 whitened residuals and their redundancies, and updates the spectral shape of every pool
 group, the level of every stream, the factor of every arc and the σ of every prior with
-`estimate = "scale"`. It stops when no component changes by more than `Tolerance` — the
+`Estimate = "scale"`. It stops when no component changes by more than `Tolerance` — the
 σ of a prior group included, which is first updated on the pass after it enters the solve,
 so the loop does not stop before — or after `MaxPasses`. A spectral bin the data barely
 determine may change by more, in proportion to its own standard error (chapter
@@ -1049,7 +1106,7 @@ The choices that matter:
 | `Probes`, `Seed` | the redundancies are estimated with random probes: 100 probes are the standard; a fixed `Seed` makes the run reproducible |
 
 **Run one pass with `Estimate = "none"` first.** If σ₀ is near 1 the declared weights are
-consistent. A σ₀ far from 1 says the `Cep` scale is wrong — most often an information
+consistent. A σ₀ far from 1 says the `Sigma` scale is wrong — most often an information
 matrix used where a covariance was expected — and estimating a law on top will not fix it.
 
 ## Reading the estimate
@@ -1063,7 +1120,7 @@ R.plot("psd")            % the spectra
 ```
 
 The standard deviation of one arc is the product of three terms: the declared `sigma`, the
-square root of the arc factor, and `R.sigma0`. With `sigma = 1` and a `Cep` carrying the
+square root of the arc factor, and `R.sigma0`. With `sigma = 1` and a `Sigma` carrying the
 absolute accuracy, that product reads directly as *how much too optimistic the
 preprocessing's covariance was on this arc*.
 
@@ -1088,7 +1145,7 @@ estimated covariance as known. On short or few arcs they are 3–13 % optimistic
 records the optimism is negligible.
 
 Arcs can be skipped in a pass: `gap` (no data) or `nonPD` (the arc's covariance is not
-positive definite — a mis-scaled `Cep` produces exactly this). A skipped arc keeps its
+positive definite — a mis-scaled `Sigma` produces exactly this). A skipped arc keeps its
 previous factor; when more than `Noise.SkipThreshold` of a stream's arcs are skipped, the
 pass is refused rather than estimated on a fraction of the data.
 
@@ -1113,13 +1170,13 @@ Gross outliers belong to preprocessing. Inside the adjustment there are three to
    that flips back and forth between two passes is frozen at the union of the two
    (`R.noise.robust.frozen` names the pass).
 3. **Diagnose, then decide.** Read the outlier tests in `R.report`, repair or remove the
-   observations in `buildDay` and run again. Weights taken from a robust run can be made
-   data: zero the rejected epochs' rows and mark them `excluded` in the day `buildDay`
-   returns — the toolbox deletes such rows from a correlated law exactly, whole epochs or
+   observations in `Build` and run again. Weights taken from a robust run can be made
+   data: zero the rejected epochs' rows and mark them `Excluded` in the arc `Build`
+   adds — the toolbox deletes such rows from a correlated law exactly, whole epochs or
    single axes (removing them
    leaves a gap that a `psd` or `arma` law, which counts lags in samples, takes for one
    step — `lsqvce:covModel:unevenGrid` says so); store the weights, never recompute them
-   inside `buildDay`.
+   inside `Build`.
 
 With `Estimate = "none"`, `Robust` runs a stand-alone iteratively re-weighted solve on the
 whitened innovations, with its own budget `RobustOpts`.
@@ -1130,20 +1187,33 @@ whitened innovations, with its own budget `RobustOpts`.
 ## The idea
 
 A prior says "these parameters are observed to be x₀, with standard deviation σ". It is
-written as pseudo-observations `L·x = x₀ + v` in your own columns, and the toolbox treats
+written as pseudo-observations `L·x = x₀ + v` on named parameters, and the toolbox treats
 it as data: it enters the normal equations, it has a redundancy (how much of it the data
 overrule), and its σ can be estimated like the level of any other stream. Regularisation
-is therefore never an option on the run: it is a declared part of the problem. The
-fields are listed in the API reference (*Priors*).
+is therefore never an option on the run: it is a declared part of the problem.
+
+One call declares a prior group, on the object whose parameters it constrains:
+`task.addPrior` for common parameters, `sys.addPrior` for the local parameters of that
+system.
+
+| setting | values | default | best practice |
+|---|---|---|---|
+| `name` | string, unique per owner | required | names the group in `R.noise` and the report |
+| `On` | a regular expression on parameter names | — (give `On` or `L`) | the normal way; one row per matched parameter and instance (per day for a `"day"` local, per arc for an `"arc"` local) |
+| `L` | q × nc (task) or q × nl (system), in the columns `task.layout()` announces | — | a datum (`L = Nᵀ` of the null space), degree-dependent weights, sums and differences |
+| `Value` | scalar or q × 1 | 0 | the a-priori value (1 for scale factors) |
+| `Sigma` | positive scalar | required | one standard deviation for the whole group |
+| `Estimate` | `"none"`, `"scale"` | `"none"` | `"scale"` only for a group of many rows: a one-row group cannot estimate its σ |
+| `From` | integer pass ≥ 1 | 1 | 2–3 lets the first passes see the data alone; a single solve skips such a group |
 
 ## Typical priors
 
 **A datum for a free network.** Minimum constraints on the null space N of the design
-(`L = Nᵀ`, `x0 = 0`) fix the datum without distorting the solution. Declare the datum as
-a group of its own:
+(`L = Nᵀ`, value 0) fix the datum without distorting the solution. Declare the datum as a
+group of its own:
 
 ```matlab
-data.priors(1) = struct('L', Nnull.', 'x0', 0, 'sigma', 1, 'name', 'datum');
+task.addPrior("datum", L=Nnull.', Sigma=1);
 ```
 
 The solution and its covariance are the minimum-constraint ones for any σ, also when the
@@ -1155,18 +1225,17 @@ guesses one.
 **A Kaula rule on a gravity field.** One group per rule, σ estimated:
 
 ```matlab
-data.priors(1) = struct('group', '^[CS]', 'x0', 0, 'sigma', 1e-10, 'estimate', "scale");
+task.addPrior("kaula", On="^[CS]", Sigma=1e-10, Estimate="scale");
 ```
 
-`group` is a regular expression on the name column of `commonParams`; the toolbox builds
-one row per matched coefficient. Relative weights inside a group (degree-dependent Kaula
+`On` is a regular expression on the names given to `addCommon`; the toolbox builds one
+row per matched coefficient. Relative weights inside a group (degree-dependent Kaula
 factors) go into an explicit `L` instead: divide each row by its own relative σ.
 
 **Calibration parameters of an instrument.** Priors on local parameters sit on the system:
 
 ```matlab
-data.systems(k).priors(1) = struct('group', '^accScale', 'x0', 1, 'sigma', 0.02, ...
-                                   'estimate', "scale");
+grace.addPrior("accScale", On="^accScale", Value=1, Sigma=0.02, Estimate="scale");
 ```
 
 The accelerometer scales of both satellites over a month form one group with many rows —
@@ -1174,17 +1243,21 @@ exactly what makes their σ estimable. A group with one row cannot estimate its 
 
 ## Writing `L` yourself
 
-`lsqvce.layout(data)` announces which column of A and B holds which template row on which
-day and arc, so an operator can be built by name:
+`task.layout()` announces which column of A and of each system's local design holds which
+parameter on which day and arc, with its name, so an operator can be built for any
+combination a pattern cannot express:
 
 ```matlab
-lay = lsqvce.layout(data);
-L = zeros(2, lay.nc);
-L(1, lay.colCommon(5, [])) = 1;            % template row 5 of commonParams
-L(2, lay.colCommon(6, [])) = 1;
+lay = task.layout();
+c = find([lay.common.name] == "offset");             % the columns of a "day" common, one per day
+L = [ones(1, numel(c)) / numel(c); diff(eye(numel(c)))];   % mean zero, smooth day to day
+Lc = zeros(size(L, 1), lay.nc);  Lc(:, c) = L;
+task.addPrior("offsetDatum", L=Lc, Sigma=1e-3);
 ```
 
-`examples/demo_priors.m` builds priors both ways.
+`lay.common(j)` names the parameter of column j of A (`.name`, `.row`, `.day`);
+`lay.systems(k).local(c)` does the same for column c of system k (`.name`, `.row`, `.day`,
+`.arc`). `examples/demo_priors.m` builds priors both ways and shows that they agree.
 
 ## Reading the result
 
@@ -1193,13 +1266,13 @@ a local group appears as the stream `prior_<name>` of its system in `R.noise.mod
 λ = σ₀²/σ² is the regularisation the data support. `R.report` counts the redundancy of
 the prior rows like that of any observation.
 
-A group with `estimate = "scale"` is estimated only under `Estimate = "noise"` on the
+A group with `Estimate = "scale"` is estimated only under `Estimate = "noise"` on the
 streaming kind. In any other run it keeps its declared σ, and `fit` says so once
 (`lsqvce:fit:priorScaleHeld`).
 
 ## Activating a prior later
 
-`from = 3` activates a group in the third pass of an iterative run: the first passes then
+`From = 3` activates a group in the third pass of an iterative run: the first passes then
 see the data alone. A single solve skips such a group with a warning.
 
 
@@ -1212,7 +1285,7 @@ adverse finding it says what to do. The full field lists are in the API referenc
 the derivations of every statistic are in the theory.
 
 ```matlab
-R = lsqvce.fit(data, opts);
+R = lsqvce.fit(task, opts);
 R.report                      % the verdict, levels 0..4
 V = R.report(Verbose=false);  % the same verdict, silent, as a struct
 ```
@@ -1251,7 +1324,7 @@ All properties are read-only.
 |---|---|
 | `R.report(...)` | Is the adjustment acceptable? Prints the five levels and returns the verdict |
 | `R.coefficients(Alpha=0.05)` | the estimates as a table: `index`, `estimate`, `se`, `lower`, `upper` (normal bounds, `se = sqrt(diag(Cxx))`) |
-| `R.toTable(data, Estimate=9, Std=10)` | your parameter tables with the estimate and its standard deviation written into the named columns, one row per instantiated parameter (commons and locals) |
+| `R.toTable(task)` | one table of every instantiated parameter, commons and locals: `System`, `Name`, `Scope`, `Day`, `Arc`, `Estimate`, `Std` |
 | `R.reliability()` | one row per observation: `obs`, `v`, `r`, `w`, `mdb`, `quadrant` |
 | `R.snoop(...)` | iterative data snooping on this fit; `R` itself is not changed |
 | `R.systematic(...)` | runs, Ljung–Box and binned-mean tests for unmodelled signal in the residuals |
@@ -1312,7 +1385,7 @@ should branch on the codes, not on the wording:
 ```matlab
 codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
 if any(ismember(codes, {'SNOOP_CONTAMINATED', 'SNOOP_REFUSE', 'SNOOP_BREAKDOWN'}))
-    R2 = lsqvce.fit(data, opts, Robust="igg3");
+    R2 = lsqvce.fit(task, opts, Robust="igg3");
 end
 ```
 
@@ -1379,7 +1452,7 @@ These checks test the computation, not the data.
 | code | severity | condition | action |
 |---|---|---|---|
 | `PROVENANCE` | NOTE | always (through `R.report`) | Prints the toolbox version, the MATLAB release and the creation time. |
-| `SUM_R` | NOTE / **ERROR** | `sum(r_i)` against `n − u`; ERROR if the relative error > 1e-6 | The second pass does not replay the design or the weights the solve used. Make `buildDay` / `batchFcn` deterministic: the same rows in the same order on every call. |
+| `SUM_R` | NOTE / **ERROR** | `sum(r_i)` against `n − u`; ERROR if the relative error > 1e-6 | The second pass does not replay the design or the weights the solve used. Make `Build` / `batchFcn` deterministic: the same rows in the same order on every call. |
 | `VPV_SIGN` | **ERROR** | `vPv` negative or non-finite | A numerical failure. Check the declared covariances for non-SPD blocks. |
 | `VPV_MISMATCH` | WARN / **ERROR** | the accumulator's `vPv` and the recomputed `sum p v²` differ by > 1e-6 (WARN) or > 1e-2 (ERROR, invalid) | The recomputed value is the one the report uses. A large gap means cancellation in the normal-equation path; re-run with `Backend = "qr"`. |
 | `NO_REDUNDANCY` | **ERROR** | `r = n − u = 0` | Nothing is testable. Add observations or remove parameters. |
@@ -1518,7 +1591,7 @@ the re-diagnosis keeps `R.diag`'s thresholds and storage (`Store`, `NWorst`,
 `D2` counts in the original observation numbers (`D2.flagIdx`, `D2.rejectedIdx`, ...); its
 per-observation vectors cover the survivors, and `D2.obsIdx` names their original numbers.
 It cannot reject single rows of a
-correlated batch (`lsqvce:snoop:correlatedBatch`): there, remove the epoch in `buildDay`
+correlated batch (`lsqvce:snoop:correlatedBatch`): there, remove the epoch in `Build`
 or use `Robust`.
 
 ## Level 3 — RELIABILITY (what can you not check?)
@@ -1683,7 +1756,7 @@ reason is `'gap'` or `'nonPD'` (its covariance could not be factored). `R.histor
 lists every skip as `{pass, arcKey, reason}`. A pass that skips more than
 `Noise.SkipThreshold` (0.2) of one stream's arcs is refused with
 `lsqvce:adjustVCEjoint:skipThreshold`. A few `nonPD` skips usually mean a `Cep` or a law
-that is not positive definite on those arcs, so inspect that day's `buildDay` output.
+that is not positive definite on those arcs, so inspect what that day's `Build` adds.
 
 Warnings are raised once per run. Muted or not, every warning identifier the run raised is
 listed in `R.meta.warnings` (first-fired order). Check it in batch jobs. The ones that
@@ -1804,7 +1877,7 @@ How to read it, in order:
 7. **Outside the report.** For a `noise` run, check `R.summary()` for non-white streams,
    `R.history.skips`, and `R.meta.warnings`.
 
-Then quote the result: `R.coefficients()` for the commons, `R.toTable(data)` for every
+Then quote the result: `R.coefficients()` for the commons, `R.toTable(task)` for every
 parameter in your own table layout, and `R.meta` for the provenance.
 
 
@@ -1813,8 +1886,9 @@ parameter in your own table layout, and `R.meta` for the provenance.
 ## During the run: `OnPass`
 
 `Options.OnPass` is called after every pass of every iterative run (the noise loop,
-IRLS, Gauss–Newton) with the pass state, the live accumulator, your declaration and your
-`processingOptions`. Plot, `drawnow`, save — or return `false` to stop after the pass:
+IRLS, Gauss–Newton) with the pass state, the live accumulator, your declaration (as the
+compiled struct `task.declaration()`, in `ctx.data`) and every system's `Settings` (in
+`ctx.processingOptions`). Plot, `drawnow`, save — or return `false` to stop after the pass:
 
 ```matlab
 function go = myInspect(ctx)
@@ -1824,7 +1898,7 @@ function go = myInspect(ctx)
     fprintf('pass %d: largest change %.3g\n', ctx.pass, ctx.maxDev);
 end
 
-R = lsqvce.fit(data, Estimate="noise", OnPass=@myInspect);
+R = lsqvce.fit(task, Estimate="noise", OnPass=@myInspect);
 ```
 
 The fields of `ctx` are listed in the API reference (`lsqvce.Options`, *OnPass*). An
@@ -1859,7 +1933,7 @@ the same data, options and `Seed` reproduces the same numbers.
 # The examples
 
 The folder `examples/` holds runnable demonstrations of the user path:
-build a `data` struct, choose `lsqvce.Options`, call `lsqvce.fit`, and read
+declare a `lsqvce.TaskDefinition`, choose `lsqvce.Options`, call `lsqvce.fit`, and read
 the `lsqvce.Results`. The folder `template/` holds starting points that you
 copy into your own project. Every example generates its own synthetic data
 from a seeded random stream, except `demo_gravfire`, which reads a private
@@ -1875,8 +1949,8 @@ path by itself.
 
 | Question | Example | Kind of data |
 |---|---|---|
-| I am new: what does a complete streaming run look like, and how do I use `prepareDay`? | `demo_tutorial` | streaming, one system, two streams |
-| How do I wire my own data into `data` and read the verdict? | `demo_workflow` (script) | batched; streaming recipe |
+| I am new: what does a complete streaming run look like, and where do `Prepare` and `Build` go? | `demo_tutorial` | streaming, one system, two streams |
+| How do I wire my own data into a task and read the verdict? | `demo_workflow` (script) | batched; streaming recipe |
 | What do the three data kinds look like in one call each? | `demo_fit` | in-memory, batched, streaming |
 | What does the report say when an adjustment is wrong in a specific way? | `demo_lsqvce` (script) | in-memory, one streaming case |
 | How do I tell the toolbox what I know about each stream's noise? | `demo_noisePolicy` | streaming, one system |
@@ -1885,7 +1959,7 @@ path by itself.
 | How do I declare system / sensor / day, with data gaps, and find a bad day? | `demo_sensors` | streaming, two systems |
 | What does a full noise-estimation run on multi-axis streams look like? | `demo_grace` (+ `demo_grace_dataLoader`) | streaming, two systems |
 | Does the noise estimation still work on a physically structured gravity design? | `demo_gravity` (+ `demo_gravity_dataLoader`, `demo_gravity_design`) | streaming, three systems |
-| How do I map a GRAVFIRE preprocessing bundle onto `data`? | `demo_gravfire` + `template/gravfire_data.m` | streaming, real bundle |
+| How do I map a GRAVFIRE preprocessing bundle onto a task? | `demo_gravfire` + `template/gravfire_data.m` | streaming, real bundle |
 | How do I build GRACE-FO range-rate observation equations from Level-1B files? | `template/kbr_variational.m` | streaming, real data |
 | What does each verbosity level print? | `demo_messaging` | streaming |
 | Should I use `Backend="normal"` or `Backend="qr"`? | `bench_qr_vs_normal` | batched |
@@ -1893,12 +1967,11 @@ path by itself.
 ## Suggested reading order
 
 0. **`demo_tutorial`**: the Manual's chapter *Your first adjustment*, as a file.
-1. **`demo_workflow`**, then **`demo_fit`**: the shape of `data`, the three
-   kinds, `lsqvce.Options`, and how to read `R.diag` and `R.report()`.
+1. **`demo_workflow`**, then **`demo_fit`**: the three constructors of a task, `lsqvce.Options`, and how to read `R.diag` and `R.report()`.
 2. **`demo_lsqvce`**: what the diagnostics say when something is wrong.
-3. **`demo_noisePolicy`**: the per-stream noise policy (`estimate`,
-   `arcFactors`).
-4. **`demo_priors`**: `lsqvce.layout` and declared regularisation.
+3. **`demo_noisePolicy`**: the per-stream noise policy (`Estimate`,
+   `ArcFactors` on `addStream`).
+4. **`demo_priors`**: `task.layout()` and declared regularisation.
 5. **`demo_combine`**, then **`demo_sensors`**: several systems, local
    parameters, data gaps, attribution by system, sensor and day.
 6. **`demo_grace`**, then **`demo_gravity`**: complete noise-estimation runs
@@ -1915,12 +1988,12 @@ Not every file in `examples/` is a demonstration. Three of them are
 
 | Helper | Called by | Returns |
 |---|---|---|
-| `demo_grace_dataLoader` | `demo_grace`, `demo_messaging` | `[cfg, data]`: a GRACE-FO-shaped declaration with a random design |
-| `demo_gravity_dataLoader` | `demo_gravity`, `demo_fit` | `[cfg, data]`: a gravity declaration with a physical design and planted truth |
+| `demo_grace_dataLoader` | `demo_grace`, `demo_messaging` | `[cfg, data, task]`: a GRACE-FO-shaped task with a random design (`data` is its compiled declaration, for the engine-tier tests) |
+| `demo_gravity_dataLoader` | `demo_gravity`, `demo_fit` | `[cfg, data, task]`: a gravity task with a physical design and planted truth (`data` as above) |
 | `demo_gravity_design` | `demo_gravity_dataLoader` | `[A, meta]`: spherical-harmonic potential partials along an orbit |
 
-Each helper also runs on its own and returns a ready `data` struct that you
-can pass to `lsqvce.fit`.
+Each helper also runs on its own and returns a ready task that you can pass to
+`lsqvce.fit`.
 
 `demo_workflow` and `demo_lsqvce` are **scripts**, not functions. They
 begin with `clear`, so they wipe the base workspace. Run them in a fresh
@@ -1962,7 +2035,7 @@ and is not part of the run.
 
 ---
 
-## `demo_tutorial`: your first streaming run, with `prepareDay`
+## `demo_tutorial`: your first streaming run, with `Prepare` and `Build`
 
 ```matlab
 [R, s] = demo_tutorial();
@@ -1970,10 +2043,11 @@ and is not part of the run.
 ```
 
 The file of the chapter *Your first adjustment*, line for line. One system watches a
-periodic signal with two instruments (`'gauge'`, white; `'radar'`, AR(1) but declared
-white) on two arcs a day for five days; every arc has an unknown offset. Its
-`prepareDay` computes the epochs and the signal basis of a day once, and both streams'
-`buildDay` read them from `procOpt.prepared`.
+periodic signal with two instruments (`"gauge"`, white; `"radar"`, AR(1) but declared
+white) on two arcs a day for five days; every arc has an unknown offset, the `"arc"` local
+`bias`. The system's `Prepare` (`prepareTutorialDay`) computes the epochs and the signal
+basis of a day once, and both streams' `Build` read them from `ctx.Prepared` and give the
+bias partial by name (`Local={"bias", ones(m, 1)}`).
 
 It runs `fit` twice — once under the declared noise, once with `Estimate = "noise"` — and
 prints the two estimates of the two common parameters against the planted truth. Both
@@ -1987,9 +2061,9 @@ level relative to the declared one, and the verdict. The test suite checks these
 
 ## `demo_workflow`: build your own case
 
-**Purpose.** This is the from-scratch recipe for wiring your own data into
-`data`, letting `lsqvce.fit` pick the engine from the shape of the struct,
-choosing what to estimate, and reading the result in the right order.
+**Purpose.** This is the from-scratch recipe for wiring your own data into a
+`lsqvce.TaskDefinition`, choosing what to estimate, and reading the result in the right
+order.
 
 **Run.** `demo_workflow` is a script with no arguments and no outputs. It
 runs `clear; clc; close all`. The help text recommends running it section by
@@ -1997,12 +2071,12 @@ section (Ctrl+Enter).
 
 **Outline and logic.** The script is organised as Sections 0 to 5:
 
-- *Section 0* lists the three kinds of `data`, which `lsqvce.fit` tells
-  apart by the fields present:
-  - in-memory: `A`, `l`, `p`;
-  - batched: `batchFcn`, `numBatches`, `numUnknowns`, or `x0` for the
-    nonlinear form;
-  - streaming: `commonParams`, `days`, `systems`.
+- *Section 0* lists the three ways to make a task:
+  - in memory: `lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p)`;
+  - batched: `lsqvce.TaskDefinition.fromBatches(@batchFcn, NumBatches=K,
+    NumUnknowns=u)`, or `X0=x0` for the nonlinear form;
+  - streaming: `lsqvce.TaskDefinition(Days=days)`, filled with `addCommon`,
+    `addSystem` (its `Prepare`), `addLocal` and `addStream` (its `Build` and `Noise`).
 
   It also states the batched callback contract
   `[A, l, p] = batchFcn(k)`, with `p` the weights `1./sigma.^2`. The
@@ -2010,10 +2084,10 @@ section (Ctrl+Enter).
   times.
 - *Section 1* synthesises 3000 observations with 8 unknowns and cuts them
   into 30 batches with a closure over precomputed batch edges. It
-  sanity-checks `batchFcn(1)` with an `assert` and builds
-  `data = struct('batchFcn', batchFcn, 'numUnknowns', u, 'numBatches', nb)`.
+  sanity-checks `batchFcn(1)` with an `assert` and makes
+  `task = lsqvce.TaskDefinition.fromBatches(batchFcn, NumBatches=nb, NumUnknowns=u)`.
 - *Section 2* is a decision tree in comments: which kind, and when to use
-  `Estimate="noise"`. It then runs `R = lsqvce.fit(data)` with default
+  `Estimate="noise"`. It then runs `R = lsqvce.fit(task)` with default
   options.
 - *Section 2b* reads the verdict in a fixed order:
   1. integrity, `R.diag.sumRRelErr`;
@@ -2022,15 +2096,15 @@ section (Ctrl+Enter).
   4. reliability.
 
   The one-line verdict comes from `R.report('Verbose', false).verdict`.
-- *Section 3* is a recipe only, with no runnable code. It shows the
-  streaming declaration with `commonParams`, scoped `localParams` and one
-  `covariance` field per observation type, and points to `demo_combine`,
-  `demo_sensors` and `demo_grace`.
+- *Section 3* is a recipe only, with no runnable code. It shows a streaming task with
+  `addCommon`, one `addSystem` with a `Prepare`, scoped `addLocal` calls and one
+  `addStream` per observation type with its `Build` and `Noise`, and points to
+  `demo_tutorial`, `demo_combine`, `demo_sensors` and `demo_grace`.
 - *Section 4* plants a second instrument group that is three times noisier
-  than claimed. It declares the two groups as two observation types of one
-  streaming system with one day. The inline `buildDay` returns one arc per
-  group, and the claimed per-row sigmas travel as `Cep`. Both covariance
-  specs are `struct('type','diag','sigma',1,'estimate',"scale")`. The run
+  than claimed. It declares the two groups as two streams `g1`, `g2` of one system
+  `"groups"` on one day, with commons `x1` … `x8`. Each stream's `Build` (the local
+  function `groupArc`) adds one arc and passes the claimed per-row sigmas as `Sigma`;
+  both streams declare `Noise=lsqvce.Noise.white(1), Estimate="scale"`. The run
   uses `Options(Estimate="noise", Pool="stream", ArcFactors=false)`. The
   script prints the recovered sigma ratio from `Rv.history.sigma(end,:)`
   (the truth is 3) and `Rv.sigma0`.
@@ -2039,10 +2113,10 @@ section (Ctrl+Enter).
 
 ## `demo_fit`: the three data kinds, one call each
 
-**Purpose.** This example shows every kind of `data` that `lsqvce.fit`
+**Purpose.** This example shows every kind of task that `lsqvce.fit`
 accepts, end to end on the user tier: `lsqvce.fit`, `lsqvce.Options`,
 `lsqvce.Results` and `R.report`. It also shows robust estimation, a datum
-declared as a prior, Gauss–Newton through `x0`, and watching a run with
+declared as a prior, Gauss–Newton through `X0`, and watching a run with
 `OnPass`.
 
 **Run.**
@@ -2060,23 +2134,23 @@ out = demo_fit(Verbose=false);     % silent
 **Logic.**
 
 1. **In-memory.** The data are 30 observations with
-   `A = [1, randn, randn]`, seeded with 17, and the call is
-   `data = struct('A',A,'l',l,'p',p)`. The same problem is then run with a
+   `A = [1, randn, randn]`, seeded with 17, and the task is
+   `lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p)`. The same problem is then run with a
    25-sigma gross error at row 7 and `Options(Robust="huber")`. The demo
    prints the IRLS weight factor of that row from
    `out.robust.history(end).factor(7)`.
 2. **Free network.** The problem has height differences between four
    points and is rank-deficient by a common level. The datum is declared
-   as `data.priors = struct('L', ones(1,4), 'x0', 0, 'sigma', 1)`. The demo
-   prints `L*x`. It then removes `priors` and prints the error identifier
-   with which `fit` refuses the problem.
+   as `task.addPrior("datum", L=ones(1,4), Value=0, Sigma=1)`. The demo
+   prints `L*x`. It then fits the same matrices without the prior and prints the
+   error identifier with which `fit` refuses the problem.
 3. **Batched, linear.** The same 30 rows are split into two batches with
-   `struct('batchFcn',bf,'numUnknowns',3,'numBatches',2)`.
+   `lsqvce.TaskDefinition.fromBatches(bf, NumBatches=2, NumUnknowns=3)`.
 4. **Batched, nonlinear.** The model is `l = exp(a t) + b`. The callback
-   `bfn(k, x)` returns the Jacobian at `x`, and `data.x0 = [0.5; 0]`
-   (the number of unknowns is `numel(x0)`). The options are
+   `bfn(k, x)` returns the Jacobian at `x`, and the task is
+   `fromBatches(bfn, NumBatches=2, X0=[0.5; 0])` (the number of unknowns is `numel(X0)`). The options are
    `Options(MaxPasses=15, Tolerance=1e-9)`, and the demo prints `[a; b]`.
-5. **Streaming.** `[cfg, data] = demo_gravity_dataLoader()` is solved once
+5. **Streaming.** The task of `demo_gravity_dataLoader()` is solved once
    with defaults (`out.gls`). It is then solved with
    `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=2, OnPass=watch)`,
    where `watch` prints `ctx.pass`, `ctx.maxDev` and `ctx.sigma` after
@@ -2100,8 +2174,8 @@ nothing is.
 It draws one figure in case 3.
 
 **Logic.** All cases share a setup of 2000 observations, 8 unknowns and
-per-row sigma in [0.5, 1.5], seeded with 2026. Each case fits an in-memory
-`struct('A',A,'l',l,'p',p)`:
+per-row sigma in [0.5, 1.5], seeded with 2026. Each case fits an in-memory task,
+`lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p)`:
 
 1. **Clean:** the baseline.
 2. **Outliers:** three gross errors at rows 137, 892 and 1455. The case
@@ -2114,8 +2188,9 @@ per-row sigma in [0.5, 1.5], seeded with 2026. Each case fits an in-memory
    The case prints `nFlag` and the redundancy number `rNum(500)`.
 5. **Wrong weights:** group 2 is three times noisier than claimed. The case
    prints `varRatio` and `nFlag`, then shows the cure: a streaming
-   declaration with two observation types `g1` and `g2` (local helper
-   `groupDay`) and `Estimate="noise", Pool="stream", ArcFactors=false`. It
+   task with two streams `g1` and `g2`, each declaring its group's per-row sigmas as
+   `Noise=lsqvce.Noise.white(sigma)` (its `Estimate` default is then `"scale"`; local
+   helper `groupDay`), and `Estimate="noise", Pool="stream", ArcFactors=false`. It
    prints the recovered sigma ratio (truth 3) and `sigma0`.
 6. **Collinear parameters:** column 2 is almost column 1. The case prints
    `R6.diag.corrMax`.
@@ -2125,9 +2200,8 @@ per-row sigma in [0.5, 1.5], seeded with 2026. Each case fits an in-memory
 
 ## `demo_noisePolicy`: what you know about each stream
 
-**Purpose.** This example shows the per-stream policy fields of a
-covariance spec. `estimate` is `"none"`, `"scale"` or `"law"`, and
-`arcFactors` is `true` or `false`. Each choice recovers a planted truth.
+**Purpose.** This example shows the per-stream policy of `addStream`.
+`Estimate` is `"none"`, `"scale"` or `"law"`, and `ArcFactors` is `true` or `false`. Each choice recovers a planted truth.
 For the policy semantics, see the chapter *Choosing the stochastic model*.
 
 **Run.**
@@ -2144,7 +2218,7 @@ For the policy semantics, see the chapter *Choosing the stochastic model*.
 - `.rho1`: the estimated and planted lag-1 correlation of `rr`;
 - `.arcFactor` and `.arcRatio`;
 - `.passes`;
-- `.badEstimate`: the identifier that a misspelt policy raises.
+- `.badEstimate`: the identifier with which `addStream` refuses a misspelt policy.
 
 **The case.** The data have one system, three days and three arcs a day of
 256 epochs (5 s), four common harmonic coefficients, and one `'arc'`-scoped
@@ -2152,24 +2226,26 @@ bias. There are four streams:
 
 | Stream | Truth | Declared | Policy |
 |---|---|---|---|
-| `gps` | white, sigma 0.2 | `diag`, 0.2 (correct) | `"none"` |
-| `acc` | AR(1), phi 0.85, level 0.5 | `psd` of the same filter, sigma 1 | `"scale"` |
-| `rr` | AR(1), phi 0.5 | `diag`, 1 (white) | `"law"` |
-| `mag` | white 0.3, arc 2 three times worse | `diag`, 0.3 | `"scale"`, `arcFactors = true` |
+| `gps` | white, sigma 0.2 | `Noise.white(0.2)` (correct) | `"none"` |
+| `acc` | AR(1), phi 0.85, level 0.5 | `Noise.psd(f, S)` of the same filter, level 1 | `"scale"` |
+| `rr` | AR(1), phi 0.5 | `Noise.white(1)` | `"law"` |
+| `mag` | white 0.3, arc 2 three times worse | `Noise.white(0.3)` | `"scale"`, `ArcFactors=true` |
 
 **Implementation.**
 
-- `policyData` builds the declaration. For `acc` it builds a `'psd'` law
-  from `firstOrderPsd`, which gives the one-sided PSD on a frequency grid.
-- `policyDay` is the six-argument `buildDay`. It uses `info.nl` and
-  `info.offsetOf(a)` to place the bias column, and it returns one cell per
-  arc.
-- `policyNoise` draws the planted noise from a stream seeded on day and
-  stream, so that `buildDay` is deterministic.
+- `policyTask` declares the task: one system `"policy"` with the `"arc"` local `bias`
+  and one `addStream` per stream, with its `Noise`, `Estimate` and `ArcFactors`. For
+  `acc` it builds a `psd` law from `firstOrderPsd`, which gives the one-sided PSD on a
+  frequency grid.
+- Every stream has its own `Build` (`buildGps`, `buildAcc`, `buildRr`, `buildMag`); all
+  four call `policyDay`, which places the bias column of each arc with
+  `ctx.cols("bias", Arc=id)` and adds the arc with `B=`.
+- `noiseSource` draws the planted noise from a stream seeded on day and
+  stream, so that every `Build` is deterministic.
 - All four policies run in one call with
   `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=o.maxPasses, Noise=struct('Smooth', 1))`.
   `ArcFactors=false` is the run default. `mag` overrides it on its own
-  spec. The loop converges in 3 passes. Without the smoothing, the 60-bin
+  `addStream`. The loop converges in 3 passes. Without the smoothing, the 60-bin
   law of `rr` needed 14 passes and settled on the same values to three
   digits.
 
@@ -2180,7 +2256,8 @@ bias. There are four streams:
 - The lag-1 correlation of `rr` from `R.noise.Cgroups`.
 - The mean arc factor per arc of `mag` from `R.noise.model{k}.sigma2`, and
   the ratio of the bad arc to the good arcs (planted: 9).
-- The identifier with which `fit` refuses `estimate = "shape"`.
+- The identifier with which `addStream` refuses `Estimate="shape"`
+  (`MATLAB:validators:mustBeMember`), before any data is read.
 - `R.summary()`.
 
 The help block records the measured values of one run. For example, `gps`
@@ -2191,8 +2268,8 @@ because the level absorbs their mean.
 ## `demo_priors`: regularisation in the announced layout
 
 **Purpose.** In a scoped declaration you do not know in advance which
-column of `A` or `B` an unknown ends up in. `lsqvce.layout(data)` announces
-the layout before `fit` runs, so you can write a prior operator `L` in
+column of `A` or `B` an unknown ends up in. `task.layout()` announces
+the layout, with every column's name, before `fit` runs, so you can write a prior operator `L` in
 those columns. For the full reference, see the chapter *Priors and regularisation*.
 
 **Run.**
@@ -2211,38 +2288,41 @@ those columns. For the full reference, see the chapter *Priors and regularisatio
 - `.nPseudo`, `.formGap`, `.datumGap` and `.priorLevel`.
 
 **The case.** The data have four harmonic signal coefficients (`'common'`)
-and one offset per day (a `'day'` row of `commonParams`). The system has
-two `'arc'` rows (bias, drift) and one `'system'` row (a scale on a known
-auxiliary series). There are three days with two arcs of 150 epochs each.
+and one offset per day (`task.addCommon("offset", Scope="day")`). The system has
+two `"arc"` locals (`bias`, `drift`) and one `"system"` local (`tempScale`, a scale on a
+known auxiliary series). There are three days with two arcs of 150 epochs each.
 The day offset and the arc biases cannot be separated, so the normal
 matrix has one null direction per day.
 
 **Logic.**
 
-1. Call `lay = lsqvce.layout(data)`. Print `lay.nc`, `lay.systems(1).nl`
-   and the column map from `lay.common` and `lay.systems(1).local`, and
+1. Call `lay = task.layout()`. Print `lay.nc`, `lay.systems(1).nl`
+   and the column map from the names in `lay.common` and `lay.systems(1).local`, and
    find the day-offset columns with `lay.colCommon(row, day)`.
 2. Count the null directions on a densely assembled `[A B]` (`rank`). Fit
    without priors and record the refusal identifier.
-3. Declare two common groups in `data.priors`: a tight `'datum'` (the
-   offsets average to zero) and a loose `'smooth'` (first differences),
-   both with `estimate "none"`.
-4. Declare a local group `'drift'` on `data.systems(1).priors`, written
-   once through `lay.systems(1).col(row, day, arc)` and once as the
-   pattern `group = '^drift$'`. Both solutions are compared.
-5. Move the datum (`x0 = 0.5`) and measure that the signal stays put while
+3. Declare two common groups with `task.addPrior`: a tight `"datum"` (the
+   offsets average to zero) and a loose `"smooth"` (first differences),
+   both `L=` operators with `Estimate="none"`.
+4. Declare a local group `"drift"` with `sys.addPrior`, written
+   once as `L=` through `lay.systems(1).col(row, day, arc)` and once as the
+   pattern `On="^drift$"`. Both solutions are compared.
+5. Move the datum (`Value = 0.5`) and measure that the signal stays put while
    the offsets move.
 6. Run `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4)`
-   with the drift group at `estimate "scale"`. The group appears as its
+   with the drift group at `Estimate="scale"`. The group appears as its
    own stream `x1|prior_drift`, and its level is printed.
 
 **Implementation.**
 
-- `priorData` builds the declaration.
-- `priorDay` is the six-argument `buildDay`. It uses
-  `info.commonDayOffset`, `info.sysOffset` and `info.offsetOf(a)`.
-- `nullDimension` and `layoutInfo` assemble the dense rank check. That
-  check is for demonstration only; in your own code `fit` supplies `info`.
+- `calibTask` declares the instrument without priors; every variant (no priors, the
+  datum, the `L` form, the `On` form, the moved datum, the noise run) is a task of its
+  own, and `addDatum` adds the two common groups.
+- `buildCalib` is the stream's `Build`. It takes every column from `ctx.cols` — the
+  commons, this day's offset, `tempScale`, and each arc's `bias` and `drift` with
+  `Arc=id` — and hands them to `priorArcs`, which builds the arcs with `B=`.
+- `nullDimension` assembles the dense rank check, calling the same `priorArcs` with the
+  columns of the layout. That check is for demonstration only.
 - `fitWithoutGroups` gives the pseudo-observation count.
 - `R.coefficients().se` gives the z-scores of the signal.
 
@@ -2262,14 +2342,12 @@ local only if exactly one data set observes it.
 - The data have six common unknowns and three systems with 12, 8 and 15
   `'system'`-scoped locals. The systems have 40, 30 and 50 days of 25
   observations each, with unit noise, seeded with 2026.
-- Each `data.systems(i)` has:
-  - `buildDay`: from `makeBuildDay`, which reads the pre-generated rows,
-    one arc per day;
-  - `covariance.obs = struct('type','diag','sigma',1)`;
-  - `localParams`;
-  - its own `days`;
-  - `name`.
-- One call `lsqvce.fit(data, lsqvce.Options(Verbose=false))`.
+- The task has no calendar of its own; each `task.addSystem(name, Days=1:nDay(i))`
+  carries its own, with its `"system"` locals (`addLocal(names, Scope="system")`) and one
+  stream `"obs"`, `Noise=lsqvce.Noise.white(1)`.
+- Each stream's `Build` comes from `makeBuild`, which reads the pre-generated rows, one
+  arc per day, and places the locals with `ctx.cols(localNames)`.
+- One call `lsqvce.fit(task, lsqvce.Options(Verbose=false))`.
 
 **Output.**
 
@@ -2284,9 +2362,9 @@ local only if exactly one data set observes it.
 
 **Purpose.** This example declares the full hierarchy:
 
-- a system is an entry of `data.systems`;
-- a sensor is an observation type, one field of `covariance`;
-- a day is an entry of `data.days`.
+- a system is one `task.addSystem`;
+- a sensor is one stream of its system, `sys.addStream`;
+- a day is an entry of the task's `Days`.
 
 It shows a data gap, finds a bad day through one variance factor per
 sensor-day, and then estimates the per-sensor noise levels without that day.
@@ -2308,8 +2386,9 @@ sigma 1. GRACE-D's LRI is missing on days 4–5, and GRACE-C's KBR carries a
 **Logic.**
 
 1. Generate the data into a `containers.Map` per system.
-2. Declare the data. `s.arcs` is a resolver from `makeSchedule` that
-   returns no arcs on an outage day, which is how a data gap is declared.
+2. Declare the task. Each system's `Arcs` is a resolver from `makeSchedule` that
+   returns no arcs on an outage day, which is how a data gap is declared. Every sensor
+   is a stream with `Noise=lsqvce.Noise.white(1)`, the claim.
 3. Solve once with `Options(Verbose=false)` and print `R.sigma0` (the
    symptom).
 4. Find the bad day. Run
@@ -2341,23 +2420,24 @@ synthetic problem with three-axis position streams and a scalar
 inter-satellite stream. Every stream starts from a deliberately wrong
 a-priori model: white noise with sigma 1. The help text calls it the
 copy-paste starting point. To use it on your data, replace the loader with
-your own `buildDay` and `data`.
+your own task and its `Build` functions.
 
 **Run.**
 
 ```matlab
 R = demo_grace();                                  % maxPasses 10, verbose true
 R = demo_grace('maxPasses', 8, 'verbose', false);
-[cfg, data] = demo_grace_dataLoader();             % the declaration alone
+[cfg, ~, task] = demo_grace_dataLoader();          % the task alone
 ```
 
 **Outline.** `demo_grace` holds the run and the reading.
 `demo_grace_dataLoader` holds the declaration, with the local functions:
 
-- `graceData`, `demoCfg` and `whiteCov`;
-- `demoBuildDay`, the five-argument form
-  `(day, obsType, common, local, procOpt)`;
-- `commonParamTable` and `localParamTable`;
+- `graceTask` (the task), `demoCfg` (the planted truth) and `catalogueInfo`;
+- one `Build` per stream, `buildPosC`, `buildPosD`, `buildRr`, `buildPosE`, all calling
+  `graceDay`, which draws the day and places each satellite's locals with
+  `ctx.cols(satelliteLocals(ctx, sat))`;
+- `commonParamTable` and `localParamTable`, the demo's 15-column catalogues;
 - the generators `A_design`, `B_design` and `colouredNoise`.
 
 **The declaration.** There are two systems:
@@ -2372,14 +2452,15 @@ Both systems share six common unknowns. The data cover four days with two
 arcs a day and 300 epochs per arc (5 s). The planted sigmas are 0.8, 1.3,
 1.6 and 1.1.
 
-The parameter tables have 15 columns. Column 1 is the scope token
-(`'common'` or `'system'`), and the other 14 follow this demo's own
-convention, listed in the loader's help. `processingOptions` is passed as
-the fifth argument.
+The demo keeps its own 15-column parameter catalogue: column 3 names each parameter
+(`addCommon` / `addLocal` with `Scope="system"`), and the other columns become the
+template's `Info`; a `Build` finds a satellite's locals through
+`ctx.Local.Info{k}.satellite`. The run settings (epochs, step, arcs per day, seed) are
+the systems' `Settings`, read as `ctx.Settings`. Every stream declares
+`Noise=lsqvce.Noise.white(1)`, the position streams with `Axes=3`.
 
-For the position streams, `buildDay` returns the per-epoch 3×3 covariance
-as `D.Cep`, and the toolbox combines it with the temporal law. Rows are in
-epoch-major order. `buildDay` returns one cell per arc.
+For the position streams, each arc carries the per-epoch 3×3 covariance as `Sigma=`,
+and the toolbox combines it with the temporal law. Rows are in epoch-major order.
 
 **Run options and output.** The run uses
 `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=o.maxPasses, Tolerance=1e-3, Noise=struct('Smooth', 1))`.
@@ -2437,8 +2518,9 @@ An `ExportDir` that does not exist is an error. The help states a cost of about 
 - `demo_gravity` runs the problem and reads it. Its local functions are
   `section`, `streamType`, `degreeVariances`, `plotDegreeVariances`,
   `plotCoefficientErrors` and `exportIf`.
-- `demo_gravity_dataLoader()` returns `[cfg, data]`. Its local functions
-  are `gravityData`, `gravityCfg`, `buildGravityDay` and `arcOrbit`.
+- `demo_gravity_dataLoader()` returns `[cfg, data, task]`. Its local functions
+  are `gravityTask`, `gravityCfg`, one `Build` per stream (`buildPotC`, `buildPotD`,
+  `buildKbr`, all calling `gravityArcs`) and `arcOrbit`.
 - `demo_gravity_design(nmax, orbit)` returns `[A, meta]`. `A` has
   `(nmax+1)^2 - 4` columns (degrees 2..nmax, C and S terms). `meta.n`,
   `meta.m` and `meta.cs` label the columns. `orbit` needs the fields `u`,
@@ -2447,8 +2529,8 @@ An `ExportDir` that does not exist is an error. The help states a cost of about 
 
 **The declaration.** The field goes to degree `nmax = 8`, which gives 77
 coefficients. The planted field follows a closed formula plus one anomaly at
-(5, 3, C). `commonParams` has four columns: the scope token, `n`, `m` and
-the C/S term.
+(5, 3, C). The commons are named by term, degree and order (`"C2_0"`, `"S2_1"`, …) and
+carry `degree`, `order` and `term` as `Info`.
 
 There are three systems:
 
@@ -2458,17 +2540,18 @@ There are three systems:
 | `GRACE-D` | `potD`, trailing C along-track | 3 |
 | `KBR` | `kbr`: the potential difference D − C, whose design couples both orbits | 1 |
 
-The locals are `'arc'`-scoped. The arc schedule is ragged: 3, 4, 2, 4 and 3
-arcs per day. Arcs are missing by ID on days 3 and 5, and every arc has its
-own length between 140 and 220 epochs. Because of the `'arc'` rows, the
-schedule is declared as a resolver,
-`arcs = @(day, obsType) cfg.arcsOfDay{...}`.
+The locals (`bias`, `drift`, `quadratic`) are `"arc"`-scoped. The arc schedule is
+ragged: 3, 4, 2, 4 and 3 arcs per day. Arcs are missing by ID on days 3 and 5, and every
+arc has its own length between 140 and 220 epochs. Because of the `"arc"` locals, the
+schedule is declared on each system as a resolver,
+`Arcs=@(day, ~) cfg.arcsOfDay{...}`.
 
-The declared covariance has the right AR shape and unit sigma. The planted
-sigmas are 1.0, 2.0 and 0.5.
+The declared noise has the right AR shape and unit sigma (`lsqvce.Noise.arma` for the
+potential streams, `lsqvce.Noise.white` for `kbr`). The planted sigmas are 1.0, 2.0 and
+0.5.
 
-`buildGravityDay` is the six-argument form. It reads `arcInfo.nl` and
-`arcInfo.offsetOf(a)` and returns one cell per scheduled arc.
+`gravityArcs` adds one arc per scheduled id of `ctx.ArcIds`, with the locals' columns
+from `ctx.cols(names, Arc=a)`.
 
 **Run options and output.** The run uses
 `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=opt.MaxPasses, Noise=struct('Smooth', 1))`.
@@ -2489,7 +2572,7 @@ The help block records the numbers of one measured run.
 ## `demo_gravfire` and `template/gravfire_data.m`: a GRAVFIRE bundle
 
 **Purpose.** This example maps a GRAVFIRE preprocessing bundle
-(`commonData`, `myOptions`, `systemsData`) onto `data` and runs it through
+(`commonData`, `myOptions`, `systemsData`) onto a task and runs it through
 `lsqvce.fit`. The bundle contains:
 
 - Stokes coefficients as the common block;
@@ -2519,9 +2602,9 @@ prints what it would do and returns `[]`.
 **Logic.** With a bundle, the demo:
 
 1. adds `template/` to the path and loads the file;
-2. calls `gravfire_data(..., 'DryRun', true)`;
-3. runs `lsqvce.fit(data, Verbose=...)`, or for `"noise"`
-   `lsqvce.fit(data, Estimate="noise", Pool="obsType", Noise=struct('Grid', 2160), MaxPasses=Passes, CacheDays=Inf, OnPass=watch)`,
+2. calls `task = gravfire_data(..., 'DryRun', true)`;
+3. runs `lsqvce.fit(task, Verbose=...)`, or for `"noise"`
+   `lsqvce.fit(task, Estimate="noise", Pool="obsType", Noise=struct('Grid', 2160), MaxPasses=Passes, CacheDays=Inf, OnPass=watch)`,
    with the not-converged warning suppressed;
 4. prints `R.report` when `Verbose > 0`.
 
@@ -2532,45 +2615,49 @@ the real design step, so the demo tests the pipeline, not gravity recovery.
 **`gravfire_data(commonData, myOptions, systemsData, Name=Value)`.** The
 name-value options are:
 
-- `'DesignFcn'`: your function
-  `[A, B] = f(o, day, obsType, common, local, po, info)`, returning
-  `m × info.nc` and `m × info.nl` with rows in epoch-major order;
+- `'DesignFcn'`: your function `[A, B] = f(o, day, ctx)`, with `o` the bundle of that
+  (day, group) and `ctx` the stream's `lsqvce.DayContext`, returning
+  `m × ctx.NumCommon` and `m × ctx.NumLocal` (every local column from `ctx.cols`) with
+  rows in epoch-major order;
 - `'DryRun'`: deterministic random `A` and `B`, seeded per day and
   observation type.
 
-The function returns a `data` struct with `commonParams`, `days`, `priors`
-and one system (`id 1`, `name 'GRACE'`) with `buildDay`, `covariance`,
-`localParams`, `priors` and `processingOptions`. It declares no arc
-schedule: the pieces that `buildDay` returns as cells are the arcs.
+`[task, data] = gravfire_data(...)` returns the `lsqvce.TaskDefinition` and, second,
+its compiled declaration (`task.declaration()`) for engine-tier work. The task has the
+calendar of `myOptions.days`, one common per Stokes row named `type_degree_order`
+(`c_2_0`, `s_2_1`, …) with the 14 GRAVFIRE columns as `Info`, and one system `"GRACE"`
+(`Id=1`, the bundle options as `Settings`) with one day's local templates as
+`Scope="day"` and three streams. It declares no arc schedule: the pieces each `Build`
+adds are the arcs.
 
-The comments are numbered as steps:
+The comments are numbered as steps (the steps of `dev/GRAVFIRE_INTERFACE.md`):
 
-1. Prefix the 14-column common table with `'common'`.
+1. Name the common rows uniquely and add them with their 14 columns as `Info`.
 2. Take the calendar from `myOptions.days`.
-3. Name the observation types: `posA`/`posB` for `kinematicPosition`, `kbr`
-   for `range-rate`. Each gets a white `diag` with
-   `sigma = sqrt(variance(g))`.
-4. Take one day's rows of the expanded local table as `'day'`-scoped
+3. Name the streams: `posA`/`posB` for `kinematicPosition`, `kbr`
+   for `range-rate`. Each gets `lsqvce.Noise.white(sqrt(variance(g)))`.
+4. Take one day's rows of the expanded local table as `"day"`-scoped
    templates, with times in seconds of the day.
 5. (No arc schedule.)
-6. Bind everything `buildDay` needs into `processingOptions`.
-7. Assemble the system.
+6. Bind everything `Build` needs into the system's `Settings`.
+7. Add the system, its locals and its streams.
 
-The local function `buildGravfireDay` does the following:
+The local function `buildGravfireDay` is every stream's `Build`. It:
 
-- drops flagged epochs;
-- builds epoch-major `l` and `t`;
-- converts `iSpp` into a per-epoch 3×3 `Cep`;
+- builds epoch-major `l` and `t` for the whole day;
+- converts `iSpp` into a per-epoch 3×3 `Sigma`;
 - calls the design step;
-- cuts the day into one cell per piece.
+- adds one arc per piece with `out.addArc(..., B=, Sigma=, Excluded=)`, the flagged
+  epochs kept on the grid with weight 0.
 
 Regularisation comes from column 11 of the tables:
 `{'Tikhonov', fromPass, sigma[, label]}`. On common rows, `priorsFromColumn11`
-builds `data.priors` in the `L` form. On local rows, `gravfireLocalPriors`
-builds `data.systems.priors` in the `group` (regular-expression) form.
-Labelled groups get `estimate "scale"`; unlabelled rows get `"none"`. The rows of one
+builds the groups that `task.addPrior` declares in the `L` form. On local rows,
+`gravfireLocalPriors` builds the groups that `sys.addPrior` declares in the `On`
+(regular-expression) form. Labelled groups get `Estimate="scale"`; unlabelled rows get
+`"none"`. The rows of one
 label must share sigma and `fromPass`, and on local rows also the a-priori value
-(column 10): the `group` form expands its rows in the toolbox's order, so one value per
+(column 10): the `On` form expands its rows in the toolbox's order, so one value per
 member cannot be written there. The test suite runs the whole template on a generated
 bundle (`dev/tests/fixture_gravfire_bundle.m`).
 
@@ -2588,7 +2675,7 @@ The help also refers to `dev/GRAVFIRE_INTERFACE.md`, the step-by-step guide.
 ## `template/kbr_variational.m`: GRACE-FO range-rates by the variational equations
 
 **Purpose.** This is a real-data template. It turns GRACE-FO Level-1B data
-into a `data` declaration for a gravity field in fully normalised spherical
+into a `lsqvce.TaskDefinition` for a gravity field in fully normalised spherical
 harmonics:
 
 - range-rates (KBR1B) of the C/D pair;
@@ -2607,10 +2694,10 @@ fly, so `Psi` is never stored.
 cfg = struct('days', 60000:60029, 'dataDir', '/data/gracefo/L1B', ...
              'gravityField', '/data/models/GOCO06s.gfc', ...
              'trf2crf', @myIers2010, 'degree', [2 60], 'arcsPerDay', 4);
-[data, kit] = kbr_variational(cfg);
-R  = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Noise=struct('Grid', 1080)));
+[task, kit] = kbr_variational(cfg);
+R  = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Noise=struct('Grid', 1080)));
 dC = kit.unitCommon .* R.x;                            % physical corrections
-cfg.fieldUpdate = dC;  data = kbr_variational(cfg);    % second linearisation
+cfg.fieldUpdate = dC;  task = kbr_variational(cfg);    % second linearisation
 ```
 
 **Configuration.** Four fields of `cfg` are required:
@@ -2642,18 +2729,20 @@ The other fields default as follows:
 | `background` | no other forces |
 | `maxAccGap` | 10 s |
 
-**Outputs.** `data` has:
+**Outputs.** `[task, kit, data] = kbr_variational(cfg)`. The `task` has:
 
-- `commonParams`: C_nm and S_nm with a unit of 1e-10 in column 5;
-- `days`;
-- one system (`id 1`, `'GRACE-FO'`) with:
-  - `'arc'` rows: initial position and velocity per satellite, and the KBR
+- the commons `C_n_m` and `S_n_m`, each with its unit (1e-10) as `Info`;
+- the calendar `cfg.days`;
+- one system `"GRACE-FO"` (`Id=1`) with:
+  - `"arc"` locals: initial position and velocity per satellite (`C_x0`, …), and the KBR
     bias, drift and once-per-revolution cos/sin terms;
-  - `'day'` rows: accelerometer bias and scale per satellite;
-  - `arcs`, `covariance`, `processingOptions`, `prepareDay` and `buildDay`.
+  - `"day"` locals: accelerometer bias and scale per satellite;
+  - the arc schedule (`cfg.arcsPerDay` or `cfg.arcs`), the `Prepare` `prepareKbrDay`,
+    and one stream per entry of `cfg.obsTypes`, each with the `Build` `buildKbrDay`.
 
-Every column carries a declared unit, so the physical value is
-`unit .* estimate`. Position streams carry their sigmas in `Cep`.
+Every parameter carries a declared unit as `Info`, so the physical value is
+`unit .* estimate`. Position streams carry their sigmas in each arc's `Sigma`. `data` is
+the compiled declaration (`task.declaration()`), for engine-tier work.
 
 `kit` exposes the physics as function handles:
 
@@ -2662,12 +2751,12 @@ Every column carries a declared unit, so the physical value is
 - `propagate` and `accModel`;
 - `eraRotation`, `readGfc`, `readL1B`, `prepareDay` and `buildDay`.
 
-`prepareKbrDay`, the system's `prepareDay`, integrates the whole day once
-each time the day is built and forms the rows of every stream;
-`buildKbrDay` picks its stream out of `procOpt.prepared`. Only the current
-day's integration is kept; `CacheDays` keeps the built rows. Called
-directly, `kit.buildDay` needs `procOpt.prepared` set to what
-`kit.prepareDay` returns for the day.
+`prepareKbrDay`, the system's `Prepare`, integrates every arc of the day once each time
+the day is built and forms the rows of every stream, taking the columns of each arc's
+locals from `ctx.cols(names, Arc=id)` (helper `arcColumns`); `buildKbrDay` picks its
+stream out of `ctx.Prepared` and adds each arc with `Arc=id`. Only the current day's
+integration is kept; `CacheDays` keeps the built rows. `kit.prepareDay` and
+`kit.buildDay` take `(day, ctx)`, so only the toolbox calls them.
 
 **Limitations.** The help lists these:
 
@@ -2685,33 +2774,32 @@ Errors carry `kbrvar:` identifiers, for example `kbrvar:badConfig`,
 
 ## `template/lsqvce_template.m`: the engine-tier starting point
 
-**Purpose.** This template builds the cell array of `Loader` objects that
-the engine-tier functions take (`lsqvce.engine.adjustBlock`,
-`lsqvce.engine.adjustRobust`). Use it when your pipeline is driven by a
-`procOpt` configuration struct and you want the `Loader` objects in hand.
-On the user path you do not need it: declare `data` and call `lsqvce.fit`.
+**Purpose.** This template declares a `lsqvce.TaskDefinition` from a `procOpt`
+configuration struct and builds from it the cell array of `Loader` objects that the
+engine-tier functions take (`lsqvce.engine.adjustBlock`, `lsqvce.engine.adjustRobust`).
+Use it when your pipeline is driven by `procOpt` and you want the `Loader` objects in
+hand. On the user path you do not need them: `lsqvce.fit(task)` runs the task.
 
-**Run.** Copy the file, rename it, and write the stub `myBuildDay`:
+**Run.** Copy the file, rename it, and write the stub `myBuild`:
 
 ```matlab
-L = myCase(procOpt);
+[L, task] = myCase(procOpt);
 R = lsqvce.engine.adjustBlock(L, procOpt.days);
 R.report();
 ```
 
 **Structure.**
 
-- **`buildLoaders`** is real code. It makes one
-  `lsqvce.engine.makeLoader` per entry of `procOpt.observationGroups`,
-  with:
-  - the observation types;
-  - a white, unit a-priori covariance (`aprioriCovariance`);
-  - the five-argument `buildDay`;
-  - `systemId`, which must be numeric or a single character;
-  - `days`, `commonParams`, `localParams` and `processingOptions`.
-- **`myBuildDay`** is a stub. It raises `lsqvce_template:notImplemented`
-  until you replace it. It must be deterministic and return `A`, `B`, `l`,
-  `t` and optionally `Cep` as one cell per arc, with multi-axis rows in
+- **`declareTask`** is real code. It makes one `task.addSystem` per entry of
+  `procOpt.observationGroups`, with its `"day"` / `"arc"` / `"system"` locals and one
+  `addStream` per observation type, each with a white, unit a-priori `Noise`
+  (`aprioriNoise`) and the `Build` `myBuild`. The tables of `procOpt` carry the scope in
+  column 1 and a unique name in column 2.
+- The Loaders come from `lsqvce.engine.declaration(task.declaration())`, the step `fit`
+  uses.
+- **`myBuild(day, ctx)`** is a stub. It raises `lsqvce_template:notImplemented`
+  until you replace it. It must be deterministic and add the day's arcs with
+  `out.addArc(A, l, t, ...)`, the per-epoch accuracy as `Sigma`, with multi-axis rows in
   epoch-major order.
 - A `procOpt` without `observationGroups` or `days` raises
   `lsqvce_template:badProcOpt`.
@@ -2766,8 +2854,8 @@ bench_qr_vs_normal('u', [10 50 100], 'n', 2e5, 'nk', 5000)
 
 There are no outputs; the benchmark prints two tables.
 
-**Logic.** Both runs use the same batched declaration,
-`struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nb)`, with
+**Logic.** Both runs use the same batched task,
+`lsqvce.TaskDefinition.fromBatches(src, NumBatches=nb, NumUnknowns=u)`, with
 `Options(Backend="normal")` and `Options(Backend="qr")`.
 
 1. **Timing.** For each `u`, the benchmark times both runs, keeping the
@@ -2803,10 +2891,10 @@ arc.
 
 `CacheDays` (default 1) is the number of built days kept resident per system. An
 iterative run reads every day twice per pass; `CacheDays = Inf` builds each day once per
-run if the calendar fits in memory. A system's `prepareDay` result is kept for the
+run if the calendar fits in memory. A system's `Prepare` result is kept for the
 current day only, whatever `CacheDays`: it adds one day's worth, and runs again whenever
 a day is rebuilt. If reading the raw files is the expensive part, cache those inside your
-`buildDay` closure instead.
+`Build` closure instead.
 
 ## Time
 
@@ -2851,7 +2939,7 @@ the API reference (chapter *Error and warning identifiers*).
 
 ```matlab
 try
-    R = lsqvce.fit(data, opts);
+    R = lsqvce.fit(task, opts);
 catch ME
     disp(ME.identifier)
     disp(ME.message)
@@ -2859,43 +2947,54 @@ catch ME
 end
 ```
 
-## Before any data is read: the declaration
+## While you declare: the `add` calls
 
-`fit` checks the whole declaration before it calls your functions. These errors cost
-nothing to fix and to re-run. A few of them are raised while `fit` builds the loaders;
-`fit` reports those under its own prefix: the table lists them by the `makeLoader`
-identifier, and the `ME.identifier` you see is the prefix `lsqvce:fit:` followed by its
-last part (`prepareUnused`, say), with the original attached as the cause.
+A `lsqvce.TaskDefinition` checks every call when you make it, so most mistakes are
+refused at the line that makes them, before `fit` runs. What only the whole task can know
+is checked by `task.declaration()`, which `fit` calls first. A few are raised while `fit`
+builds the loaders; `fit` reports those under its own prefix: the table lists them by the
+`makeLoader` identifier, and the `ME.identifier` you see is `lsqvce:fit:` followed by its
+last part (`localPlan`, say), with the original attached as the cause.
 
 | identifier | usual cause | fix |
 |---|---|---|
-| `lsqvce:fit:unknownField` | a typo in a field name, e.g. `covaraince`; the message lists the allowed names | correct the name. Unknown fields are errors on purpose: a typo is never ignored |
-| `lsqvce:fit:missingField` | a system without `buildDay` or without `covariance` | add it |
-| `lsqvce:fit:noCommon` | `data.commonParams` missing, or not a cell table | one row per parameter, scope token in column 1 |
-| `lsqvce:fit:badScope` | a scope token that does not exist (`'arcs'` instead of `'arc'`) | `commonParams`: `'common'` or `'day'`; `localParams`: `'arc'`, `'day'` or `'system'` |
-| `lsqvce:fit:noDays`, `badDays`, `duplicateDay` | no day list, a non-integer day, or a day listed twice | `data.days = 1:30` (or a system's own `days`) |
-| `lsqvce:fit:builderKind` | `buildDay` or `prepareDay` is a name (`'myBuildDay'`) instead of a handle | `@myBuildDay` |
-| `lsqvce:makeLoader:localPlan` | `'arc'` parameters without an arc schedule | declare `s.arcs` (a count, an id vector or `@(day, obsType)`) |
-| `lsqvce:makeLoader:prepareUnused` | a `prepareDay` with a `buildDay` that declares fewer than five arguments, so it could never see the result | declare `buildDay(day, obsType, common, local, procOpt[, info])` |
-| `lsqvce:makeLoader:preparedField` | your `processingOptions` already has a field `prepared` | rename your field; the name is taken by `prepareDay`'s result |
-| `lsqvce:fit:duplicateSystem` | two systems with the same `id` | give each system its own `id` |
-| `lsqvce:fit:badPrior` | `L` not `p x nc`, or `x0` of the wrong length | write the prior in the columns `lsqvce.layout(data)` announces |
-| `lsqvce:fit:modelKind` | `Estimate = "noise"` on the matrices or batched kind | the noise estimation needs streams: use the streaming kind |
+| `MATLAB:validators:*` | a setting of the wrong kind: `Scope="arcs"`, `Estimate="all"`, a negative `Sigma` | the message names the setting and its allowed values |
+| `lsqvce:TaskDefinition:duplicateName` | a name used twice: two commons, two locals of a system, a local named like a common, two systems, streams or priors | every name is unique where it lives |
+| `lsqvce:TaskDefinition:badName` | a stream name that is not a MATLAB identifier (`"pos C"`) | letters, digits and underscores, starting with a letter |
+| `lsqvce:TaskDefinition:badValid` | `Valid` not `[start end]` with start ≤ end | fractional MJD, or `[]` for always |
+| `lsqvce:TaskDefinition:infoRows` | an `Info` table without one row per name | one row per name |
+| `lsqvce:TaskDefinition:badHandle` | `Prepare` or `Build` is not a function handle, or takes fewer than two arguments | `@myBuild`, with `function out = myBuild(day, ctx)` |
+| `lsqvce:TaskDefinition:missingArgument` | `addStream` without `Build` or `Noise`; a prior without `Sigma`; `fromBatches` without `NumBatches` | add it |
+| `lsqvce:TaskDefinition:priorTarget` | a prior with both `On` and `L`, or neither | one of the two |
+| `lsqvce:TaskDefinition:wrongKind` | `addCommon`, `addSystem` or a prior with `On` on a task made by `fromMatrices` / `fromBatches` | in-memory tasks take priors by `L` only |
+| `lsqvce:TaskDefinition:badArcs` | some streams of a system have an arc schedule and others none | give the system one `Arcs`, or every stream its own |
+| `lsqvce:TaskDefinition:incomplete` | no `addCommon`, no `addSystem`, a system without a stream, or no calendar | complete the task |
+| `lsqvce:makeLoader:localPlan` | `"arc"` locals without an arc schedule | `addSystem(..., Arcs=...)`: a count, an id vector or `@(day, stream)` |
+| `lsqvce:makeLoader:preparedField` | the system's `Settings` has a field `prepared` | rename your field; the name carries `Prepare`'s result |
+| `lsqvce:fit:badPrior` | a pattern `On` that matches no name, or `L` of the wrong width | check the names; write `L` in the columns `task.layout()` announces |
+| `lsqvce:fit:modelKind` | `Estimate = "noise"` on a task made by `fromMatrices` / `fromBatches` | the noise estimation needs streams: use the streaming kind |
 
-## While reading: your `buildDay` and `prepareDay`
+## While reading: your `Prepare` and `Build`
 
 These come from inside the run, on the first day where something is wrong. The message
 names the day and the stream.
 
 | identifier | usual cause | fix |
 |---|---|---|
-| `lsqvce:makeLoader:buildDay` | your `buildDay` threw an error | read `ME.cause{1}`: it is your own error, unchanged. Call your `buildDay` for that day by hand |
-| `lsqvce:makeLoader:prepareDay` | your `prepareDay` threw an error | as above, with `prepareDay` |
-| `lsqvce:makeLoader:dayShape` | `A`, `B`, `l`, `t` are not cells of one per arc, or the arcs disagree in their numbers of rows | return `struct('A', {cellOfArcs}, ...)`: note the braces around the cell |
-| `lsqvce:accum:arcBadNc`, `arcBadNl` | `A` does not have `info.nc` columns, or `B` not `info.nl` | build `B = zeros(m, info.nl)` and place each block by `info.offsetOf`, `info.dayOffset` |
+| `lsqvce:makeLoader:buildDay` | your `Build` threw an error (the message says `buildDay`: the stream's generated reader) | read `ME.cause{1}`: it is your own error, unchanged |
+| `lsqvce:makeLoader:prepareDay` | your `Prepare` threw an error | as above |
+| `lsqvce:DayContext:unknownName` | a name in `Local` or `ctx.cols` that is not a parameter of the system, or not on this day (`Valid`) | check `ctx.Local` (its `OnDay` column) |
+| `lsqvce:DayContext:arcRequired` | an `"arc"` local in `ctx.cols` without `Arc=id`, or with an id the day does not schedule | `ctx.cols(names, Arc=ctx.ArcIds(a))` |
+| `lsqvce:DayContext:mixedTables` | one `ctx.cols` call names commons and locals | one call for each: commons are columns of `A`, locals of `B` |
+| `lsqvce:DayContext:localAndB` | one arc gives both `Local` and `B` | one of the two |
+| `lsqvce:DayContext:badLocal` | `Local` not `{names, partials}` rows, partials not m × numel(names), a name twice | as the message says |
+| `lsqvce:DayContext:badArc` | `Arc=` without a schedule, an id not scheduled, an arc added twice | follow `ctx.ArcIds` |
+| `lsqvce:DayContext:badReturn` | `Build` returned something other than `ctx.newDay()` | `out = ctx.newDay(); out.addArc(...);` and return `out` |
+| `lsqvce:makeLoader:dayShape` | an arc whose `A`, `l`, `t` disagree in their numbers of rows | one row count per arc |
+| `lsqvce:accum:arcBadNc`, `arcBadNl` | `A` does not have `ctx.NumCommon` columns, or `B` not `ctx.NumLocal` | build `A` with one column per `addCommon` name; give locals by name |
 | `lsqvce:covModel:denseArcTooLong` | an arc longer than 20 000 epochs under a dense noise law or under `Estimate = "noise"` | cut the arcs shorter, or see *Large problems* |
 
-A frequent mistake that raises nothing: a `buildDay` that is **not deterministic**, for
+A frequent mistake that raises nothing: a `Build` that is **not deterministic**, for
 example one drawing fresh random noise on every call. The toolbox reads each day at least
 twice per pass and then sees two different data sets; the report's integrity check
 (Level 0) is the place where this shows. Seed any random numbers on the day and the
@@ -2916,7 +3015,7 @@ stream, as the tutorial does.
 | σ₀ fine, but the formal errors look too small | the noise is correlated and was declared white | run `Estimate = "noise"`; the tutorial shows the effect |
 | `R.sigma0` is `NaN` | the quadratic form vᵀPv cancelled in double precision, and the toolbox reports that instead of clamping it | a `NaN` is a result, not a bug; the theory (section 1.3) explains when it happens |
 | the verdict is `SUSPECT` | at least one finding at `ERROR` level | work through the `[ERROR]` lines of the report, top level first |
-| the verdict is `INVALID` | the integrity check failed; nothing else was evaluated | most often a non-deterministic `buildDay` |
+| the verdict is `INVALID` | the integrity check failed; nothing else was evaluated | most often a non-deterministic `Build` |
 | `R.summary()` or `R.plot("psd")` raises `lsqvce:Results:noHistory` | the run was a single solve | these need `Estimate = "noise"` (or a robust run) |
 | `R.residuals()` raises `lsqvce:Results:noAccumulator` | the matrices or batched kind | read `R.diag.v` instead |
 

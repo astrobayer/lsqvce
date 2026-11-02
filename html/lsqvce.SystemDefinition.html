@@ -74,8 +74,9 @@ METHODS
     Build      @(day, ctx) -&gt; LSQVCE.DAYDATA   required; once per stream and day
     Noise      LSQVCE.NOISE              required; the temporal law and its level
     Estimate   &quot;law&quot; | &quot;scale&quot; | &quot;none&quot;  what Options.Estimate=&quot;noise&quot; may change: the
-                                        shape and level (default &quot;law&quot;), the level
-                                        only, or nothing
+                                        shape and level (default &quot;law&quot;; &quot;scale&quot;
+                                        for a per-row sigma), the level only, or
+                                        nothing
     ArcFactors logical                   one variance factor per arc (default:
                                         Options.ArcFactors)
     Axes       integer &gt;= 1              axes per epoch, rows epoch-major (default 1)
@@ -124,7 +125,9 @@ MATLAB:validators:*                    Scope, Estimate, Axes of the wrong kind</
 See also LSQVCE.TASKDEFINITION, LSQVCE.NOISE, LSQVCE.DAYCONTEXT, LSQVCE.DAYDATA
 
 Created 2026-11-02 (CET, UTC+01:00) with assistance from Claude
-(Anthropic), model Claude Opus 5.5 -- level v7, WP-160.</pre>
+(Anthropic), model Claude Opus 5.5 -- level v7, WP-160.
+Updated 2026-11-02 (CET, UTC+01:00), WP-161: Estimate names the per-row-sigma
+default &quot;scale&quot;. With assistance from Claude (Anthropic), model Claude Opus 5.5.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

@@ -104,7 +104,7 @@ a @(day,obsType) builder keeps working unchanged; a builder that also
 takes (common, local, procOpt) receives the parametrisation tables and
 processing options passed to makeLoader; the 6th argument is the day&#x27;s
 expansion slice (offsets of every block of A and B, the rows present on
-the day; the API reference, chapter buildDay, info). A varargin builder receives
+the day; the API reference, The compiled declaration, buildDay, info). A varargin builder receives
 all six. common / local have ONE ROW per template and C columns of YOUR
 convention; nc and nl are DERIVED (see &#x27;CommonParams&#x27; / &#x27;LocalParams&#x27;).</pre>
 <h3>WHAT ALL STREAMS OF A DAY SHARE -- &#x27;PrepareDay&#x27; (WP-141)</h3>
@@ -333,6 +333,9 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
          LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 
+Updated 2026-11-02 (CET, UTC+01:00), WP-161: the API reference&#x27;s buildDay and
+Cep sections now live in its chapter The compiled declaration. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-18 (CEST, UTC+02:00), WP-155: the dense step solves with the
 law&#x27;s Cholesky factor instead of forming its inverse (denseLawWhiten).
 With assistance from Claude (Anthropic), model Claude Opus 5.5.

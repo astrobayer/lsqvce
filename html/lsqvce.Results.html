@@ -131,6 +131,8 @@ METHODS
   E = R.ellipse(i, j, ...)       Confidence ellipse of the parameter pair (i, j).
   fh = R.plot(kind)              &quot;residuals&quot; | &quot;contribution&quot; | &quot;psd&quot; | &quot;convergence&quot;
                                  (one figure per question, nothing exported).
+  T = R.toTable(task)            One table of every parameter of a lsqvce.TaskDefinition:
+                                 System, Name, Scope, Day, Arc, Estimate, Std (WP-161)
   [C, L, map] = R.toTable(data)  The expanded parameter tables with estimate and
                                  standard deviation written in.
   T = R.summary()                Per-STREAM final state: sigma, AR order,
@@ -184,6 +186,10 @@ lsqvce:Results:contributionsInconsistent contributions() whose days&#x27;
 See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
          LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-11-02 (CET, UTC+01:00), WP-161: R.toTable(task) returns one
+MATLAB table (System, Name, Scope, Day, Arc, Estimate, Std) for a
+lsqvce.TaskDefinition. With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
 Updated 2026-10-29 (CET, UTC+01:00), WP-159: received from lsqvce.fit
 (the example called an engine); meta.warnings, noise.checks and the
 robust truncation listed; ERRORS lists every id the class raises. With

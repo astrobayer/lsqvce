@@ -77,9 +77,10 @@ PROPERTIES (read-only)
                             or without Prepare)
   NumCommon  1x1 double     nc, the columns of A
   NumLocal   1x1 double     nl, the columns of B of this system (0 without locals)
-  ArcIds     1 x A double   the stream&#x27;s scheduled arc ids of this day ([] when
-                            the system declares no schedule: the arcs are what
-                            Build adds)
+  ArcIds     1 x A double   the stream&#x27;s scheduled arc ids of this day; in
+                            Prepare, the system&#x27;s scheduled arcs of the day ([]
+                            when the system declares no schedule: the arcs are
+                            what Build adds)
   Common     table          Name, Scope, OnDay, Info of every common template
   Local      table          Name, Scope, OnDay, Info of every local template
 METHODS
@@ -114,6 +115,9 @@ ERRORS  (raised while the day is read; fit passes them unchanged)
 
 See also LSQVCE.DAYDATA, LSQVCE.SYSTEMDEFINITION, LSQVCE.TASKDEFINITION
 
+Updated 2026-11-02 (CET, UTC+01:00), WP-161: ArcIds in Prepare are the
+system&#x27;s scheduled arcs of the day (they were empty). With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Created 2026-11-02 (CET, UTC+01:00) with assistance from Claude
 (Anthropic), model Claude Opus 5.5 -- level v7, WP-160.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
