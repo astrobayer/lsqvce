@@ -289,6 +289,33 @@ function testContextAnnouncesTheDay(tc)
     tc.verifySubstring(out, 'prior');
 end
 
+function testToTableOfATaskIsOneTable(tc)
+% categories: contract
+    % WP-161: R.toTable(task) is ONE table, a row per instantiated parameter
+    % (commons in A's order, then each system's locals in B's order), with
+    % names, scopes, day / arc of the instance and the estimate with its
+    % standard deviation -- the same numbers as R.x and the cell tables.
+    F = fixture();
+    tc.verifyInstanceOf(F.task, ?lsqvce.TaskDefinition);
+    R = lsqvce.fit(F.task, lsqvce.Options(Verbose=false));
+    T = R.toTable(F.task);
+    lay = F.task.layout();
+    tc.verifyClass(T, 'table');
+    tc.verifyEqual(T.Properties.VariableNames, {'System', 'Name', 'Scope', 'Day', 'Arc', 'Estimate', 'Std'});
+    tc.verifyEqual(height(T), lay.nc + lay.systems(1).nl, 'one row per instantiated parameter');
+    tc.verifyEqual(T.Estimate(1:lay.nc), R.x, 'the commons are R.x, in order');
+    tc.verifyEqual(T.Std(1:lay.nc), sqrt(diag(R.sol.Cxx)), 'and their standard deviations');
+    tc.verifyEqual(T.Name(1:lay.nc).', [lay.common.name], 'named as the layout names them');
+    tc.verifyEqual(T.System(lay.nc + 1), "S");
+    gd = T(T.Name == "gd", :);
+    tc.verifyEqual(gd.Day.', 1:3, 'a day common once per day');
+    man = T(T.Name == "man", :);
+    tc.verifyEqual(man.Day, 2, 'the validity-limited local on its one day');
+    ic = T(T.Name == "ic", :);
+    tc.verifyEqual(height(ic), 6, 'an arc local per (day, arc)');
+    tc.verifyTrue(all(isnan(T.Arc(T.Scope ~= "arc"))), 'Arc is NaN off the arc scope');
+end
+
 function testTaskOverheadIsSmall(tc)
 % categories: speed
     % The generated wrappers (a DayContext and a DayData per build, columns

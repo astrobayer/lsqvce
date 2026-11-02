@@ -87,6 +87,8 @@ classdef Results < handle
 %     E = R.ellipse(i, j, ...)       Confidence ellipse of the parameter pair (i, j).
 %     fh = R.plot(kind)              "residuals" | "contribution" | "psd" | "convergence"
 %                                    (one figure per question, nothing exported).
+%     T = R.toTable(task)            One table of every parameter of a lsqvce.TaskDefinition:
+%                                    System, Name, Scope, Day, Arc, Estimate, Std (WP-161)
 %     [C, L, map] = R.toTable(data)  The expanded parameter tables with estimate and
 %                                    standard deviation written in.
 %     T = R.summary()                Per-STREAM final state: sigma, AR order,
@@ -144,6 +146,10 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: R.toTable(task) returns one
+%   MATLAB table (System, Name, Scope, Day, Arc, Estimate, Std) for a
+%   lsqvce.TaskDefinition. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-29 (CET, UTC+01:00), WP-159: received from lsqvce.fit
 %   (the example called an engine); meta.warnings, noise.checks and the
 %   robust truncation listed; ERRORS lists every id the class raises. With
@@ -498,6 +504,10 @@ classdef Results < handle
 
         function [C, L, map] = toTable(obj, data, opt)
         %TOTABLE  Write the estimates back into the parameter tables (R5-D8 round 4).
+        %   T = R.toTable(task)                a lsqvce.TaskDefinition (WP-161): ONE table,
+        %                                      a row per instantiated parameter -- System
+        %                                      ("" for commons), Name, Scope, Day, Arc
+        %                                      (NaN where the scope has none), Estimate, Std
         %   [C, L, map] = R.toTable(data)
         %   [C, L, map] = R.toTable(data, Estimate=9, Std=10)
         %   The EXPANDED tables -- one row per instantiated parameter, in the
@@ -520,10 +530,14 @@ classdef Results < handle
         %           lsqvce:fit:*                    the declaration does not validate
         arguments
             obj
-            data (1,1) struct
+            data (1,1) {mustBeA(data, ["struct", "lsqvce.TaskDefinition"])}
             opt.Estimate (1,1) double {mustBeInteger, mustBePositive} = 9
             opt.Std (1,1) double {mustBeInteger, mustBePositive} = 10
         end
+            if isa(data, 'lsqvce.TaskDefinition')
+                C = obj.taskTable(data);              % WP-161: names make one table
+                return
+            end
             if isempty(obj.acc)
                 error('lsqvce:Results:noAccumulator', 'toTable needs a streaming (kind A) Results.');
             end
@@ -1032,6 +1046,35 @@ classdef Results < handle
     end
 
     methods (Access = private)
+        function T = taskTable(obj, task)
+        %TASKTABLE  R.toTable(task): one MATLAB table over commons and every system's
+        %   locals, read off the cell tables the declaration expands to (WP-161).
+            [C, L, map] = obj.toTable(task.declaration(), Estimate=5, Std=6);
+            lay = task.layout();
+            n = size(C, 1) + sum(cellfun(@(c) size(c, 1), L));
+            [sysName, name, scope] = deal(strings(n, 1));
+            [day, arc, est, sd] = deal(nan(n, 1));
+            for j = 1:size(C, 1)
+                name(j) = string(C{j, 2});  scope(j) = string(C{j, 1});
+                if ~isempty(map.common(j).day), day(j) = map.common(j).day; end
+                est(j) = C{j, 5};  sd(j) = C{j, 6};
+            end
+            i = size(C, 1);
+            for k = 1:numel(L)
+                for j = 1:size(L{k}, 1)
+                    i = i + 1;
+                    sysName(i) = lay.systems(k).name;
+                    name(i) = string(L{k}{j, 2});  scope(i) = string(L{k}{j, 1});
+                    m = map.local{k}(j);
+                    if ~isempty(m.day), day(i) = m.day; end
+                    if ~isempty(m.arc), arc(i) = m.arc; end
+                    est(i) = L{k}{j, 5};  sd(i) = L{k}{j, 6};
+                end
+            end
+            T = table(sysName, name, scope, day, arc, est, sd, 'VariableNames', ...
+                      {'System', 'Name', 'Scope', 'Day', 'Arc', 'Estimate', 'Std'});
+        end
+
         function h = requireHistory(obj, caller)
         %REQUIREHISTORY  Return R.history, or explain clearly why there is none.
         %   A Results from a SINGLE solve legitimately has no iteration history,
