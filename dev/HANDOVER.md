@@ -12852,7 +12852,7 @@ relabelling at run time, so the Manual cites the makeLoader ids and says how fit
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 160 | `lsqvce.TaskDefinition` and its companions `SystemDefinition`, `Noise`, `DayContext`, `DayData`: flat add-calls with name-value arguments, Prepare on the system (once per system and day), Build on the stream (once per stream and day), both called `(day, ctx)`; local partials by name (`Local=`) or as a raw `B=` with columns from `ctx.cols`; compiled to the v6.35.1 data struct; `fit` accepts a TaskDefinition; a new suite with the bitwise equivalence against a hand-written v6 struct | 159 | IN PROGRESS (2026-11-02) |
+| 160 | `lsqvce.TaskDefinition` and its companions `SystemDefinition`, `Noise`, `DayContext`, `DayData`: flat add-calls with name-value arguments, Prepare on the system (once per system and day), Build on the stream (once per stream and day), both called `(day, ctx)`; local partials by name (`Local=`) or as a raw `B=` with columns from `ctx.cols`; compiled to the v6.35.1 data struct; `fit` accepts a TaskDefinition; a new suite with the bitwise equivalence against a hand-written v6 struct | 159 | GREEN IN BRANCH (2026-11-02: CI on 20fc844 ci_gate 811/811, inventory lsqvce:internal:testProbe only; local postflight on 20fc844 GREEN 811/811) -- DONE on the level's merge |
 | 161 | Manual and API reference rewritten around TaskDefinition; every example and template migrated; migration table v6 -> v7; old wording in superseded_claims.csv | 160 | OPEN |
 | 162 | The raw data struct leaves the user tier: `fit` and `layout` refuse it with a pointer to the migration table; tiers, Contents, help index; version 7.0.0 (BREAKING) | 161 | OPEN |
 
@@ -12914,4 +12914,7 @@ clone on the user's PC).**
   every parameter a TaskDefinition can return a MATLAB table (Name, Scope, Day, Arc, Estimate,
   Std) -- proposed for WP-161 with the documentation. Per-example equivalence comes with
   WP-161's migration of the examples (the migrated example against its v6 declaration).
-
+- CI round 1 (553d9b5): RED 810/811 -- test_ci_gate's WP-145 lock named the suite's two
+  `evalc('disp(...)')` captures, which did not pass their text to echoWarnings; a gap in my own
+  pre-push run (only the new suite was run). Fixed in 20fc844. Round 2: CI GREEN 811/811; local
+  postflight (tier A, `matlab -batch` ci_gate in the separate clone) GREEN 811/811, 286 s.
