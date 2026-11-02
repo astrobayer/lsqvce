@@ -2,7 +2,7 @@
 
 This chapter introduces the vocabulary the rest of the Manual uses. It has no code to run.
 Read it once before the tutorial. The words in **bold** are the names you will meet as
-field names, options and chapter titles.
+method names, options and chapter titles.
 
 ## The adjustment in one paragraph
 
@@ -15,13 +15,13 @@ again until the weights settle. lsqvce does all of that in one call, `lsqvce.fit
 
 ## Three kinds of problem
 
-`fit` recognises the kind of your problem from the fields of `data`:
+Every problem is declared as one `lsqvce.TaskDefinition`, made in one of three ways:
 
-| kind | fields you give | use it when |
+| kind | made with | use it when |
 |---|---|---|
-| **matrices** | `A`, `l`, `p` | the whole design matrix fits in memory |
-| **batched** | `batchFcn`, `numBatches`, `numUnknowns` (or `x0`) | it does not fit, or the model is nonlinear; your function returns one block of rows at a time |
-| **streaming** | `commonParams`, `days`, `systems` | the data come per day and per arc, from several instruments, with nuisance parameters and correlated noise |
+| **matrices** | `TaskDefinition.fromMatrices(A, l, Weights=p)` | the whole design matrix fits in memory |
+| **batched** | `TaskDefinition.fromBatches(@batchFcn, NumBatches=K, NumUnknowns=u)` (or `X0=x0`) | it does not fit, or the model is nonlinear; your function returns one block of rows at a time |
+| **streaming** | `TaskDefinition(Days=...)` and its `add` calls | the data come per day and per arc, from several instruments, with nuisance parameters and correlated noise |
 
 The first two are ordinary least squares with diagnostics. The streaming kind is what the
 toolbox is built for, and the rest of this chapter describes it.
@@ -30,39 +30,40 @@ toolbox is built for, and the rest of this chapter describes it.
 
 Ask of every unknown: *over what span is it constant, and who sees it?*
 
-- **Common parameters** (`data.commonParams`) are seen by all data, for example the
+- **Common parameters** (`task.addCommon`) are seen by all data, for example the
   gravity-field coefficients or station coordinates. They are what you want to know.
-- **Local parameters** (`localParams` of a system) belong to one **arc**, one **day** or
+- **Local parameters** (`sys.addLocal` of a system) belong to one **arc**, one **day** or
   one **system**, for example an initial orbit state, an accelerometer bias, or a
   per-arc offset. They are nuisance parameters. The toolbox eliminates them arc by arc
   while it reads the data, so their number does not cost memory.
 
-You declare both as tables with one row per *kind* of parameter. Column 1 is the scope
-(`'common'`, `'day'`, `'arc'` or `'system'`); the other columns are yours (a name, a
-degree and order, whatever helps you). The toolbox instantiates each row once per scope
-and counts the columns itself: you never compute a column index by hand.
+You declare both **by name and scope**: `Scope="common"`, `"day"`, `"arc"` or `"system"`
+says over which span the parameter is constant. A declared name is a template: the
+toolbox instantiates it once per scope (an `"arc"` local once per arc) and counts the
+columns itself. Your code refers to parameters by name; you never compute a column index.
 
 ## Data: systems, days, arcs and streams
 
 ```
-data
-├── commonParams          what everybody estimates
-├── days                  the calendar, e.g. 1:30
-└── systems(k)            one per satellite, receiver, or instrument group
-     ├── localParams      its nuisance parameters
-     ├── covariance.<type>  one noise law per observation type  ──►  the streams
-     ├── prepareDay       (optional) the work all its streams of a day share
-     └── buildDay         the rows of one day and one observation type
+task = lsqvce.TaskDefinition(Days=1:30)       the calendar
+├── addCommon(names)                            what everybody estimates
+├── addPrior(name, ...)                         priors on the common parameters
+└── addSystem(name, Prepare=@p)                 one per satellite, receiver, instrument group
+     ├── Prepare                                (optional) once per day: what its streams share
+     ├── addLocal(names, Scope=...)             its nuisance parameters
+     ├── addPrior(name, ...)                    priors on its local parameters
+     └── addStream(name, Build=@b, Noise=...)   one per observation type  ──►  the streams
+          └── Build                             once per day: the rows of this stream
 ```
 
 - A **system** is one source of data with its own nuisance parameters, for example one
   satellite, or a satellite pair whose inter-satellite ranging depends on both orbits.
 - A **day** is the unit of reading. The toolbox asks for the data of one day at a time.
-- An **observation type** is a kind of measurement within a system, for example `'pos'`
-  and `'kbr'`. The observation types are the field names of the system's `covariance`
-  struct. Each (system, observation type) pair is one **stream**.
+- An **observation type** is a kind of measurement within a system, for example `"pos"`
+  and `"kbr"`. Each `addStream` declares one; each (system, observation type) pair is one
+  **stream**, with its own `Build` function and its own noise law.
 - An **arc** is one continuous piece of a stream on a day. The noise is correlated
-  within an arc and independent between arcs. `buildDay` returns one cell per arc.
+  within an arc and independent between arcs. `Build` adds the day's arcs one by one.
 
 ## The two functions you write
 
@@ -71,33 +72,34 @@ demand. This is what keeps memory small, but it has one consequence: **the toolb
 your functions more than once for the same day**, so they must return the same result
 every time.
 
-**`buildDay`** (required) returns the design rows and observations of one day for one
-observation type:
+**`Build`** (one per stream, required) returns the arcs of one day of its stream:
 
 ```matlab
-D = buildDay(day, obsType, common, local, procOpt, info)
-%   D.A{a}  design of the common parameters, arc a      (m_a x nc)
-%   D.B{a}  design of the local parameters,  arc a      (m_a x nl)
-%   D.l{a}  observed minus computed                     (m_a x 1)
-%   D.t{a}  epochs in seconds                           (m_a x 1)
+out = build(day, ctx)            % given to addStream(..., Build=@build)
+%   out = ctx.newDay();
+%   out.addArc(A, l, t, Local={names, P})   once per arc:
+%      A  design of the common parameters   (m x nc, columns in addCommon order)
+%      l  observed minus computed           (m x 1)
+%      t  epochs in seconds                 (m x 1)
+%      Local  the partials of local parameters, by name
 ```
 
-**`prepareDay`** (optional) does the work that every stream of a day shares, *once* per
-day, before the first `buildDay` of that day. Its result reaches every `buildDay` of the
-day as `procOpt.prepared`:
+**`Prepare`** (one per system, optional) does the work that every stream of a day
+shares, *once* per day, before the first `Build` of that day. Its result reaches every
+`Build` of the day as `ctx.Prepared`:
 
 ```matlab
-P = prepareDay(day, common, local, procOpt, info)
+P = prepare(day, ctx)            % given to addSystem(..., Prepare=@prepare)
 ```
 
-Without `prepareDay`, a system with two observation types computes anything they share
-twice per day: an orbit integration, a large file read, a coordinate rotation. With it,
-the shared work happens once per build of the day. The tutorial uses it; chapter
-*Declaring your problem* shows when it pays.
+Without `Prepare`, a system with two streams computes anything they share twice per day:
+an orbit integration, a large file read, a coordinate rotation. With it, the shared work
+happens once per build of the day. The tutorial uses it; chapter *Declaring your problem*
+shows when it pays.
 
-Both functions take *as many arguments as they declare*. `@(day, obsType)` is a valid
-`buildDay` when you need nothing else. `info`, the 6th argument, tells you where each
-block of local parameters sits in `B`.
+Both receive the same two arguments: the day and a `lsqvce.DayContext`, `ctx`, which
+carries the names of the system and stream, your `Settings`, the arc schedule of the day
+(`ctx.ArcIds`) and the parameter names, and finds columns by name (`ctx.cols`).
 
 ## What `fit` does with them
 
@@ -106,9 +108,9 @@ For a run with `Estimate = "noise"`, `fit` repeats one **pass** until the noise 
 ```
 for every pass
     for every system and every day
-        P = prepareDay(day, ...)                  once per day (if declared)
-        for every observation type
-            D = buildDay(day, obsType, ...)       the day's rows, with procOpt.prepared = P
+        P = Prepare(day, ctx)                     once per day (if declared)
+        for every stream
+            out = Build(day, ctx)                 the day's arcs, with ctx.Prepared = P
             whiten every arc with the stream's current noise law
             eliminate the local parameters of the arc
             add the arc to the normal equations of the common parameters
@@ -126,11 +128,12 @@ the two reads.
 
 ## The noise model
 
-Each stream has a **noise law** (`covariance.<type>`): how its errors correlate from
-epoch to epoch (`type`), and how large they are (`sigma`). On top of that, every arc can
-have its own **arc factor**, which catches one bad pass without spoiling the whole stream.
-With `Estimate = "noise"` the toolbox estimates all of them. You start from an honest
-guess, usually white noise (`type = 'diag'`) with a realistic `sigma`.
+Each stream has a **noise law** (`addStream(..., Noise=lsqvce.Noise.<law>(...))`): how
+its errors correlate from epoch to epoch (the law) and how large they are (its `sigma`).
+On top of that, every arc can have its own **arc factor**, which catches one bad pass
+without spoiling the whole stream. With `Estimate = "noise"` the toolbox estimates all of
+them, as far as the stream's `Estimate` setting allows. You start from an honest guess,
+usually white noise (`lsqvce.Noise.white(sigma)`) with a realistic `sigma`.
 
 The result of all weights together is summarised by **σ₀** (`R.sigma0`), the a-posteriori
 standard deviation of unit weight. A σ₀ near 1 means the declared and the observed noise
@@ -158,18 +161,22 @@ The verdict is one of `PASS`, `PASS WITH WARNINGS`, `SUSPECT` and `INVALID` (see
 
 | term | meaning |
 |---|---|
-| arc | a continuous piece of one stream on one day; one cell of `buildDay`'s output |
+| arc | a continuous piece of one stream on one day; one `addArc` of its `Build` |
 | arc factor | a variance factor of one arc, estimated on top of the stream's level |
-| common parameter | an unknown seen by all data (`data.commonParams`) |
-| `Cep` | per-epoch accuracy delivered with the data (`D.Cep`), relative to the law's `sigma` |
+| Build | the function of a stream that returns its arcs of one day (`addStream`) |
+| common parameter | an unknown seen by all data (`task.addCommon`) |
+| context | the `lsqvce.DayContext` your Prepare and Build receive: names, settings, schedule, columns |
 | day | the unit in which the toolbox reads data |
 | local parameter | a nuisance unknown of one arc, day or system, eliminated on the fly |
-| observation type | a kind of measurement within a system; a field name of `covariance` |
+| observation type | a kind of measurement within a system; the name of an `addStream` |
 | pass | one solve plus one update of the noise model |
 | pool | streams that share one estimated spectral shape (`Options.Pool`) |
-| prior | pseudo-observations on the parameters (`data.priors`): datum, regularisation |
+| Prepare | the function of a system that computes, once per day, what its streams share |
+| prior | pseudo-observations on the parameters (`addPrior`): datum, regularisation |
 | redundancy | how much of an observation is checked by the others (0 to 1) |
+| `Sigma` | per-epoch accuracy delivered with an arc (`addArc(..., Sigma=)`), relative to the law's `sigma` |
 | σ₀ | a-posteriori standard deviation of unit weight; about 1 when the weights are right |
 | stream | one (system, observation type) pair, with one noise law |
-| system | one source of data with its own local parameters (`data.systems(k)`) |
+| system | one source of data with its own local parameters (`task.addSystem`) |
+| task | the whole declaration: one `lsqvce.TaskDefinition` |
 | whitening | transforming correlated errors into uncorrelated ones before the solve |

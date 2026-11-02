@@ -3,12 +3,12 @@
 `lsqvce.Options` is a typed value class: every knob has a type, a range and a default,
 checked at assignment (`MATLAB:validators:*`) or at construction (`lsqvce:Options:*`).
 It says *how to run*; everything about the problem, including regularisation, is
-declared on `data`. Three equivalent spellings:
+declared on the task. Three equivalent spellings:
 
 ```matlab
-opts = lsqvce.Options(Estimate="noise", MaxPasses=6);   R = lsqvce.fit(data, opts);
+opts = lsqvce.Options(Estimate="noise", MaxPasses=6);   R = lsqvce.fit(task, opts);
 opts.Noise.Grid = 120;                                   % change one later (validated)
-R = lsqvce.fit(data, Estimate="noise", MaxPasses=6);     % name-value pairs straight on fit
+R = lsqvce.fit(task, Estimate="noise", MaxPasses=6);     % name-value pairs straight on fit
 ```
 
 `disp(opts)` lists every knob, marking the defaults with `*`.
@@ -45,8 +45,8 @@ R = lsqvce.fit(data, Estimate="noise", MaxPasses=6);     % name-value pairs stra
 The hook receives one struct: `driver`, `pass`, `x`, `Cxx`, `sigma0`, `s0sq`; the loop
 state (noise loop: `S`, `Sgroups` (the bin spectra), `C`, `Cgroups`, `sigma2`, `arcKeys`, `streams`, `sigma`, `white`,
 `whitePval`, `maxDev`, `binRatio`, `xStep`, `skips`; IRLS: `factor`, `keys`, `scale`, `dx`; Gauss–Newton:
-`vPv`, `dxRel`, `lambda`); `acc`, the live accumulator; `data`, the declaration as
-passed to `fit`; `processingOptions{k}`, system k's as declared. Return nothing to
+`vPv`, `dxRel`, `lambda`); `acc`, the live accumulator; `data`, the compiled declaration (`task.declaration()` when `fit` was given a
+`lsqvce.TaskDefinition`); `processingOptions{k}`, system k's as declared. Return nothing to
 continue, `false` to stop after the pass (`R.stopReason = "userStop"`). An error in the
 hook arrives as `lsqvce:callUser:threw` with your error as its cause.
 
@@ -96,7 +96,7 @@ is merged onto the defaults; an unknown field is refused
 | `DistributeDays` | `false` | distribute the day loop of the accumulation over workers (bitwise-identical fold order) |
 | `Threshold` | 8 | number of days below which distribution is not attempted |
 
-### `GaussNewton` — problems with `data.x0`
+### `GaussNewton` — `fromBatches(..., X0=x0)`
 
 | field | default | meaning |
 |---|---|---|

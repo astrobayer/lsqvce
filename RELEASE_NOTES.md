@@ -1,6 +1,6 @@
 # lsqvce release notes
 
-## Unreleased — level v7 (WP-160: `lsqvce.TaskDefinition`)
+## Unreleased — level v7 (WP-160, WP-161: `lsqvce.TaskDefinition`)
 
 No estimate changes. A new way to declare a task, compiled to the declaration of 6.35.1:
 
@@ -16,6 +16,34 @@ No estimate changes. A new way to declare a task, compiled to the declaration of
 - `TaskDefinition.fromMatrices` and `fromBatches` for in-memory tasks.
 - A fit of a task equals the fit of the equivalent struct bitwise. The struct stays accepted
   until the level closes with 7.0.0.
+- WP-161: the examples, templates, the Manual, the API reference, the README and the
+  landing page declare tasks; `R.toTable(task)` returns one table of every parameter
+  instance (`System`, `Name`, `Scope`, `Day`, `Arc`, `Estimate`, `Std`). The struct is the
+  API reference's last chapter, *The compiled declaration (engine tier)*.
+
+### Migrating a declaration from v6 to v7
+
+| v6 (`data` struct) | v7 (`lsqvce.TaskDefinition`) |
+|---|---|
+| `data = struct('A', A, 'l', l, 'p', p)` | `task = lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p)` |
+| `struct('batchFcn', f, 'numBatches', K, 'numUnknowns', u)` | `lsqvce.TaskDefinition.fromBatches(f, NumBatches=K, NumUnknowns=u)` |
+| `... 'x0', x0` (nonlinear) | `lsqvce.TaskDefinition.fromBatches(f, NumBatches=K, X0=x0)` |
+| `data.days = d` | `lsqvce.TaskDefinition(Days=d)` |
+| `data.commonParams` rows `{'common', name, ...}` / `{'day', ...}` | `task.addCommon(names, Scope="common"` or `"day", Valid=[s e], Info=T)` |
+| `data.paramColumns` | — (validity is `Valid=`, the name is the name) |
+| `data.systems(k)` with `name`, `id`, `days`, `processingOptions` | `sys = task.addSystem(name, Id=id, Days=d, Settings=s)` |
+| `systems(k).localParams` rows `{'arc' / 'day' / 'system', name, ...}` | `sys.addLocal(names, Scope="arc"`, `"day"` or `"system")` |
+| `systems(k).covariance.(obsType) = spec` | `sys.addStream(obsType, Build=@build, Noise=lsqvce.Noise.<law>(...))` |
+| spec `type 'diag' / 'arma' / 'psd' / 'acf' / 'var' / 'custom'` | `Noise.white / arma / psd / acf / var / custom` |
+| spec fields `estimate`, `arcFactors` | `addStream(..., Estimate=..., ArcFactors=...)` |
+| `systems(k).arcs` (number, ids, per-type struct, resolver) | `addSystem(..., Arcs=...)`, per stream `addStream(..., Arcs=...)` |
+| `systems(k).prepareDay = @(day, common, local, procOpt, info)` | `addSystem(..., Prepare=@(day, ctx))`; the result is `ctx.Prepared` |
+| `systems(k).buildDay = @(day, obsType, common, local, procOpt, info)`, one per system | one `Build=@(day, ctx)` per stream; `ctx.Day`, `ctx.Stream`, `ctx.Settings` |
+| `info.offsetOf`, `dayOffset`, `arcRows`, … | `Local={names, P}` on `addArc`, or `ctx.cols(names, Arc=id)` |
+| return `D` with cells `A`, `B`, `l`, `t`, `Cep`, `excluded`, `nAxis` | `out = ctx.newDay(); out.addArc(A, l, t, Local=..., Sigma=..., Excluded=..., Arc=a)`; the axis count is `addStream(..., Axes=d)` |
+| `data.priors` / `systems(k).priors` with `group`, `L`, `x0`, `sigma`, `from`, `name`, `estimate` | `task.addPrior(name, On=..., L=..., Value=..., Sigma=..., From=..., Estimate=...)` / `sys.addPrior(...)` |
+| `lsqvce.layout(data)` | `task.layout()` (adds `.name` to every column) |
+| `R.toTable(data)` (estimates written into the tables) | `R.toTable(task)` (one table) |
 
 ## 6.35.1 — 2026-10-29 (WP-159: the Manual for a first-time user; documentation drift)
 

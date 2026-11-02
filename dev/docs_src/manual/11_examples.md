@@ -1,7 +1,7 @@
 # The examples
 
 The folder `examples/` holds runnable demonstrations of the user path:
-build a `data` struct, choose `lsqvce.Options`, call `lsqvce.fit`, and read
+declare a `lsqvce.TaskDefinition`, choose `lsqvce.Options`, call `lsqvce.fit`, and read
 the `lsqvce.Results`. The folder `template/` holds starting points that you
 copy into your own project. Every example generates its own synthetic data
 from a seeded random stream, except `demo_gravfire`, which reads a private
@@ -17,8 +17,8 @@ path by itself.
 
 | Question | Example | Kind of data |
 |---|---|---|
-| I am new: what does a complete streaming run look like, and how do I use `prepareDay`? | `demo_tutorial` | streaming, one system, two streams |
-| How do I wire my own data into `data` and read the verdict? | `demo_workflow` (script) | batched; streaming recipe |
+| I am new: what does a complete streaming run look like, and where do `Prepare` and `Build` go? | `demo_tutorial` | streaming, one system, two streams |
+| How do I wire my own data into a task and read the verdict? | `demo_workflow` (script) | batched; streaming recipe |
 | What do the three data kinds look like in one call each? | `demo_fit` | in-memory, batched, streaming |
 | What does the report say when an adjustment is wrong in a specific way? | `demo_lsqvce` (script) | in-memory, one streaming case |
 | How do I tell the toolbox what I know about each stream's noise? | `demo_noisePolicy` | streaming, one system |
@@ -27,7 +27,7 @@ path by itself.
 | How do I declare system / sensor / day, with data gaps, and find a bad day? | `demo_sensors` | streaming, two systems |
 | What does a full noise-estimation run on multi-axis streams look like? | `demo_grace` (+ `demo_grace_dataLoader`) | streaming, two systems |
 | Does the noise estimation still work on a physically structured gravity design? | `demo_gravity` (+ `demo_gravity_dataLoader`, `demo_gravity_design`) | streaming, three systems |
-| How do I map a GRAVFIRE preprocessing bundle onto `data`? | `demo_gravfire` + `template/gravfire_data.m` | streaming, real bundle |
+| How do I map a GRAVFIRE preprocessing bundle onto a task? | `demo_gravfire` + `template/gravfire_data.m` | streaming, real bundle |
 | How do I build GRACE-FO range-rate observation equations from Level-1B files? | `template/kbr_variational.m` | streaming, real data |
 | What does each verbosity level print? | `demo_messaging` | streaming |
 | Should I use `Backend="normal"` or `Backend="qr"`? | `bench_qr_vs_normal` | batched |
@@ -35,12 +35,11 @@ path by itself.
 ## Suggested reading order
 
 0. **`demo_tutorial`**: the Manual's chapter *Your first adjustment*, as a file.
-1. **`demo_workflow`**, then **`demo_fit`**: the shape of `data`, the three
-   kinds, `lsqvce.Options`, and how to read `R.diag` and `R.report()`.
+1. **`demo_workflow`**, then **`demo_fit`**: the three constructors of a task, `lsqvce.Options`, and how to read `R.diag` and `R.report()`.
 2. **`demo_lsqvce`**: what the diagnostics say when something is wrong.
-3. **`demo_noisePolicy`**: the per-stream noise policy (`estimate`,
-   `arcFactors`).
-4. **`demo_priors`**: `lsqvce.layout` and declared regularisation.
+3. **`demo_noisePolicy`**: the per-stream noise policy (`Estimate`,
+   `ArcFactors` on `addStream`).
+4. **`demo_priors`**: `task.layout()` and declared regularisation.
 5. **`demo_combine`**, then **`demo_sensors`**: several systems, local
    parameters, data gaps, attribution by system, sensor and day.
 6. **`demo_grace`**, then **`demo_gravity`**: complete noise-estimation runs
@@ -57,12 +56,12 @@ Not every file in `examples/` is a demonstration. Three of them are
 
 | Helper | Called by | Returns |
 |---|---|---|
-| `demo_grace_dataLoader` | `demo_grace`, `demo_messaging` | `[cfg, data]`: a GRACE-FO-shaped declaration with a random design |
-| `demo_gravity_dataLoader` | `demo_gravity`, `demo_fit` | `[cfg, data]`: a gravity declaration with a physical design and planted truth |
+| `demo_grace_dataLoader` | `demo_grace`, `demo_messaging` | `[cfg, data, task]`: a GRACE-FO-shaped task with a random design (`data` is its compiled declaration, for the engine-tier tests) |
+| `demo_gravity_dataLoader` | `demo_gravity`, `demo_fit` | `[cfg, data, task]`: a gravity task with a physical design and planted truth (`data` as above) |
 | `demo_gravity_design` | `demo_gravity_dataLoader` | `[A, meta]`: spherical-harmonic potential partials along an orbit |
 
-Each helper also runs on its own and returns a ready `data` struct that you
-can pass to `lsqvce.fit`.
+Each helper also runs on its own and returns a ready task that you can pass to
+`lsqvce.fit`.
 
 `demo_workflow` and `demo_lsqvce` are **scripts**, not functions. They
 begin with `clear`, so they wipe the base workspace. Run them in a fresh
@@ -104,7 +103,7 @@ and is not part of the run.
 
 ---
 
-## `demo_tutorial`: your first streaming run, with `prepareDay`
+## `demo_tutorial`: your first streaming run, with `Prepare` and `Build`
 
 ```matlab
 [R, s] = demo_tutorial();
@@ -112,10 +111,11 @@ and is not part of the run.
 ```
 
 The file of the chapter *Your first adjustment*, line for line. One system watches a
-periodic signal with two instruments (`'gauge'`, white; `'radar'`, AR(1) but declared
-white) on two arcs a day for five days; every arc has an unknown offset. Its
-`prepareDay` computes the epochs and the signal basis of a day once, and both streams'
-`buildDay` read them from `procOpt.prepared`.
+periodic signal with two instruments (`"gauge"`, white; `"radar"`, AR(1) but declared
+white) on two arcs a day for five days; every arc has an unknown offset, the `"arc"` local
+`bias`. The system's `Prepare` (`prepareTutorialDay`) computes the epochs and the signal
+basis of a day once, and both streams' `Build` read them from `ctx.Prepared` and give the
+bias partial by name (`Local={"bias", ones(m, 1)}`).
 
 It runs `fit` twice — once under the declared noise, once with `Estimate = "noise"` — and
 prints the two estimates of the two common parameters against the planted truth. Both
@@ -129,9 +129,9 @@ level relative to the declared one, and the verdict. The test suite checks these
 
 ## `demo_workflow`: build your own case
 
-**Purpose.** This is the from-scratch recipe for wiring your own data into
-`data`, letting `lsqvce.fit` pick the engine from the shape of the struct,
-choosing what to estimate, and reading the result in the right order.
+**Purpose.** This is the from-scratch recipe for wiring your own data into a
+`lsqvce.TaskDefinition`, choosing what to estimate, and reading the result in the right
+order.
 
 **Run.** `demo_workflow` is a script with no arguments and no outputs. It
 runs `clear; clc; close all`. The help text recommends running it section by
@@ -139,12 +139,12 @@ section (Ctrl+Enter).
 
 **Outline and logic.** The script is organised as Sections 0 to 5:
 
-- *Section 0* lists the three kinds of `data`, which `lsqvce.fit` tells
-  apart by the fields present:
-  - in-memory: `A`, `l`, `p`;
-  - batched: `batchFcn`, `numBatches`, `numUnknowns`, or `x0` for the
-    nonlinear form;
-  - streaming: `commonParams`, `days`, `systems`.
+- *Section 0* lists the three ways to make a task:
+  - in memory: `lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p)`;
+  - batched: `lsqvce.TaskDefinition.fromBatches(@batchFcn, NumBatches=K,
+    NumUnknowns=u)`, or `X0=x0` for the nonlinear form;
+  - streaming: `lsqvce.TaskDefinition(Days=days)`, filled with `addCommon`,
+    `addSystem` (its `Prepare`), `addLocal` and `addStream` (its `Build` and `Noise`).
 
   It also states the batched callback contract
   `[A, l, p] = batchFcn(k)`, with `p` the weights `1./sigma.^2`. The
@@ -152,10 +152,10 @@ section (Ctrl+Enter).
   times.
 - *Section 1* synthesises 3000 observations with 8 unknowns and cuts them
   into 30 batches with a closure over precomputed batch edges. It
-  sanity-checks `batchFcn(1)` with an `assert` and builds
-  `data = struct('batchFcn', batchFcn, 'numUnknowns', u, 'numBatches', nb)`.
+  sanity-checks `batchFcn(1)` with an `assert` and makes
+  `task = lsqvce.TaskDefinition.fromBatches(batchFcn, NumBatches=nb, NumUnknowns=u)`.
 - *Section 2* is a decision tree in comments: which kind, and when to use
-  `Estimate="noise"`. It then runs `R = lsqvce.fit(data)` with default
+  `Estimate="noise"`. It then runs `R = lsqvce.fit(task)` with default
   options.
 - *Section 2b* reads the verdict in a fixed order:
   1. integrity, `R.diag.sumRRelErr`;
@@ -164,15 +164,15 @@ section (Ctrl+Enter).
   4. reliability.
 
   The one-line verdict comes from `R.report('Verbose', false).verdict`.
-- *Section 3* is a recipe only, with no runnable code. It shows the
-  streaming declaration with `commonParams`, scoped `localParams` and one
-  `covariance` field per observation type, and points to `demo_combine`,
-  `demo_sensors` and `demo_grace`.
+- *Section 3* is a recipe only, with no runnable code. It shows a streaming task with
+  `addCommon`, one `addSystem` with a `Prepare`, scoped `addLocal` calls and one
+  `addStream` per observation type with its `Build` and `Noise`, and points to
+  `demo_tutorial`, `demo_combine`, `demo_sensors` and `demo_grace`.
 - *Section 4* plants a second instrument group that is three times noisier
-  than claimed. It declares the two groups as two observation types of one
-  streaming system with one day. The inline `buildDay` returns one arc per
-  group, and the claimed per-row sigmas travel as `Cep`. Both covariance
-  specs are `struct('type','diag','sigma',1,'estimate',"scale")`. The run
+  than claimed. It declares the two groups as two streams `g1`, `g2` of one system
+  `"groups"` on one day, with commons `x1` … `x8`. Each stream's `Build` (the local
+  function `groupArc`) adds one arc and passes the claimed per-row sigmas as `Sigma`;
+  both streams declare `Noise=lsqvce.Noise.white(1), Estimate="scale"`. The run
   uses `Options(Estimate="noise", Pool="stream", ArcFactors=false)`. The
   script prints the recovered sigma ratio from `Rv.history.sigma(end,:)`
   (the truth is 3) and `Rv.sigma0`.
@@ -181,10 +181,10 @@ section (Ctrl+Enter).
 
 ## `demo_fit`: the three data kinds, one call each
 
-**Purpose.** This example shows every kind of `data` that `lsqvce.fit`
+**Purpose.** This example shows every kind of task that `lsqvce.fit`
 accepts, end to end on the user tier: `lsqvce.fit`, `lsqvce.Options`,
 `lsqvce.Results` and `R.report`. It also shows robust estimation, a datum
-declared as a prior, Gauss–Newton through `x0`, and watching a run with
+declared as a prior, Gauss–Newton through `X0`, and watching a run with
 `OnPass`.
 
 **Run.**
@@ -202,23 +202,23 @@ out = demo_fit(Verbose=false);     % silent
 **Logic.**
 
 1. **In-memory.** The data are 30 observations with
-   `A = [1, randn, randn]`, seeded with 17, and the call is
-   `data = struct('A',A,'l',l,'p',p)`. The same problem is then run with a
+   `A = [1, randn, randn]`, seeded with 17, and the task is
+   `lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p)`. The same problem is then run with a
    25-sigma gross error at row 7 and `Options(Robust="huber")`. The demo
    prints the IRLS weight factor of that row from
    `out.robust.history(end).factor(7)`.
 2. **Free network.** The problem has height differences between four
    points and is rank-deficient by a common level. The datum is declared
-   as `data.priors = struct('L', ones(1,4), 'x0', 0, 'sigma', 1)`. The demo
-   prints `L*x`. It then removes `priors` and prints the error identifier
-   with which `fit` refuses the problem.
+   as `task.addPrior("datum", L=ones(1,4), Value=0, Sigma=1)`. The demo
+   prints `L*x`. It then fits the same matrices without the prior and prints the
+   error identifier with which `fit` refuses the problem.
 3. **Batched, linear.** The same 30 rows are split into two batches with
-   `struct('batchFcn',bf,'numUnknowns',3,'numBatches',2)`.
+   `lsqvce.TaskDefinition.fromBatches(bf, NumBatches=2, NumUnknowns=3)`.
 4. **Batched, nonlinear.** The model is `l = exp(a t) + b`. The callback
-   `bfn(k, x)` returns the Jacobian at `x`, and `data.x0 = [0.5; 0]`
-   (the number of unknowns is `numel(x0)`). The options are
+   `bfn(k, x)` returns the Jacobian at `x`, and the task is
+   `fromBatches(bfn, NumBatches=2, X0=[0.5; 0])` (the number of unknowns is `numel(X0)`). The options are
    `Options(MaxPasses=15, Tolerance=1e-9)`, and the demo prints `[a; b]`.
-5. **Streaming.** `[cfg, data] = demo_gravity_dataLoader()` is solved once
+5. **Streaming.** The task of `demo_gravity_dataLoader()` is solved once
    with defaults (`out.gls`). It is then solved with
    `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=2, OnPass=watch)`,
    where `watch` prints `ctx.pass`, `ctx.maxDev` and `ctx.sigma` after
@@ -242,8 +242,8 @@ nothing is.
 It draws one figure in case 3.
 
 **Logic.** All cases share a setup of 2000 observations, 8 unknowns and
-per-row sigma in [0.5, 1.5], seeded with 2026. Each case fits an in-memory
-`struct('A',A,'l',l,'p',p)`:
+per-row sigma in [0.5, 1.5], seeded with 2026. Each case fits an in-memory task,
+`lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p)`:
 
 1. **Clean:** the baseline.
 2. **Outliers:** three gross errors at rows 137, 892 and 1455. The case
@@ -256,8 +256,9 @@ per-row sigma in [0.5, 1.5], seeded with 2026. Each case fits an in-memory
    The case prints `nFlag` and the redundancy number `rNum(500)`.
 5. **Wrong weights:** group 2 is three times noisier than claimed. The case
    prints `varRatio` and `nFlag`, then shows the cure: a streaming
-   declaration with two observation types `g1` and `g2` (local helper
-   `groupDay`) and `Estimate="noise", Pool="stream", ArcFactors=false`. It
+   task with two streams `g1` and `g2`, each declaring its group's per-row sigmas as
+   `Noise=lsqvce.Noise.white(sigma)` (its `Estimate` default is then `"scale"`; local
+   helper `groupDay`), and `Estimate="noise", Pool="stream", ArcFactors=false`. It
    prints the recovered sigma ratio (truth 3) and `sigma0`.
 6. **Collinear parameters:** column 2 is almost column 1. The case prints
    `R6.diag.corrMax`.
@@ -267,9 +268,8 @@ per-row sigma in [0.5, 1.5], seeded with 2026. Each case fits an in-memory
 
 ## `demo_noisePolicy`: what you know about each stream
 
-**Purpose.** This example shows the per-stream policy fields of a
-covariance spec. `estimate` is `"none"`, `"scale"` or `"law"`, and
-`arcFactors` is `true` or `false`. Each choice recovers a planted truth.
+**Purpose.** This example shows the per-stream policy of `addStream`.
+`Estimate` is `"none"`, `"scale"` or `"law"`, and `ArcFactors` is `true` or `false`. Each choice recovers a planted truth.
 For the policy semantics, see the chapter *Choosing the stochastic model*.
 
 **Run.**
@@ -286,7 +286,7 @@ For the policy semantics, see the chapter *Choosing the stochastic model*.
 - `.rho1`: the estimated and planted lag-1 correlation of `rr`;
 - `.arcFactor` and `.arcRatio`;
 - `.passes`;
-- `.badEstimate`: the identifier that a misspelt policy raises.
+- `.badEstimate`: the identifier with which `addStream` refuses a misspelt policy.
 
 **The case.** The data have one system, three days and three arcs a day of
 256 epochs (5 s), four common harmonic coefficients, and one `'arc'`-scoped
@@ -294,24 +294,26 @@ bias. There are four streams:
 
 | Stream | Truth | Declared | Policy |
 |---|---|---|---|
-| `gps` | white, sigma 0.2 | `diag`, 0.2 (correct) | `"none"` |
-| `acc` | AR(1), phi 0.85, level 0.5 | `psd` of the same filter, sigma 1 | `"scale"` |
-| `rr` | AR(1), phi 0.5 | `diag`, 1 (white) | `"law"` |
-| `mag` | white 0.3, arc 2 three times worse | `diag`, 0.3 | `"scale"`, `arcFactors = true` |
+| `gps` | white, sigma 0.2 | `Noise.white(0.2)` (correct) | `"none"` |
+| `acc` | AR(1), phi 0.85, level 0.5 | `Noise.psd(f, S)` of the same filter, level 1 | `"scale"` |
+| `rr` | AR(1), phi 0.5 | `Noise.white(1)` | `"law"` |
+| `mag` | white 0.3, arc 2 three times worse | `Noise.white(0.3)` | `"scale"`, `ArcFactors=true` |
 
 **Implementation.**
 
-- `policyData` builds the declaration. For `acc` it builds a `'psd'` law
-  from `firstOrderPsd`, which gives the one-sided PSD on a frequency grid.
-- `policyDay` is the six-argument `buildDay`. It uses `info.nl` and
-  `info.offsetOf(a)` to place the bias column, and it returns one cell per
-  arc.
-- `policyNoise` draws the planted noise from a stream seeded on day and
-  stream, so that `buildDay` is deterministic.
+- `policyTask` declares the task: one system `"policy"` with the `"arc"` local `bias`
+  and one `addStream` per stream, with its `Noise`, `Estimate` and `ArcFactors`. For
+  `acc` it builds a `psd` law from `firstOrderPsd`, which gives the one-sided PSD on a
+  frequency grid.
+- Every stream has its own `Build` (`buildGps`, `buildAcc`, `buildRr`, `buildMag`); all
+  four call `policyDay`, which places the bias column of each arc with
+  `ctx.cols("bias", Arc=id)` and adds the arc with `B=`.
+- `noiseSource` draws the planted noise from a stream seeded on day and
+  stream, so that every `Build` is deterministic.
 - All four policies run in one call with
   `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=o.maxPasses, Noise=struct('Smooth', 1))`.
   `ArcFactors=false` is the run default. `mag` overrides it on its own
-  spec. The loop converges in 3 passes. Without the smoothing, the 60-bin
+  `addStream`. The loop converges in 3 passes. Without the smoothing, the 60-bin
   law of `rr` needed 14 passes and settled on the same values to three
   digits.
 
@@ -322,7 +324,8 @@ bias. There are four streams:
 - The lag-1 correlation of `rr` from `R.noise.Cgroups`.
 - The mean arc factor per arc of `mag` from `R.noise.model{k}.sigma2`, and
   the ratio of the bad arc to the good arcs (planted: 9).
-- The identifier with which `fit` refuses `estimate = "shape"`.
+- The identifier with which `addStream` refuses `Estimate="shape"`
+  (`MATLAB:validators:mustBeMember`), before any data is read.
 - `R.summary()`.
 
 The help block records the measured values of one run. For example, `gps`
@@ -333,8 +336,8 @@ because the level absorbs their mean.
 ## `demo_priors`: regularisation in the announced layout
 
 **Purpose.** In a scoped declaration you do not know in advance which
-column of `A` or `B` an unknown ends up in. `lsqvce.layout(data)` announces
-the layout before `fit` runs, so you can write a prior operator `L` in
+column of `A` or `B` an unknown ends up in. `task.layout()` announces
+the layout, with every column's name, before `fit` runs, so you can write a prior operator `L` in
 those columns. For the full reference, see the chapter *Priors and regularisation*.
 
 **Run.**
@@ -353,38 +356,41 @@ those columns. For the full reference, see the chapter *Priors and regularisatio
 - `.nPseudo`, `.formGap`, `.datumGap` and `.priorLevel`.
 
 **The case.** The data have four harmonic signal coefficients (`'common'`)
-and one offset per day (a `'day'` row of `commonParams`). The system has
-two `'arc'` rows (bias, drift) and one `'system'` row (a scale on a known
-auxiliary series). There are three days with two arcs of 150 epochs each.
+and one offset per day (`task.addCommon("offset", Scope="day")`). The system has
+two `"arc"` locals (`bias`, `drift`) and one `"system"` local (`tempScale`, a scale on a
+known auxiliary series). There are three days with two arcs of 150 epochs each.
 The day offset and the arc biases cannot be separated, so the normal
 matrix has one null direction per day.
 
 **Logic.**
 
-1. Call `lay = lsqvce.layout(data)`. Print `lay.nc`, `lay.systems(1).nl`
-   and the column map from `lay.common` and `lay.systems(1).local`, and
+1. Call `lay = task.layout()`. Print `lay.nc`, `lay.systems(1).nl`
+   and the column map from the names in `lay.common` and `lay.systems(1).local`, and
    find the day-offset columns with `lay.colCommon(row, day)`.
 2. Count the null directions on a densely assembled `[A B]` (`rank`). Fit
    without priors and record the refusal identifier.
-3. Declare two common groups in `data.priors`: a tight `'datum'` (the
-   offsets average to zero) and a loose `'smooth'` (first differences),
-   both with `estimate "none"`.
-4. Declare a local group `'drift'` on `data.systems(1).priors`, written
-   once through `lay.systems(1).col(row, day, arc)` and once as the
-   pattern `group = '^drift$'`. Both solutions are compared.
-5. Move the datum (`x0 = 0.5`) and measure that the signal stays put while
+3. Declare two common groups with `task.addPrior`: a tight `"datum"` (the
+   offsets average to zero) and a loose `"smooth"` (first differences),
+   both `L=` operators with `Estimate="none"`.
+4. Declare a local group `"drift"` with `sys.addPrior`, written
+   once as `L=` through `lay.systems(1).col(row, day, arc)` and once as the
+   pattern `On="^drift$"`. Both solutions are compared.
+5. Move the datum (`Value = 0.5`) and measure that the signal stays put while
    the offsets move.
 6. Run `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4)`
-   with the drift group at `estimate "scale"`. The group appears as its
+   with the drift group at `Estimate="scale"`. The group appears as its
    own stream `x1|prior_drift`, and its level is printed.
 
 **Implementation.**
 
-- `priorData` builds the declaration.
-- `priorDay` is the six-argument `buildDay`. It uses
-  `info.commonDayOffset`, `info.sysOffset` and `info.offsetOf(a)`.
-- `nullDimension` and `layoutInfo` assemble the dense rank check. That
-  check is for demonstration only; in your own code `fit` supplies `info`.
+- `calibTask` declares the instrument without priors; every variant (no priors, the
+  datum, the `L` form, the `On` form, the moved datum, the noise run) is a task of its
+  own, and `addDatum` adds the two common groups.
+- `buildCalib` is the stream's `Build`. It takes every column from `ctx.cols` — the
+  commons, this day's offset, `tempScale`, and each arc's `bias` and `drift` with
+  `Arc=id` — and hands them to `priorArcs`, which builds the arcs with `B=`.
+- `nullDimension` assembles the dense rank check, calling the same `priorArcs` with the
+  columns of the layout. That check is for demonstration only.
 - `fitWithoutGroups` gives the pseudo-observation count.
 - `R.coefficients().se` gives the z-scores of the signal.
 
@@ -404,14 +410,12 @@ local only if exactly one data set observes it.
 - The data have six common unknowns and three systems with 12, 8 and 15
   `'system'`-scoped locals. The systems have 40, 30 and 50 days of 25
   observations each, with unit noise, seeded with 2026.
-- Each `data.systems(i)` has:
-  - `buildDay`: from `makeBuildDay`, which reads the pre-generated rows,
-    one arc per day;
-  - `covariance.obs = struct('type','diag','sigma',1)`;
-  - `localParams`;
-  - its own `days`;
-  - `name`.
-- One call `lsqvce.fit(data, lsqvce.Options(Verbose=false))`.
+- The task has no calendar of its own; each `task.addSystem(name, Days=1:nDay(i))`
+  carries its own, with its `"system"` locals (`addLocal(names, Scope="system")`) and one
+  stream `"obs"`, `Noise=lsqvce.Noise.white(1)`.
+- Each stream's `Build` comes from `makeBuild`, which reads the pre-generated rows, one
+  arc per day, and places the locals with `ctx.cols(localNames)`.
+- One call `lsqvce.fit(task, lsqvce.Options(Verbose=false))`.
 
 **Output.**
 
@@ -426,9 +430,9 @@ local only if exactly one data set observes it.
 
 **Purpose.** This example declares the full hierarchy:
 
-- a system is an entry of `data.systems`;
-- a sensor is an observation type, one field of `covariance`;
-- a day is an entry of `data.days`.
+- a system is one `task.addSystem`;
+- a sensor is one stream of its system, `sys.addStream`;
+- a day is an entry of the task's `Days`.
 
 It shows a data gap, finds a bad day through one variance factor per
 sensor-day, and then estimates the per-sensor noise levels without that day.
@@ -450,8 +454,9 @@ sigma 1. GRACE-D's LRI is missing on days 4–5, and GRACE-C's KBR carries a
 **Logic.**
 
 1. Generate the data into a `containers.Map` per system.
-2. Declare the data. `s.arcs` is a resolver from `makeSchedule` that
-   returns no arcs on an outage day, which is how a data gap is declared.
+2. Declare the task. Each system's `Arcs` is a resolver from `makeSchedule` that
+   returns no arcs on an outage day, which is how a data gap is declared. Every sensor
+   is a stream with `Noise=lsqvce.Noise.white(1)`, the claim.
 3. Solve once with `Options(Verbose=false)` and print `R.sigma0` (the
    symptom).
 4. Find the bad day. Run
@@ -483,23 +488,24 @@ synthetic problem with three-axis position streams and a scalar
 inter-satellite stream. Every stream starts from a deliberately wrong
 a-priori model: white noise with sigma 1. The help text calls it the
 copy-paste starting point. To use it on your data, replace the loader with
-your own `buildDay` and `data`.
+your own task and its `Build` functions.
 
 **Run.**
 
 ```matlab
 R = demo_grace();                                  % maxPasses 10, verbose true
 R = demo_grace('maxPasses', 8, 'verbose', false);
-[cfg, data] = demo_grace_dataLoader();             % the declaration alone
+[cfg, ~, task] = demo_grace_dataLoader();          % the task alone
 ```
 
 **Outline.** `demo_grace` holds the run and the reading.
 `demo_grace_dataLoader` holds the declaration, with the local functions:
 
-- `graceData`, `demoCfg` and `whiteCov`;
-- `demoBuildDay`, the five-argument form
-  `(day, obsType, common, local, procOpt)`;
-- `commonParamTable` and `localParamTable`;
+- `graceTask` (the task), `demoCfg` (the planted truth) and `catalogueInfo`;
+- one `Build` per stream, `buildPosC`, `buildPosD`, `buildRr`, `buildPosE`, all calling
+  `graceDay`, which draws the day and places each satellite's locals with
+  `ctx.cols(satelliteLocals(ctx, sat))`;
+- `commonParamTable` and `localParamTable`, the demo's 15-column catalogues;
 - the generators `A_design`, `B_design` and `colouredNoise`.
 
 **The declaration.** There are two systems:
@@ -514,14 +520,15 @@ Both systems share six common unknowns. The data cover four days with two
 arcs a day and 300 epochs per arc (5 s). The planted sigmas are 0.8, 1.3,
 1.6 and 1.1.
 
-The parameter tables have 15 columns. Column 1 is the scope token
-(`'common'` or `'system'`), and the other 14 follow this demo's own
-convention, listed in the loader's help. `processingOptions` is passed as
-the fifth argument.
+The demo keeps its own 15-column parameter catalogue: column 3 names each parameter
+(`addCommon` / `addLocal` with `Scope="system"`), and the other columns become the
+template's `Info`; a `Build` finds a satellite's locals through
+`ctx.Local.Info{k}.satellite`. The run settings (epochs, step, arcs per day, seed) are
+the systems' `Settings`, read as `ctx.Settings`. Every stream declares
+`Noise=lsqvce.Noise.white(1)`, the position streams with `Axes=3`.
 
-For the position streams, `buildDay` returns the per-epoch 3×3 covariance
-as `D.Cep`, and the toolbox combines it with the temporal law. Rows are in
-epoch-major order. `buildDay` returns one cell per arc.
+For the position streams, each arc carries the per-epoch 3×3 covariance as `Sigma=`,
+and the toolbox combines it with the temporal law. Rows are in epoch-major order.
 
 **Run options and output.** The run uses
 `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=o.maxPasses, Tolerance=1e-3, Noise=struct('Smooth', 1))`.
@@ -579,8 +586,9 @@ An `ExportDir` that does not exist is an error. The help states a cost of about 
 - `demo_gravity` runs the problem and reads it. Its local functions are
   `section`, `streamType`, `degreeVariances`, `plotDegreeVariances`,
   `plotCoefficientErrors` and `exportIf`.
-- `demo_gravity_dataLoader()` returns `[cfg, data]`. Its local functions
-  are `gravityData`, `gravityCfg`, `buildGravityDay` and `arcOrbit`.
+- `demo_gravity_dataLoader()` returns `[cfg, data, task]`. Its local functions
+  are `gravityTask`, `gravityCfg`, one `Build` per stream (`buildPotC`, `buildPotD`,
+  `buildKbr`, all calling `gravityArcs`) and `arcOrbit`.
 - `demo_gravity_design(nmax, orbit)` returns `[A, meta]`. `A` has
   `(nmax+1)^2 - 4` columns (degrees 2..nmax, C and S terms). `meta.n`,
   `meta.m` and `meta.cs` label the columns. `orbit` needs the fields `u`,
@@ -589,8 +597,8 @@ An `ExportDir` that does not exist is an error. The help states a cost of about 
 
 **The declaration.** The field goes to degree `nmax = 8`, which gives 77
 coefficients. The planted field follows a closed formula plus one anomaly at
-(5, 3, C). `commonParams` has four columns: the scope token, `n`, `m` and
-the C/S term.
+(5, 3, C). The commons are named by term, degree and order (`"C2_0"`, `"S2_1"`, …) and
+carry `degree`, `order` and `term` as `Info`.
 
 There are three systems:
 
@@ -600,17 +608,18 @@ There are three systems:
 | `GRACE-D` | `potD`, trailing C along-track | 3 |
 | `KBR` | `kbr`: the potential difference D − C, whose design couples both orbits | 1 |
 
-The locals are `'arc'`-scoped. The arc schedule is ragged: 3, 4, 2, 4 and 3
-arcs per day. Arcs are missing by ID on days 3 and 5, and every arc has its
-own length between 140 and 220 epochs. Because of the `'arc'` rows, the
-schedule is declared as a resolver,
-`arcs = @(day, obsType) cfg.arcsOfDay{...}`.
+The locals (`bias`, `drift`, `quadratic`) are `"arc"`-scoped. The arc schedule is
+ragged: 3, 4, 2, 4 and 3 arcs per day. Arcs are missing by ID on days 3 and 5, and every
+arc has its own length between 140 and 220 epochs. Because of the `"arc"` locals, the
+schedule is declared on each system as a resolver,
+`Arcs=@(day, ~) cfg.arcsOfDay{...}`.
 
-The declared covariance has the right AR shape and unit sigma. The planted
-sigmas are 1.0, 2.0 and 0.5.
+The declared noise has the right AR shape and unit sigma (`lsqvce.Noise.arma` for the
+potential streams, `lsqvce.Noise.white` for `kbr`). The planted sigmas are 1.0, 2.0 and
+0.5.
 
-`buildGravityDay` is the six-argument form. It reads `arcInfo.nl` and
-`arcInfo.offsetOf(a)` and returns one cell per scheduled arc.
+`gravityArcs` adds one arc per scheduled id of `ctx.ArcIds`, with the locals' columns
+from `ctx.cols(names, Arc=a)`.
 
 **Run options and output.** The run uses
 `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=opt.MaxPasses, Noise=struct('Smooth', 1))`.
@@ -908,8 +917,8 @@ bench_qr_vs_normal('u', [10 50 100], 'n', 2e5, 'nk', 5000)
 
 There are no outputs; the benchmark prints two tables.
 
-**Logic.** Both runs use the same batched declaration,
-`struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nb)`, with
+**Logic.** Both runs use the same batched task,
+`lsqvce.TaskDefinition.fromBatches(src, NumBatches=nb, NumUnknowns=u)`, with
 `Options(Backend="normal")` and `Options(Backend="qr")`.
 
 1. **Timing.** For each `u`, the benchmark times both runs, keeping the

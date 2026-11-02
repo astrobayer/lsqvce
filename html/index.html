@@ -61,7 +61,8 @@ O(u&sup2;&middot;nk) time and O(u&sup2; + nk) memory per batch.</p>
 <pre class="example">% batchFcn(k) returns the k-th batch: A (nk x u), l (nk x 1), p (nk x 1)
 src = @(k) deal(A(idx{k},:), l(idx{k}), p(idx{k}));
 
-R = lsqvce.fit(struct('batchFcn', src, 'numUnknowns', u, 'numBatches', numel(idx)));
+task = lsqvce.TaskDefinition.fromBatches(src, NumBatches=numel(idx), NumUnknowns=u);
+R = lsqvce.fit(task);
 V = R.report();
 
 if ~strcmp(V.verdict, 'PASS')
@@ -74,40 +75,41 @@ once to diagnose &mdash; and must return identical data both times. This is
 checked; a mismatch is an error, not a silent misattribution.</div>
 
 <div class="note"><b>Not sure which front door to use?</b> There is only one:
-<code>lsqvce.fit</code> reads the KIND from the shape of your <code>data</code>
-struct. <a href="lsqvce_api.html">The API reference</a> is the binding
+<code>lsqvce.fit</code> takes one <code>lsqvce.TaskDefinition</code>, made by its
+constructor (streaming) or by <code>fromMatrices</code> / <code>fromBatches</code>. <a href="lsqvce_api.html">The API reference</a> is the binding
 specification; the runnable build-your-own-case guide is
 <code>examples/demo_workflow.m</code>.</div>
 
 <div class="note"><b>New to lsqvce?</b> Run <code>demo_tutorial</code> and read the
 <a href="lsqvce_manual.html">Manual</a>'s chapters <i>Key concepts</i> and <i>Your first
 adjustment</i> beside it: a complete streaming run in one file, with a
-<code>buildDay</code> and a <code>prepareDay</code> you can replace by your own reader.</div>
+system <code>Prepare</code> and two stream <code>Build</code> functions you can replace by your own
+reader.</div>
 
 <div class="note"><b>Starting your own case?</b> Copy
 <code>examples/demo_tutorial.m</code> for a streaming case, or
-<code>examples/demo_fit.m</code> for the user path (a plain <code>data</code>
-struct through <code>lsqvce.fit</code>). Two other starting
+<code>examples/demo_fit.m</code> for the in-memory and batched kinds
+(<code>fromMatrices</code>, <code>fromBatches</code>). Two other starting
 points exist for narrower jobs: <code>template/lsqvce_template.m</code> is the
 ENGINE-tier Loader skeleton with one documented stub (<code>myBuildDay</code>),
 and <code>template/gravfire_data.m</code> maps a GRAVFIRE preprocessing bundle
-onto the declaration. The GRACE-FO example
+onto a task. The GRACE-FO example
 (<code>examples/demo_grace_dataLoader.m</code>) is a worked case to read
 alongside any of them.</div>
 
 <h2>Gravity recovery workflow</h2>
-<pre class="example">% one system per satellite pair: its streams share the day's orbit integration
-s.prepareDay = @prepareGracePair;      % P = prepareGracePair(day, common, local, procOpt, info)
-s.buildDay   = @buildDayGracePair;     % reads procOpt.prepared, returns one cell per arc
-s.covariance.posC = struct('type', 'diag', 'sigma', 0.02);
-s.covariance.posD = struct('type', 'diag', 'sigma', 0.02);
-s.covariance.kbr  = struct('type', 'diag', 'sigma', 1e-7);
-s.arcs = @(day, obsType) arcSchedule(day);
-s.localParams = localTemplates;        % initial states, KBR empiricals, ACC per day
-data.commonParams = [repmat({'common'}, nc, 1), shTable];
-data.days = 1:31;   data.systems = s;
+<pre class="example">task = lsqvce.TaskDefinition(Days=1:31);
+task.addCommon(shNames);                          % the gravity field coefficients
+% one system per satellite pair: its streams share the day's orbit integration
+pair = task.addSystem("grace", Prepare=@prepareGracePair, Arcs=@(day, stream) arcSchedule(day));
+pair.addLocal(["x0" "y0" "z0" "vx0" "vy0" "vz0"], Scope="arc");   % initial states
+pair.addLocal(["accScale" "accBias"], Scope="day");               % accelerometer per day
+pair.addStream("posC", Build=@buildPosC, Noise=lsqvce.Noise.white(0.02), Axes=3);
+pair.addStream("posD", Build=@buildPosD, Noise=lsqvce.Noise.white(0.02), Axes=3);
+pair.addStream("kbr",  Build=@buildKbr,  Noise=lsqvce.Noise.white(1e-7));
+% prepareGracePair(day, ctx) integrates once; every Build(day, ctx) reads ctx.Prepared
 
-R = lsqvce.fit(data, Estimate="noise", Seed=1);   % accumulate, solve, estimate the noise
+R = lsqvce.fit(task, Estimate="noise", Seed=1);   % accumulate, solve, estimate the noise
 V = R.report();                                   % the five levels
 R.plot("psd");                                    % the estimated spectra</pre>
 <p>The Manual, chapter <i>Declaring your problem</i>, writes this declaration out in full;
@@ -152,7 +154,7 @@ reveals only the fraction <code>r_i</code> of any error present
 <tr><td class="name"><a href="lsqvce.DayContext.html">lsqvce.DayContext</a></td><td>What Prepare and Build know about their day: names, Settings, Prepared, the arc schedule, columns by name.</td></tr>
 <tr><td class="name"><a href="lsqvce.DayData.html">lsqvce.DayData</a></td><td>The arcs one Build returns: addArc, local partials by name (Local=) or as B.</td></tr>
 <tr><td class="name"><a href="lsqvce.layout.html">lsqvce.layout</a></td><td>The column layout of A and B announced before fit (declare priors in it).</td></tr>
-<tr><td class="name"><a href="lsqvce.fit.html">lsqvce.fit</a></td><td>The one user verb: fit(data, opts) &mdash; a plain data struct (the API reference, chapter The data struct) + Options &rarr; Results. Builds the loaders itself; reads the KIND from the data and what to estimate from Options.Estimate ("none" | "noise").</td></tr>
+<tr><td class="name"><a href="lsqvce.fit.html">lsqvce.fit</a></td><td>The one user verb: fit(task, opts) &mdash; a lsqvce.TaskDefinition (the API reference, chapter The task definition) + Options &rarr; Results. Builds the loaders itself; reads the KIND from the task and what to estimate from Options.Estimate ("none" | "noise").</td></tr>
 <tr><td class="name"><a href="lsqvce.Options.html">lsqvce.Options</a></td><td>The one settings object: every knob named, typed, defaulted to the engines' own defaults.</td></tr>
 <tr><td class="name"><a href="lsqvce.Results.html">lsqvce.Results</a></td><td>What comes back: x, sigma0, diagnostics, report(), coefficients(), summary(), convergence().</td></tr>
 <tr><td class="name"><a href="lsqvce.report.html">lsqvce.report</a></td><td>The level-0..4 verdict (R.report forwards here).</td></tr>
@@ -284,17 +286,17 @@ library code: <code>demo_gravity.m</code> is the closed-loop oracle with measure
 <div class="note"><b>Three documents, each with one job.</b>
 The <a href="lsqvce_manual.html">Manual</a> (also <code>lsqvce_manual.pdf</code>) says how to use the
 toolbox: installation, the key concepts, a tutorial, the workflow step by step, declaring your
-problem (with <code>prepareDay</code>), choosing the stochastic model, priors, reading the report,
+problem (where <code>Prepare</code> and <code>Build</code> go), choosing the stochastic model, priors, reading the report,
 the examples and troubleshooting. The <a href="lsqvce_api.html">API reference</a>
 (also <code>lsqvce_api.pdf</code>) states what every interface accepts and returns: the
-<code>data</code> struct, <code>buildDay</code> and <code>prepareDay</code>, covariance specifications, <code>Options</code>,
-<code>Results</code> and every identifier. <code>lsqvce_theory.pdf</code> is the mathematical
+<code>TaskDefinition</code>, <code>Prepare</code> and <code>Build</code>, the <code>Noise</code> laws, <code>Options</code>,
+<code>Results</code>, every identifier and the compiled declaration. <code>lsqvce_theory.pdf</code> is the mathematical
 framework. The per-unit pages below are generated from the help blocks.</div>
 <table>
 <tr><td class="name"><a href="lsqvce_manual.html">Manual</a></td>
     <td>install, concepts, tutorial, workflow, declaring a problem, stochastic model, priors, the report, the examples, troubleshooting</td></tr>
 <tr><td class="name"><a href="lsqvce_api.html">API reference</a></td>
-    <td>data contract, buildDay and prepareDay, covariance specs, Options, Results, identifiers</td></tr>
+    <td>TaskDefinition, Prepare and Build, Noise laws, Options, Results, identifiers, the compiled declaration</td></tr>
 </table>
 
 <h2>Tests</h2>

@@ -1,45 +1,64 @@
-function [cfg, data] = demo_grace_dataLoader()
-%DEMO_GRACE_DATALOADER  Synthetic GRACE-FO data generator for the VCE demo.
+function [cfg, data, task] = demo_grace_dataLoader()
+%DEMO_GRACE_DATALOADER  Synthetic GRACE-FO data for the VCE demo, declared as a lsqvce.TaskDefinition.
 %
-%   [cfg, data] = demo_grace_dataLoader()
+%   [cfg, data, task] = demo_grace_dataLoader()
+%   cfg = demo_grace_dataLoader()
 %
-%   Returns a ready-to-run configuration CFG and the declaration as a data
-%   struct DATA (the API reference), so the VCE loop on multi-axis and
-%   scalar streams can be exercised end to end without real data:
+%   Returns a ready-to-run configuration CFG and the declaration TASK, so the
+%   VCE loop on multi-axis and scalar streams can be exercised end to end
+%   without real data:
 %
-%       [cfg, data] = demo_grace_dataLoader();
-%       R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false));
+%       [cfg, ~, task] = demo_grace_dataLoader();
+%       R = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false));
+%
+%   DATA is the same declaration compiled to the engine-tier struct,
+%   task.declaration(). It stays the second output because the ENGINE-tier
+%   fixtures and the tests that edit a declaration take the struct
+%   (fixture_grace, test_vcePolicy, test_fit, test_speedBudget); lsqvce.fit
+%   compiles a task to exactly that struct, so both give the same fit.
 %
 %   TOPOLOGY (real GRACE-FO, "Option B", plus an independent third satellite).
 %     System 1  -- the C/D PAIR.  TWO satellites C, D each with a 3-D position
 %       stream (posC, posD, covariance C = D (R_t kron I_3) D with a FIXED
-%       per-epoch 3x3 D returned by buildDay as D.Cep -- the toolbox composes
-%       it with the temporal law), and ONE inter-satellite range-rate stream (rr,
-%       scalar) whose design couples BOTH satellites' arc states. Because rr
-%       touches two satellites' local parameters and the block-arrow model has
-%       one local block per system, C and D are MERGED into one pair-system with
-%       a stacked local block [y_C | y_D].
+%       per-epoch 3x3 D that each Build passes with every arc as Sigma= --
+%       the toolbox composes it with the temporal law), and ONE inter-satellite
+%       range-rate stream (rr, scalar) whose design couples BOTH satellites'
+%       local parameters. Because rr touches two satellites' locals and the
+%       block-arrow model has one local block per system, C and D are MERGED
+%       into one pair-system with a stacked local block [y_C | y_D].
 %     System 2  -- satellite E, INDEPENDENT.  A third satellite with ONLY a 3-D
 %       position stream (posE) and NO inter-satellite link, so it is a clean,
-%       separate block-arrow system with its own local (arc) parameters y_E. It
+%       separate block-arrow system with its own local parameters y_E. It
 %       observes the SAME common gravity field x_c as the pair (that is what
 %       makes combining the systems meaningful), but its locals are its own.
 %
-%   Both systems share the common (gravity) parametrisation; VCE pools by
-%   stream, giving FOUR variance components (posC, posD, rr, posE). Each stream
-%   starts from a deliberately WRONG a-priori (temporally white, sigma 1).
+%   Both systems share the common (gravity) parameters; VCE pools by stream,
+%   giving FOUR variance components (posC, posD, rr, posE). Each stream starts
+%   from a deliberately WRONG a-priori noise, lsqvce.Noise.white(1).
 %
-%   PARAMETRISATION PIPE (scoped tables).  The unknowns are described by two
-%   cell arrays with one ROW per unknown (data.commonParams and the system's
-%   localParams), piped through to the day-builder as its 3rd/4th args; nc
-%   and nl are DERIVED from their row counts, and the column count is YOUR
-%   convention (this demo uses 15). A 'processingOptions' struct is piped as
-%   the 5th arg. The demo's column convention (yours may differ) is:
+%   THE DECLARATION (graceTask, the TEMPLATE for your own case)
+%       task = lsqvce.TaskDefinition(Days=cfg.days);
+%       task.addCommon(names, Info=...)                      6 gravity coefficients
+%       pair = task.addSystem("demo-CD-pair", Id=1, Settings=cfg.procOpt);
+%       pair.addLocal(names, Scope="system", Info=...)       the block [y_C | y_D]
+%       pair.addStream("posC", Build=@..., Noise=lsqvce.Noise.white(1), Axes=3)
+%       ... posD, rr; then system "demo-E" (Id=2) with its stream posE
+%   ONE Build per stream, out = build(day, ctx): it draws the stream's rows,
+%   puts each local partial in the column ctx.cols(names) announces (never an
+%   offset of its own) and adds the day's arcs with out.addArc. No Arcs
+%   schedule is declared: the arcs of a day are those Build adds (two here),
+%   and the locals are Scope="system", so no plan needs the arc count before
+%   a day is read. The per-epoch 3x3 covariance of a position stream is not
+%   part of its law: it travels with each arc (addArc Sigma=, mEpoch x 3 x 3)
+%   -- there is no second place to state it.
 %
-%     col  1  scope           scope token: 'common' (shared table)
-%                             or 'system' (local tables)     (char)
+%   THE PARAMETER CATALOGUE.  cfg.common, cfg.localPair and cfg.localE hold one
+%   ROW per unknown in 15 columns -- this demo's convention, yours may differ:
+%
+%     col  1  scope           'common' | 'system'; the add-call states it
+%                             as Scope=                     (char)
 %     col  2  kind            'gravity' | 'arcBias' | ...   (char)
-%     col  3  label           human-readable name          (char)
+%     col  3  name            the parameter's NAME, unique in the task (char)
 %     col  4  system          system id this unknown belongs to (numeric; 0 =
 %                             common/shared)
 %     col  5  satellite       'C'|'D'|'E'|'' ('' = shared)  (char)
@@ -54,16 +73,48 @@ function [cfg, data] = demo_grace_dataLoader()
 %     col 14  estimate flag   true/false                     (logical)
 %     col 15  group tag       free grouping label            (char)
 %
-%   The toolbox checks the SHAPE (a 2-D cell) and column 1 (the scope token);
-%   the other MEANINGS above are this demo's convention, read inside
-%   demoBuildDay. This is the TEMPLATE:
-%   copy demoBuildDay and the two paramTable builders as the starting point
-%   for your own case. The per-epoch covariance of a position stream comes
-%   back from demoBuildDay WITH the day (D.Cep, the API reference, chapter buildDay,
-%   Cep) -- there is no second place to state it.
+%   Column 3 becomes the name, columns 2 and 4..15 the parameter's Info table
+%   (catalogueInfo), which every Build reads as ctx.Common.Info and
+%   ctx.Local.Info: this demo's Builds pick a satellite's locals by
+%   Info.satellite. The toolbox reads the names and scopes; the other
+%   MEANINGS above are this demo's own.
 %
-%   See also LSQVCE.FIT, LSQVCE.OPTIONS, DEMO_GRACE, DEMO_GRAVITY_DATALOADER
+%   INPUT
+%     (none)
+%   OUTPUT
+%     cfg   1x1 struct  the configuration and planted truth: .nc .nlSat
+%                       .nlPair .nlE .days .arcsPerDay .mEpoch .dt .seed,
+%                       .x_c (nc x 1) .y_C .y_D .y_E (nlSat x 1), .trueAR
+%                       .trueSigma (per stream) .Dep (3x3), the catalogue
+%                       .common (nc x 15 cell) .localPair (2 nlSat x 15)
+%                       .localE (nlSat x 15), .procOpt (the systems' Settings),
+%                       .obsTypes .obsTypesE .allObsTypes (stream names)
+%     data  1x1 struct  task.declaration(): the engine-tier declaration
+%                       struct (commonParams, days, systems(1x2))
+%     task  1x1 lsqvce.TaskDefinition   6 common parameters; system
+%                       "demo-CD-pair" (8 locals, streams posC posD rr) and
+%                       system "demo-E" (4 locals, stream posE)
 %
+%   ACCURACY
+%     Not applicable: a deterministic generator (one seeded RandStream per day
+%     and stream), no floating-point result of its own. The WP-161 migration
+%     keeps every seed, the order of every draw and the DENSE local design of
+%     the v6 builder, so the rows are those of the v6 declaration by
+%     construction (not measured in the migrating session, which had no MATLAB).
+%
+%   ERRORS
+%     None of its own. A declaration mistake raises lsqvce:TaskDefinition:* at
+%     the add-call that makes it; a mistake inside a Build raises
+%     lsqvce:DayContext:* while the day is read. (The v6 builder's
+%     demo_grace_dataLoader:obsType left with its switch: every stream has its
+%     own Build.)
+%
+%   See also LSQVCE.TASKDEFINITION, LSQVCE.SYSTEMDEFINITION, LSQVCE.NOISE,
+%            LSQVCE.DAYCONTEXT, LSQVCE.DAYDATA, LSQVCE.FIT, LSQVCE.OPTIONS, DEMO_GRACE,
+%            DEMO_GRAVITY_DATALOADER
+%
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as a lsqvce.TaskDefinition, one Build per stream. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): THE CELLS ARE THE
 %   ARCS -- demoBuildDay returns A, B, l, t and Cep as one cell per arc and
 %   the declaration carries no `arcs` (the cells are the schedule; the
@@ -100,36 +151,46 @@ function [cfg, data] = demo_grace_dataLoader()
 %   cell per arc). With assistance from Claude (Anthropic), model Claude
 %   Opus 5.5.
     cfg  = demoCfg();
-    data = graceData(cfg);
+    task = graceTask(cfg);
+    data = task.declaration();       % the engine-tier struct of the same task
 end
 
 %==========================================================================
-function data = graceData(cfg)
-%GRACEDATA  The declaration as a data struct: two systems (the merged
-%   C/D pair and independent E), each with its covariance (the fieldnames
-%   ARE the streams, in processing order) and its localParams table.
-    data = struct();
-    data.commonParams = cfg.common;                   % scoped: 'common' + 14 OUR cols
-    data.days = cfg.days;
+function task = graceTask(cfg)
+%GRACETASK  The declaration: the six gravity coefficients, the merged C/D
+%   pair (posC, posD, rr) and independent E (posE). The streams are added
+%   in processing order, each with its own Build and a deliberately WRONG
+%   a-priori noise (white, sigma 1): the loop discovers the colour.
+%   INPUT   cfg   1x1 struct  see demoCfg
+%   OUTPUT  task  1x1 lsqvce.TaskDefinition
+    task = lsqvce.TaskDefinition(Days=cfg.days);
+    task.addCommon(string(cfg.common(:, 3)), Scope="common", Info=catalogueInfo(cfg.common));
+    nAx   = size(cfg.Dep, 1);                 % 3: the axes of a position epoch
+    wrong = lsqvce.Noise.white(1);            % the a-priori law of every stream
 
-    s = struct();
-    s.buildDay          = @(d,ot,common,local,po) demoBuildDay(cfg, d, ot, common, local, po);
-    s.covariance        = whiteCov(cfg.obsTypes);     % posC, posD, rr -- wrong on purpose
-    % no `arcs`: the CELLS demoBuildDay returns are the arcs of the day (v6);
-    % the locals are 'system'-scoped, so no plan needs the count before a read
-    % NOTE: id must survive [store.sysID] concatenation as ONE element --
-    % numeric or a single char, never a multi-char string like 'CD'.
-    s.id                = 1;
-    s.name              = 'demo-CD-pair';
-    s.localParams       = cfg.localPair;
-    s.processingOptions = cfg.procOpt;
-    data.systems = s;
+    % Id: a number or a single character -- it must survive [store.sysID]
+    % concatenation as ONE element, never a multi-char string like 'CD'.
+    pair = task.addSystem("demo-CD-pair", Id=1, Settings=cfg.procOpt);
+    pair.addLocal(string(cfg.localPair(:, 3)), Scope="system", Info=catalogueInfo(cfg.localPair));
+    pair.addStream("posC", Build=@(day, ctx) buildPosC(day, ctx, cfg), Noise=wrong, Axes=nAx);
+    pair.addStream("posD", Build=@(day, ctx) buildPosD(day, ctx, cfg), Noise=wrong, Axes=nAx);
+    pair.addStream("rr",   Build=@(day, ctx) buildRr(day, ctx, cfg),   Noise=wrong);
 
-    s.covariance  = whiteCov(cfg.obsTypesE);          % posE only
-    s.id          = 2;
-    s.name        = 'demo-E';
-    s.localParams = cfg.localE;
-    data.systems(2) = s;
+    sysE = task.addSystem("demo-E", Id=2, Settings=cfg.procOpt);
+    sysE.addLocal(string(cfg.localE(:, 3)), Scope="system", Info=catalogueInfo(cfg.localE));
+    sysE.addStream("posE", Build=@(day, ctx) buildPosE(day, ctx, cfg), Noise=wrong, Axes=nAx);
+end
+
+function info = catalogueInfo(T)
+%CATALOGUEINFO  The catalogue's descriptive columns (2 and 4..15) as the Info
+%   table of an add-call, one row per parameter (column 3 is the name).
+%   INPUT   T     n x 15 cell   a parameter catalogue (commonParamTable,
+%                               localParamTable)
+%   OUTPUT  info  n x 13 table  readable in Build as ctx.Common.Info /
+%                               ctx.Local.Info
+    info = cell2table(T(:, [2, 4:15]), 'VariableNames', ...
+        {'kind', 'system', 'satellite', 'degree', 'order', 'cs', 'arc', 'component', ...
+         'unit', 'apriori', 'aprioriSigma', 'estimate', 'group'});
 end
 
 function cfg = demoCfg()
@@ -163,68 +224,84 @@ function cfg = demoCfg()
     Ld = [1 0 0; 0.3 1.0 0; 0.2 0.4 2.5];   % lower-tri "Cholesky" of D
     cfg.Dep = Ld * Ld.';                     % 3x3 SPD per-epoch covariance
 
-    % ---- parametrisation tables (15 columns, one row per unknown) ----------
+    % ---- the parameter catalogue (15 columns, one row per unknown) ---------
     cfg.common = commonParamTable(cfg);      % nc rows -> nc derived
     cfg.localPair = localParamTable(cfg, {'C','D'}, [cfg.y_C, cfg.y_D]); % 2*nlSat
     cfg.localE    = localParamTable(cfg, {'E'},     cfg.y_E);            % nlSat
+    % the systems' Settings: what every Build reads as ctx.Settings
     cfg.procOpt   = struct('mEpoch',cfg.mEpoch, 'dt',cfg.dt, ...
                            'arcsPerDay',cfg.arcsPerDay, 'seed',cfg.seed);
 end
 
-function cov = whiteCov(obsTypes)
-%WHITECOV  A-priori white covariance per obsType -- the TEMPORAL law only
-%   (deliberately wrong: the loop discovers the colour). The per-epoch 3x3
-%   scaling of a position stream is not declared here: demoBuildDay returns
-%   it with the day as D.Cep and the toolbox composes C = D (R_t kron I_3) D.
-    cov = struct();
-    for k = 1:numel(obsTypes)
-        cov.(obsTypes{k}) = struct('type','diag', 'sigma', 1);
-    end
+%% ===================================================== the Builds, one per stream
+function out = buildPosC(day, ctx, cfg)
+%BUILDPOSC  Satellite C's 3-D positions on DAY: they see C's locals only.
+%   INPUT day 1x1 double; ctx 1x1 lsqvce.DayContext; cfg 1x1 struct.
+%   OUTPUT out 1x1 lsqvce.DayData.
+    out = graceDay(day, ctx, cfg, size(cfg.Dep, 1), {'C', 1});
 end
 
-function D = demoBuildDay(cfg, day, obsType, common, local, procOpt)  %#ok<INUSD>
-%DEMOBUILDDAY  One synthetic day, parameter-driven (5-arg buildDay form).
-%   common/local are the scoped parametrisation tables; nc = rows(common),
-%   nlThis = rows(local). This demo reads the COUNTS from the tables (proving
-%   the pipe works) and could equally read col-6/7 (degree/order) etc. to build
-%   the design; here the design is synthetic so we only use the counts and the
-%   a-priori truth carried in cfg.
-    nc     = size(common, 1);           % DERIVED common count (== cfg.nc)
-    nlThis = size(local,  1);           % this system's local count
-    nlSat  = cfg.nlSat;
+function out = buildPosD(day, ctx, cfg)
+%BUILDPOSD  Satellite D's 3-D positions on DAY: they see D's locals only.
+%   INPUT day 1x1 double; ctx 1x1 lsqvce.DayContext; cfg 1x1 struct.
+%   OUTPUT out 1x1 lsqvce.DayData.
+    out = graceDay(day, ctx, cfg, size(cfg.Dep, 1), {'D', 1});
+end
 
-    nArc  = cfg.arcsPerDay;
-    nAx   = demoAxes(obsType);
-    mE    = cfg.mEpoch;                 % epochs per arc
-    m     = nArc * mE * nAx;            % rows per day (epoch-major)
+function out = buildRr(day, ctx, cfg)
+%BUILDRR  The C-D range-rate on DAY (scalar): it couples BOTH satellites'
+%   locals, weakly (partials scaled by 0.1).
+%   INPUT day 1x1 double; ctx 1x1 lsqvce.DayContext; cfg 1x1 struct.
+%   OUTPUT out 1x1 lsqvce.DayData.
+    out = graceDay(day, ctx, cfg, 1, {'C', 0.1; 'D', 0.1});
+end
+
+function out = buildPosE(day, ctx, cfg)
+%BUILDPOSE  Satellite E's 3-D positions on DAY: its own system, its own locals.
+%   INPUT day 1x1 double; ctx 1x1 lsqvce.DayContext; cfg 1x1 struct.
+%   OUTPUT out 1x1 lsqvce.DayData.
+    out = graceDay(day, ctx, cfg, size(cfg.Dep, 1), {'E', 1});
+end
+
+function out = graceDay(day, ctx, cfg, nAx, sees)
+%GRACEDAY  One synthetic stream-day, shared by the four Builds.
+%   The design is random, the truth is cfg's, and the RandStream is seeded on
+%   (day, stream), so every call returns the same rows -- Build must be
+%   deterministic. The locals' partials are placed in the columns
+%   ctx.cols(names) announces, in ONE dense B per day (as the v6 builder
+%   held it; Local= would build it sparse).
+%   INPUT   day   1x1 double            the day (an entry of cfg.days)
+%           ctx   1x1 lsqvce.DayContext  Settings = cfg.procOpt (mEpoch, dt,
+%                                       arcsPerDay, seed), NumCommon, NumLocal
+%           cfg   1x1 struct            the planted truth (demoCfg)
+%           nAx   1x1 double            axes per epoch (3 positions, 1 range-rate)
+%           sees  k x 2 cell            {satellite, scale} rows: whose locals the
+%                                       stream sees, in the order their partials
+%                                       are drawn
+%   OUTPUT  out   1x1 lsqvce.DayData     arcsPerDay arcs of mEpoch epochs, rows
+%                                       epoch-major; a position arc carries its
+%                                       per-epoch 3x3 covariance as Sigma=
+    po   = ctx.Settings;
+    ot   = char(ctx.Stream);            % posC | posD | rr | posE (seed, truth)
+    nArc = po.arcsPerDay;
+    mE   = po.mEpoch;                   % epochs per arc
+    m    = nArc * mE * nAx;             % rows per day (epoch-major)
 
     s = RandStream('mt19937ar', 'Seed', ...
-            mod(cfg.seed*1e5 + day*997 + sum(double(obsType))*31, 2^31-1));
+            mod(po.seed*1e5 + day*997 + sum(double(ot))*31, 2^31-1));
 
-    A = A_design(s, m, nc);
-    B = zeros(m, nlThis);               % this system's local block
-    switch obsType
-        case 'posC'                      % pair system: fill C sub-columns
-            B(:, 1:nlSat) = B_design(s, m, nlSat, nArc, mE*nAx);
-            yContrib = B * [cfg.y_C; zeros(nlSat,1)];
-        case 'posD'                      % pair system: fill D sub-columns
-            B(:, nlSat+(1:nlSat)) = B_design(s, m, nlSat, nArc, mE*nAx);
-            yContrib = B * [zeros(nlSat,1); cfg.y_D];
-        case 'rr'                        % pair system: couples BOTH, weakly
-            B(:, 1:nlSat)         = 0.1 * B_design(s, m, nlSat, nArc, mE*nAx);
-            B(:, nlSat+(1:nlSat)) = 0.1 * B_design(s, m, nlSat, nArc, mE*nAx);
-            yContrib = B * [cfg.y_C; cfg.y_D];
-        case 'posE'                      % independent system: its own locals
-            B(:, 1:nlSat) = B_design(s, m, nlSat, nArc, mE*nAx);
-            yContrib = B * cfg.y_E;
-        otherwise
-            error('demo_grace_dataLoader:obsType', ...
-                  'Unknown demo obsType ''%s''.', obsType);
+    A = A_design(s, m, ctx.NumCommon);  % the commons' columns, in addCommon order
+    B = zeros(m, ctx.NumLocal);         % this system's local block
+    y = zeros(ctx.NumLocal, 1);         % the planted locals this stream sees
+    for k = 1:size(sees, 1)
+        cols = ctx.cols(satelliteLocals(ctx, sees{k, 1}));
+        B(:, cols) = sees{k, 2} * B_design(s, m, numel(cols), nArc, mE*nAx);
+        y(cols)    = cfg.(['y_' sees{k, 1}]);
     end
 
-    l0 = A * cfg.x_c + yContrib;
+    l0 = A * cfg.x_c + B * y;
     if nAx > 1
-        sigT = cfg.trueSigma.(obsType);
+        sigT = cfg.trueSigma.(ot);
         Ld   = chol(cfg.Dep, 'lower');       % 3x3
         e    = zeros(m, 1);
         for a = 1:nArc
@@ -232,39 +309,46 @@ function D = demoBuildDay(cfg, day, obsType, common, local, procOpt)  %#ok<INUSD
             W = zeros(nAx, mE);
             for ax = 1:nAx
                 w = randn(s, mE, 1);
-                W(ax,:) = filter(1, cfg.trueAR.(obsType), w).';  % time colour
+                W(ax,:) = filter(1, cfg.trueAR.(ot), w).';  % time colour
             end
             W = sigT * (Ld * W);             % cross-axis mix + scale
             e(base + (1:mE*nAx)) = W(:);      % epoch-major [x1 y1 z1 ...]
         end
     else
-        e = colouredNoise(s, m, cfg.trueAR.(obsType), ...
-                          cfg.trueSigma.(obsType), nAx, nArc);
+        e = colouredNoise(s, m, cfg.trueAR.(ot), cfg.trueSigma.(ot), nAx, nArc);
     end
     l = l0 + e;
-    t = reshape(repmat((0:mE*nArc-1)*cfg.dt, nAx, 1), [], 1);  % epoch-major
-    % v6: THE CELLS ARE THE ARCS -- one cell per arc for A, B, l, t (and Cep)
-    D = struct('A', {cell(1, nArc)}, 'B', {cell(1, nArc)}, 'l', {cell(1, nArc)}, 't', {cell(1, nArc)});
+    t = reshape(repmat((0:mE*nArc-1)*po.dt, nAx, 1), [], 1);  % epoch-major
+
+    out = ctx.newDay();
     for a = 1:nArc
         rows = (a-1)*mE*nAx + (1:mE*nAx);
-        D.A{a} = A(rows, :);  D.B{a} = B(rows, :);  D.l{a} = l(rows);  D.t{a} = t(rows);
-    end
-    if nAx > 1
-        % the ERROR INFORMATION of every arc: the per-epoch 3x3 covariance
-        % (mE x 3 x 3 per arc) -- the axis count is derived from it (WP-90)
-        D.Cep = repmat({repmat(reshape(cfg.Dep, 1, nAx, nAx), mE, 1, 1)}, 1, nArc);
+        if nAx > 1
+            % the ERROR INFORMATION of the arc: the per-epoch 3x3 covariance
+            % (mE x 3 x 3), relative to the stream's law
+            out.addArc(A(rows, :), l(rows), t(rows), B=B(rows, :), ...
+                       Sigma=repmat(reshape(cfg.Dep, 1, nAx, nAx), mE, 1, 1));
+        else
+            out.addArc(A(rows, :), l(rows), t(rows), B=B(rows, :));
+        end
     end
 end
 
-function n = demoAxes(obsType)
-%DEMOAXES  Axis count for a demo obsType (posC/posD/posE -> 3, rr -> 1).
-    if numel(obsType) >= 3 && strcmpi(obsType(1:3), 'pos'), n = 3; else, n = 1; end
+function names = satelliteLocals(ctx, sat)
+%SATELLITELOCALS  This system's local parameters of satellite SAT, read from
+%   the catalogue's satellite column (ctx.Local.Info), in declaration order.
+%   INPUT   ctx    1x1 lsqvce.DayContext;  sat  1x1 char  'C' | 'D' | 'E'
+%   OUTPUT  names  1 x n string
+    L = ctx.Local;
+    isSat = cellfun(@(info) strcmp(info.satellite, sat), L.Info);
+    names = reshape(L.Name(isSat), 1, []);
 end
 
-%% ===================================================== parametrisation tables
+%% ===================================================== the parameter catalogue
 function C = commonParamTable(cfg)
 %COMMONPARAMTABLE  nc rows x 15 cols: the scope token 'common' first, then
-%   14 cols describing the shared gravity unknowns. Synthetic degree/order
+%   14 cols describing the shared gravity unknowns (column 3 the unique
+%   name addCommon takes, the rest its Info). Synthetic degree/order
 %   just enumerate the nc coefficients; a real table would carry the true SH
 %   (n,m,C/S). Shared -> system 0, satellite ''.
     nc = cfg.nc;
@@ -280,7 +364,9 @@ function T = localParamTable(cfg, sats, yTrue)
 %LOCALPARAMTABLE  (nlSat*numel(sats)) rows x 15 cols: the scope token
 %   'system' first (this demo hand-stacks the pair block [y_C | y_D], so its
 %   rows stay hand-numbered -- exactly what 'system' scope means), then 14
-%   cols. yTrue is nlSat x numel(sats) (or nlSat x 1) of a-priori truth.
+%   cols (column 3 the unique name addLocal takes, column 5 the satellite the
+%   Builds select by). yTrue is nlSat x numel(sats) (or nlSat x 1) of
+%   a-priori truth.
     nlSat = cfg.nlSat;  ns = numel(sats);
     T = cell(nlSat*ns, 15);
     r = 0;

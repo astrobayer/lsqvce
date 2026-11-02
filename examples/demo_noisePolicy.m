@@ -6,11 +6,15 @@ function [R, s] = demo_noisePolicy(varargin)
 %
 %   THE PROBLEM THIS EXAMPLE EXISTS FOR.  Estimate="noise" does not have to
 %   treat every stream alike, and it should not: what you know about each
-%   instrument differs. The covariance spec of a stream therefore carries a
-%   POLICY beside its law (the API reference, chapter Covariance specifications):
+%   instrument differs. A stream therefore carries a POLICY beside its noise
+%   law, both given where the stream is declared
+%   (LSQVCE.SYSTEMDEFINITION/ADDSTREAM; the API reference, chapter Covariance
+%   specifications):
 %
-%       covariance.<type>.estimate   = "none" | "scale" | "law"  (default "law")
-%       covariance.<type>.arcFactors = true | false          (default: Options)
+%       sys.addStream(name, Build=@build, Noise=lsqvce.Noise.<law>(...), ...
+%                     Estimate=policy, ArcFactors=tf)
+%       policy   "none" | "scale" | "law"    (default "law")
+%       tf       true | false                (default: Options ArcFactors)
 %
 %     "none"   the declared covariance is used as it stands. For an instrument
 %              whose noise you have calibrated and are not willing to have
@@ -20,7 +24,7 @@ function [R, s] = demo_noisePolicy(varargin)
 %     "law"    both are estimated. For a stream whose colour is genuinely
 %              unknown -- and only where there are enough arcs to identify one.
 %
-%   ARC FACTORS are the other half: with arcFactors = true a stream gets one
+%   ARC FACTORS are the other half: with ArcFactors=true a stream gets one
 %   variance factor PER ARC on top of its level, which is how one bad pass, a
 %   manoeuvre or an eclipse season is caught instead of being smeared over the
 %   whole stream. It costs one component per arc, so it is declared per
@@ -30,7 +34,7 @@ function [R, s] = demo_noisePolicy(varargin)
 %   a different state of knowledge and each with a PLANTED truth to recover:
 %     gps   white, sigma calibrated and CORRECT       -> "none"
 %     acc   shape known (a first-order filter, given  -> "scale"
-%           to the toolbox as a 'psd' law), level 2x wrong
+%           to the toolbox as lsqvce.Noise.psd), level 2x wrong
 %     rr    colour unknown (AR(1)), declared white    -> "law"
 %     mag   white, but ARC 2 of every day is 3x worse -> "scale" + arcFactors
 %
@@ -50,7 +54,7 @@ function [R, s] = demo_noisePolicy(varargin)
 %     R         1x1 lsqvce.Results   the run, with R.history / R.noise attached
 %     s         1x1 struct           the measured summary:
 %       .stream       1x4 string   the streams, in R.noise order
-%       .declared     1x4 double   the sigma each spec declared
+%       .declared     1x4 double   the sigma each stream declared
 %       .level        1x4 double   the level each stream ended at
 %       .truth        1x4 double   the planted level, in the declared units
 %       .noneFixed    1x1 logical  the "none" stream's level == its declared
@@ -61,7 +65,7 @@ function [R, s] = demo_noisePolicy(varargin)
 %       .badEstimate  1x1 string   the identifier a misspelt policy raises
 %
 %   ACCURACY  (MEASURED 2026-10-16 on R2026a, v6.25.2, all four streams in ONE
-%   run. The fixture noise is drawn from a stream seeded on (day, obsType) and
+%   run. The fixture noise is drawn from a stream seeded on (day, stream) and
 %   two consecutive runs reproduced every figure below, so this demo repeats.)
 %     Levels: gps 0.2000 against its declared 0.2000 EXACTLY -- "none" does not
 %       move; acc 0.4913 against the planted 0.5000 ("scale" on a given psd
@@ -91,13 +95,18 @@ function [R, s] = demo_noisePolicy(varargin)
 %       2.8e4. phi = 0.5 is used here for that reason.
 %
 %   ERRORS  none of its own. A policy that is not one of the three names is
-%     refused by fit with lsqvce:fit:badEstimate; asking for "law" on a spec
-%     whose sigma is a per-row vector (a FIXED structure, which can carry a
-%     level but not a shape) is lsqvce:fit:lawOnFixedStructure.
+%     refused where it is declared, by addStream, with
+%     MATLAB:validators:mustBeMember (shown by the demo, s.badEstimate);
+%     asking for "law" on a stream whose sigma is a per-row vector
+%     (lsqvce.Noise.white of a column: a FIXED structure, which can carry a
+%     level but not a shape) is refused by fit with
+%     lsqvce:fit:lawOnFixedStructure.
 %
-%   See also LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS, DEMO_PRIORS,
-%   DEMO_GRACE
+%   See also LSQVCE.TASKDEFINITION, LSQVCE.SYSTEMDEFINITION, LSQVCE.NOISE,
+%   LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS, DEMO_PRIORS, DEMO_GRACE
 %
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as a lsqvce.TaskDefinition, policies on addStream. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-09-07 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5 -- R6 WP-96: the per-stream policy fields
 %   and the 'psd' law had no worked example (HANDOVER 12.19, carried; 12.20).
@@ -127,20 +136,20 @@ function [R, s] = demo_noisePolicy(varargin)
 
     % ---- THE RUN: all four policies at once ------------------------------
     % ArcFactors=false in Options is the POLICY DEFAULT for the whole run; the
-    % ONE stream that needs per-arc factors overrides it on its own spec.
+    % ONE stream that needs per-arc factors overrides it on its own addStream.
     % Noise.Smooth 1 (WP-145, measured): the plain 60-bin law of rr stopped
     % on the old budget of 12 passes with bins still creeping; it needed 14.
     % Averaging each bin with its neighbours leaves every figure below the
     % same to three digits and settles in 3.
     sel = 1:numel(cfg.streams);
-    R = lsqvce.fit(policyData(cfg, sel), ...
+    R = lsqvce.fit(policyTask(cfg, sel), ...
                    lsqvce.Options(Estimate="noise", Pool="stream", ...
                                   ArcFactors=false, MaxPasses=o.maxPasses, ...
                                   Noise=struct('Smooth', 1), Verbose=o.verbose));
     [s.stream, s.declared, s.level, s.truth] = levels(cfg, R);
     s.passes = R.history.nIter;
-    % Look every stream up BY NAME. R.noise.stream follows the covariance
-    % fieldnames, but a demo that indexed by position would report the wrong
+    % Look every stream up BY NAME. R.noise.stream follows the order of the
+    % addStream calls, but a demo that indexed by position would report the wrong
     % row the day that order changed, and say nothing about it.
     at = @(nm) find(extractAfter(s.stream, '|') == string(nm), 1);
     fprintf('\n--- level per stream (the estimand of "scale") ---\n');
@@ -183,10 +192,12 @@ function [R, s] = demo_noisePolicy(varargin)
     fprintf('  the other three streams got ONE level each, no per-arc split.\n');
 
     % ---- THE POLICY IS CHECKED BY NAME -----------------------------------
-    bad = policyData(cfg, sel);
-    bad.systems(1).covariance.(cfg.streams{1}).estimate = "shape";   % not a policy
+    % ... where it is declared: addStream refuses the misspelt name, before any
+    % data is read (so the fit below is never reached).
+    bad = cfg;
+    bad.estimate{1} = "shape";                                       % not a policy
     try
-        lsqvce.fit(bad, lsqvce.Options(Estimate="noise", Verbose=false));
+        lsqvce.fit(policyTask(bad, sel), lsqvce.Options(Estimate="noise", Verbose=false));
         s.badEstimate = "accepted (no refusal)";
     catch ME
         s.badEstimate = string(ME.identifier);
@@ -237,7 +248,7 @@ function cfg = policyCfg()
     cfg.badScale = 3;                % ... by this factor in SIGMA
     cfg.xTrue    = [0.80 -0.45 0.30 0.15];
     cfg.bias     = 0.05;             % the per-arc local, same for every arc
-    % What each spec DECLARES, what GENERATES the planted error (an innovation
+    % What each stream DECLARES, what GENERATES the planted error (an innovation
     % std for the coloured streams), and the level that truth amounts to IN THE
     % DECLARED LAW's units -- which is what the estimator can possibly return:
     %   acc  the same shape, so the level is the innovation ratio;
@@ -252,40 +263,33 @@ function cfg = policyCfg()
                  cfg.gen(4) * sqrt(mean(arcF))];
 end
 
-function data = policyData(cfg, sel)
-%POLICYDATA  The declaration: one system, the selected streams, one policy
-%   each. The fieldnames of covariance ARE the streams (the API reference).
-    data = struct();
-    data.commonParams = [repmat({'common'}, cfg.nc, 1), ...
-                         arrayfun(@(j) sprintf('sig%d', j), (1:cfg.nc).', ...
-                                  'UniformOutput', false)];
-    data.days = cfg.days;
-
-    cov = struct();
+function task = policyTask(cfg, sel)
+%POLICYTASK  The declaration: one system, the selected streams, one policy
+%   each -- Estimate and ArcFactors are given to addStream beside the Noise
+%   law. Every stream has a Build of its own (buildGps, buildAcc, buildRr,
+%   buildMag); the streams are named by cfg.streams, in the order added.
+    task = lsqvce.TaskDefinition(Days=cfg.days);
+    task.addCommon(compose("sig%d", 1:cfg.nc));
+    sys = task.addSystem("policy", Arcs=cfg.arcs, Id=1);
+    sys.addLocal("bias", Scope="arc");
+    builds = struct('gps', @buildGps, 'acc', @buildAcc, 'rr', @buildRr, 'mag', @buildMag);
     for k = sel
         if strcmp(cfg.streams{k}, 'acc')
             % THE 'psd' LAW: the shape comes from the hardware -- here the
             % response of the very filter the noise really has -- as a
-            % one-sided power spectral density on a frequency grid. The LEVEL
-            % rides on cm.sigma, and that is what "scale" estimates.
+            % one-sided power spectral density on a frequency grid. The
+            % spectrum IS the declared covariance: its level is 1, which is
+            % this stream's declared sigma (cfg.declared), and that level is
+            % what "scale" estimates.
             [f, S] = firstOrderPsd(cfg.phiAcc, cfg.dt, 2048);
-            cm = struct('type', 'psd', 'f', f, 'S', S, 'sigma', cfg.declared(k));
+            noise = lsqvce.Noise.psd(f, S);
         else
-            cm = struct('type', 'diag', 'sigma', cfg.declared(k));
+            noise = lsqvce.Noise.white(cfg.declared(k));
         end
-        cm.estimate   = cfg.estimate{k};
-        cm.arcFactors = cfg.arcFactors(k);
-        cov.(cfg.streams{k}) = cm;
+        build = builds.(cfg.streams{k});
+        sys.addStream(cfg.streams{k}, Build=@(day, ctx) build(cfg, day, ctx), Noise=noise, ...
+                      Estimate=cfg.estimate{k}, ArcFactors=cfg.arcFactors(k));
     end
-
-    s = struct();
-    s.buildDay    = @(day, ot, common, local, po, info) policyDay(cfg, day, ot, info);
-    s.covariance  = cov;
-    s.arcs        = cfg.arcs;
-    s.id          = 1;
-    s.name        = 'policy';
-    s.localParams = {'arc', 'bias'};
-    data.systems  = s;
 end
 
 function [f, S] = firstOrderPsd(phi, dt, nf)
@@ -296,46 +300,66 @@ function [f, S] = firstOrderPsd(phi, dt, nf)
     S = 2 * dt * abs(H).^2;
 end
 
-function D = policyDay(cfg, day, obsType, info)
-%POLICYDAY  One (day, stream). DETERMINISTIC: fit reads every day twice per
-%   pass, so the noise comes from a stream seeded on (day, obsType).
+function out = buildGps(cfg, day, ctx)
+%BUILDGPS  The Build of gps: white noise at its calibrated sigma.
+    [rs, k] = noiseSource(cfg, day, ctx);
+    e = cfg.gen(k) * randn(rs, cfg.arcs * cfg.mArc, 1);
+    out = policyDay(cfg, day, ctx, e);
+end
+
+function out = buildAcc(cfg, day, ctx)
+%BUILDACC  The Build of acc: the KNOWN first-order filter (phi cfg.phiAcc).
+    [rs, k] = noiseSource(cfg, day, ctx);
+    out = policyDay(cfg, day, ctx, arNoise(cfg, rs, cfg.phiAcc, cfg.gen(k)));
+end
+
+function out = buildRr(cfg, day, ctx)
+%BUILDRR  The Build of rr: the UNKNOWN AR(1) colour (phi cfg.phiRr).
+    [rs, k] = noiseSource(cfg, day, ctx);
+    out = policyDay(cfg, day, ctx, arNoise(cfg, rs, cfg.phiRr, cfg.gen(k)));
+end
+
+function out = buildMag(cfg, day, ctx)
+%BUILDMAG  The Build of mag: white noise, one degraded arc a day.
+    [rs, k] = noiseSource(cfg, day, ctx);
+    e = cfg.gen(k) * randn(rs, cfg.arcs * cfg.mArc, 1);
+    rows = (cfg.badArc-1)*cfg.mArc + (1:cfg.mArc);
+    e(rows) = e(rows) * cfg.badScale;
+    out = policyDay(cfg, day, ctx, e);
+end
+
+function out = policyDay(cfg, day, ctx, e)
+%POLICYDAY  One (day, stream) with the planted error E (m x 1, the demo's
+%   oracle, drawn by the stream's Build): the signal, the arc bias, the arcs.
+%   The local partial is placed by name, ctx.cols("bias", Arc=id), in a dense
+%   B of ctx.NumLocal columns.
     m = cfg.arcs * cfg.mArc;
     t = (day - 1)*86400 + (0:m-1).' * cfg.dt;
     w = 2*pi / (0.5 * 86400);
-    A = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];
-    l = A * cfg.xTrue(:) + policyNoise(cfg, day, obsType);
-    % v6: THE CELLS ARE THE ARCS -- one cell per arc for A, B, l, t
-    D = struct('A', {cell(1, cfg.arcs)}, 'B', {cell(1, cfg.arcs)}, ...
-               'l', {cell(1, cfg.arcs)}, 't', {cell(1, cfg.arcs)});
+    A = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];   % sig1..sig4, the addCommon order
+    l = A * cfg.xTrue(:) + e;
+    out = ctx.newDay();
     for a = 1:cfg.arcs
         rows = (a-1)*cfg.mArc + (1:cfg.mArc);
-        B = zeros(cfg.mArc, info.nl);
-        B(:, info.offsetOf(a) + 1) = 1;
-        D.A{a} = A(rows, :);
-        D.B{a} = B;
-        D.l{a} = l(rows) + cfg.bias;
-        D.t{a} = t(rows);
+        B = zeros(cfg.mArc, ctx.NumLocal);
+        B(:, ctx.cols("bias", Arc=ctx.ArcIds(a))) = 1;
+        out.addArc(A(rows, :), l(rows) + cfg.bias, t(rows), B=B);
     end
 end
 
-function e = policyNoise(cfg, day, obsType)
-%POLICYNOISE  The planted error of one (day, stream) -- the demo's oracle.
-    k  = find(strcmp(cfg.streams, obsType), 1);
+function [rs, k] = noiseSource(cfg, day, ctx)
+%NOISESOURCE  The random stream of one (day, stream) -- the demo's oracle.
+%   DETERMINISTIC: fit reads every day twice per pass, so the noise comes from
+%   a stream seeded on the day and on the stream's position k in cfg.streams.
+    k  = find(strcmp(cfg.streams, char(ctx.Stream)), 1);
     rs = RandStream('mt19937ar', 'Seed', 5100 + 10*day + k);
+end
+
+function e = arNoise(cfg, rs, phi, sigma)
+%ARNOISE  AR(1) noise of innovation standard deviation SIGMA, one day of all
+%   arcs (cfg.arcs * cfg.mArc rows), its start-up (2000 samples) dropped.
     m  = cfg.arcs * cfg.mArc;
     nB = 2000;                                   % burn-in of the coloured cases
-    switch obsType
-        case 'acc'
-            e = filter(1, [1 -cfg.phiAcc], cfg.gen(k) * randn(rs, m + nB, 1));
-            e = e(nB+1:end);
-        case 'rr'
-            e = filter(1, [1 -cfg.phiRr], cfg.gen(k) * randn(rs, m + nB, 1));
-            e = e(nB+1:end);
-        otherwise
-            e = cfg.gen(k) * randn(rs, m, 1);
-    end
-    if strcmp(obsType, 'mag')                    % one degraded arc a day
-        rows = (cfg.badArc-1)*cfg.mArc + (1:cfg.mArc);
-        e(rows) = e(rows) * cfg.badScale;
-    end
+    e = filter(1, [1 -phi], sigma * randn(rs, m + nB, 1));
+    e = e(nB+1:end);
 end

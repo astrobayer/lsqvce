@@ -1,26 +1,26 @@
 # Priors
 
-A prior is a group of pseudo-observations `L·x = x₀ + v` with weight `1/σ²`, declared in
-your columns:
+A prior is a group of pseudo-observations `L·x = x₀ + v` with weight `1/σ²`, declared on
+the object whose parameters it constrains:
 
 ```matlab
-data.priors(j)            = struct(...)   % on the common parameters: L in the columns of A
-data.systems(k).priors(l) = struct(...)   % on system k's local parameters: L in the columns of B
+task.addPrior(name, Name=Value)   % on the common parameters: L in the columns of A
+sys.addPrior(name, Name=Value)    % on system sys's local parameters: L in the columns of B
 ```
 
-## Fields
+## Settings
 
-| field | meaning |
+| name | meaning |
 |---|---|
-| `group` | a regular expression on the name column of the table (`data.paramColumns.name`, default column 2). The toolbox builds L: one row per matched template row per instance (per day for a `'day'` row, per arc for an `'arc'` row, once for `'common'` / `'system'`). |
-| `L` | the explicit operator (q × nc, or q × nl) in the columns `lsqvce.layout(data)` announces. Give `group` **or** `L`, never both. |
-| `x0` | a-priori values (q × 1, or a scalar); default 0 |
-| `sigma` | ONE standard deviation for all rows of the group; relative weights inside a group go into L |
-| `from` | the pass at which the group becomes active (default 1). A single solve reports a group with `from > 1` (`lsqvce:fit:priorNotActive`) and skips it. |
-| `name` | label (default: the pattern); a local group becomes the stream `prior_<name>` of its system |
-| `estimate` | `"none"` (default): σ fixed; `"scale"`: σ is estimated in every pass of `Estimate = "noise"` (in a run that cannot estimate it — `Estimate = "none"`, or the in-memory kinds — the group keeps its declared σ, with the warning `lsqvce:fit:priorScaleHeld`) |
+| `name` | the group's name, unique per owner; a local group becomes the stream `prior_<name>` of its system |
+| `On` | a regular expression on parameter names. The toolbox builds L: one row per matched name per instance (per day for a `"day"` template, per arc for an `"arc"` template, once for `"common"` / `"system"`) |
+| `L` | the explicit operator (q × nc, or q × nl) in the columns `task.layout()` announces. Give `On` **or** `L`, never both (`lsqvce:TaskDefinition:priorTarget`); in-memory tasks take `L` only |
+| `Value` | a-priori values (q × 1, or a scalar); default 0 |
+| `Sigma` | ONE standard deviation for all rows of the group (required); relative weights inside a group go into L |
+| `From` | the pass at which the group becomes active (default 1). A single solve reports a group with `From > 1` (`lsqvce:fit:priorNotActive`) and skips it |
+| `Estimate` | `"none"` (default): σ fixed; `"scale"`: σ is estimated in every pass of `Estimate = "noise"` (in a run that cannot estimate it — `Estimate = "none"`, or the in-memory kinds — the group keeps its declared σ, with the warning `lsqvce:fit:priorScaleHeld`) |
 
-Malformed fields, or an `L` of the wrong width, are refused by name
+A pattern that matches no name, or an `L` of the wrong width, is refused when `fit` starts
 (`lsqvce:fit:badPrior`).
 
 ## Rules
@@ -33,7 +33,7 @@ Malformed fields, or an `L` of the wrong width, are refused by name
   inside one day's local block or the system block; days are coupled through common
   parameters only.
 - **A datum is a group of its own, or several.** Minimum constraints `L = Bᵀ` on the null
-  space, `x0 = 0`, give the minimum-constraint solution and covariance for any σ. The datum
+  space, value 0, give the minimum-constraint solution and covariance for any σ. The datum
   may be split over groups (translation and rotation declared separately): every group the
   data cannot see belongs to it, as long as it does not overlap a group the data does see.
   A group that only partly lies in the null space, or overlaps an information group, is
@@ -57,6 +57,6 @@ The rows of every prior enter `R.residuals()` and the redundancy count.
 ## From a parameter table
 
 A row of a GRAVFIRE-style parameter table carrying `{'Tikhonov', fromPass, sigma[, label]}`
-in its 11th column means exactly one such struct; `template/gravfire_data.m` emits them:
-rows sharing a label become one `group` with `estimate = "scale"`, rows without a label
-one fixed-σ group each.
+in its 11th column means exactly one prior group; `template/gravfire_data.m` emits them:
+rows sharing a label become one group with `Estimate = "scale"`, rows without a label one
+fixed-σ group each.

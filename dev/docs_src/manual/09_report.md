@@ -7,7 +7,7 @@ adverse finding it says what to do. The full field lists are in the API referenc
 the derivations of every statistic are in the theory.
 
 ```matlab
-R = lsqvce.fit(data, opts);
+R = lsqvce.fit(task, opts);
 R.report                      % the verdict, levels 0..4
 V = R.report(Verbose=false);  % the same verdict, silent, as a struct
 ```
@@ -46,7 +46,7 @@ All properties are read-only.
 |---|---|
 | `R.report(...)` | Is the adjustment acceptable? Prints the five levels and returns the verdict |
 | `R.coefficients(Alpha=0.05)` | the estimates as a table: `index`, `estimate`, `se`, `lower`, `upper` (normal bounds, `se = sqrt(diag(Cxx))`) |
-| `R.toTable(data, Estimate=9, Std=10)` | your parameter tables with the estimate and its standard deviation written into the named columns, one row per instantiated parameter (commons and locals) |
+| `R.toTable(task)` | one table of every instantiated parameter, commons and locals: `System`, `Name`, `Scope`, `Day`, `Arc`, `Estimate`, `Std` |
 | `R.reliability()` | one row per observation: `obs`, `v`, `r`, `w`, `mdb`, `quadrant` |
 | `R.snoop(...)` | iterative data snooping on this fit; `R` itself is not changed |
 | `R.systematic(...)` | runs, Ljung–Box and binned-mean tests for unmodelled signal in the residuals |
@@ -107,7 +107,7 @@ should branch on the codes, not on the wording:
 ```matlab
 codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
 if any(ismember(codes, {'SNOOP_CONTAMINATED', 'SNOOP_REFUSE', 'SNOOP_BREAKDOWN'}))
-    R2 = lsqvce.fit(data, opts, Robust="igg3");
+    R2 = lsqvce.fit(task, opts, Robust="igg3");
 end
 ```
 
@@ -174,7 +174,7 @@ These checks test the computation, not the data.
 | code | severity | condition | action |
 |---|---|---|---|
 | `PROVENANCE` | NOTE | always (through `R.report`) | Prints the toolbox version, the MATLAB release and the creation time. |
-| `SUM_R` | NOTE / **ERROR** | `sum(r_i)` against `n − u`; ERROR if the relative error > 1e-6 | The second pass does not replay the design or the weights the solve used. Make `buildDay` / `batchFcn` deterministic: the same rows in the same order on every call. |
+| `SUM_R` | NOTE / **ERROR** | `sum(r_i)` against `n − u`; ERROR if the relative error > 1e-6 | The second pass does not replay the design or the weights the solve used. Make `Build` / `batchFcn` deterministic: the same rows in the same order on every call. |
 | `VPV_SIGN` | **ERROR** | `vPv` negative or non-finite | A numerical failure. Check the declared covariances for non-SPD blocks. |
 | `VPV_MISMATCH` | WARN / **ERROR** | the accumulator's `vPv` and the recomputed `sum p v²` differ by > 1e-6 (WARN) or > 1e-2 (ERROR, invalid) | The recomputed value is the one the report uses. A large gap means cancellation in the normal-equation path; re-run with `Backend = "qr"`. |
 | `NO_REDUNDANCY` | **ERROR** | `r = n − u = 0` | Nothing is testable. Add observations or remove parameters. |
@@ -313,7 +313,7 @@ the re-diagnosis keeps `R.diag`'s thresholds and storage (`Store`, `NWorst`,
 `D2` counts in the original observation numbers (`D2.flagIdx`, `D2.rejectedIdx`, ...); its
 per-observation vectors cover the survivors, and `D2.obsIdx` names their original numbers.
 It cannot reject single rows of a
-correlated batch (`lsqvce:snoop:correlatedBatch`): there, remove the epoch in `buildDay`
+correlated batch (`lsqvce:snoop:correlatedBatch`): there, remove the epoch in `Build`
 or use `Robust`.
 
 ## Level 3 — RELIABILITY (what can you not check?)
@@ -478,7 +478,7 @@ reason is `'gap'` or `'nonPD'` (its covariance could not be factored). `R.histor
 lists every skip as `{pass, arcKey, reason}`. A pass that skips more than
 `Noise.SkipThreshold` (0.2) of one stream's arcs is refused with
 `lsqvce:adjustVCEjoint:skipThreshold`. A few `nonPD` skips usually mean a `Cep` or a law
-that is not positive definite on those arcs, so inspect that day's `buildDay` output.
+that is not positive definite on those arcs, so inspect what that day's `Build` adds.
 
 Warnings are raised once per run. Muted or not, every warning identifier the run raised is
 listed in `R.meta.warnings` (first-fired order). Check it in batch jobs. The ones that
@@ -599,5 +599,5 @@ How to read it, in order:
 7. **Outside the report.** For a `noise` run, check `R.summary()` for non-white streams,
    `R.history.skips`, and `R.meta.warnings`.
 
-Then quote the result: `R.coefficients()` for the commons, `R.toTable(data)` for every
+Then quote the result: `R.coefficients()` for the commons, `R.toTable(task)` for every
 parameter in your own table layout, and `R.meta` for the provenance.

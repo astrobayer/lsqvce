@@ -1,24 +1,39 @@
 %% DEMO_WORKFLOW  Build your OWN least-squares case, from scratch.
 %
 %   This is the from-scratch recipe. demo_lsqvce.m shows six FAILURE MODES on a
-%   ready-made problem; this script shows how to WIRE YOUR OWN DATA into the
-%   `data` struct, let lsqvce.fit pick the right engine from its SHAPE, choose
-%   what to ESTIMATE with lsqvce.Options, and read what comes back.
+%   ready-made problem; demo_tutorial.m is the first streaming case, line by
+%   line. This script shows how to WIRE YOUR OWN DATA into a
+%   lsqvce.TaskDefinition, which constructor makes which KIND of task, how to
+%   choose what to ESTIMATE with lsqvce.Options, and how to read what comes back.
 %
-%   THE USER PATH is one verb on a plain data struct (the API reference is the
-%   binding spec; examples/demo_fit.m shows it on every data kind):
-%       R = lsqvce.fit(data, lsqvce.Options(...));   R.report
+%   THE USER PATH is one declaration and one verb (the API reference is the
+%   binding spec; examples/demo_fit.m shows it on every kind of task):
+%       task = lsqvce.TaskDefinition.fromBatches(...);   % or fromMatrices, or (Days=...)
+%       R = lsqvce.fit(task, lsqvce.Options(...));       R.report
 %
 %   THE MAP (five questions, in order)
-%     0.  What does lsqvce need from me?          -> a data struct (Section 0)
+%     0.  What does lsqvce need from me?          -> a TaskDefinition (Section 0)
 %     1.  How do I turn my data into that?        -> Section 1
 %     2.  Which KIND, what to ESTIMATE?           -> Section 2 (decision tree)
 %     3.  Common vs local parameters?             -> Section 3
 %     4.  Wrong weights? Estimate them.           -> Section 4
 %     5.  How do I read the result?               -> Section 5
 %
-%   Run it section by section (Ctrl+Enter in the Editor).
+%   Run it section by section (Ctrl+Enter in the Editor). A script: no input,
+%   it leaves its variables (task, R, vtask, Rv, ...) in the workspace.
 %
+%   ACCURACY  Not pinned: a walk-through. Its numbers come from seeded draws
+%             (mt19937ar, seed 2026) and are printed, not asserted; the gate
+%             runs it as a smoke test (test_examples).
+%   ERRORS    none of its own; a declaration error is raised by the add-call
+%             that makes it (lsqvce:TaskDefinition:*), a mistake inside a Build
+%             while the day is read (lsqvce:DayContext:*).
+%
+%   See also LSQVCE.TASKDEFINITION, LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS,
+%   DEMO_TUTORIAL, DEMO_FIT, DEMO_LSQVCE
+%
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as lsqvce.TaskDefinition, one Build per group. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the contract is named v5,
 %   locals are the SCOPED localParams table, robust IRLS runs on every kind, and
 %   Section 4 returns the per-observation accuracy with the day (D.Cep).
@@ -41,18 +56,20 @@
 %   (Anthropic), model Claude Opus 5.5.
 
 %% ------------------------------------------------------------------------
-% SECTION 0.  What lsqvce needs from you: a data struct.
+% SECTION 0.  What lsqvce needs from you: a lsqvce.TaskDefinition.
 % -------------------------------------------------------------------------
-% Three KINDS, told apart by the fields present (the v5 contract: you state
-% structure, never counts -- everything countable is derived):
+% Three KINDS, one constructor each (you state structure, never counts --
+% everything countable is derived):
 %
-%   (B) IN-MEMORY      data.A (m x u), data.l (m x 1, o - c), data.p (weights)
-%   (C) BATCHED        data.batchFcn, data.numBatches, data.numUnknowns
-%                      (linear form; with data.x0, u = numel(x0) and the
+%   (B) IN-MEMORY      lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p)
+%                      A (m x u), l (m x 1, o - c), p (m x 1 weights)
+%   (C) BATCHED        lsqvce.TaskDefinition.fromBatches(@batchFcn, NumBatches=K, NumUnknowns=u)
+%                      (linear form; with X0=x0, u = numel(x0) and the
 %                      callback returns the Jacobian at x)
-%   (A) STREAMING      data.commonParams, data.days, data.systems(k) with
-%                      your buildDay and covariance -- days, arcs, per-system
-%                      locals, coloured noise (the GRACE-FO shape)
+%   (A) STREAMING      lsqvce.TaskDefinition(Days=days), filled with add-calls:
+%                      addCommon, addSystem (its Prepare), addLocal and
+%                      addStream (its Build and Noise) -- days, arcs,
+%                      per-system locals, coloured noise (the GRACE-FO shape)
 %
 % The batched callback contract (kind C) is
 %
@@ -105,24 +122,24 @@ assert(size(A1,2) == u && numel(l1) == size(A1,1) && all(p1 > 0), ...
        'batchFcn wiring is inconsistent');
 fprintf('batchFcn contract OK (A is nk x %d, l is nk x 1, p > 0).\n', u);
 
-data = struct('batchFcn', batchFcn, 'numUnknowns', u, 'numBatches', nb);
+task = lsqvce.TaskDefinition.fromBatches(batchFcn, NumBatches=nb, NumUnknowns=u);
 
 %% ------------------------------------------------------------------------
-% SECTION 2.  Which KIND, what to ESTIMATE?  A decision tree (v5).
+% SECTION 2.  Which KIND, what to ESTIMATE?  A decision tree.
 % -------------------------------------------------------------------------
-% fit tells the KIND from the SHAPE of `data`; you say what to estimate in
-% Options. Every kind runs on the ONE accumulator (block-arrow: a shared
-% common block, per-system local blocks eliminated on the fly):
+% The constructor you called fixed the KIND of `task`; you say what to
+% estimate in Options. Every kind runs on the ONE accumulator (block-arrow: a
+% shared common block, per-system local blocks eliminated on the fly):
 %
-%   kind B / C  (A,l,p | batchFcn)
+%   kind B / C  (fromMatrices | fromBatches)
 %       In memory or batched, one shared parameter block: the batches become
 %       the days of one local-free system. Use when: every observation sees
 %       the SAME u unknowns and there are no per-system locals. Estimate="none"
-%       (a single solve); Robust="huber" switches to M-estimation; data.x0 makes
-%       it Gauss-Newton; data.priors gives a free network its datum. This
-%       section uses it.
+%       (a single solve); Robust="huber" switches to M-estimation; X0=x0 makes
+%       it Gauss-Newton; task.addPrior(name, L=L, Sigma=s) gives a free network
+%       its datum. This section uses it.
 %
-%   kind A  (days, arcs, systems, scoped parameter tables)
+%   kind A  (days, arcs, systems, named parameters with a scope)
 %       Use when: several systems share a common field but each has its own
 %       nuisance parameters (arc biases, scale factors), OR the full normal is
 %       too big to form but the reduced common one is not. Section 3 shows it.
@@ -142,7 +159,7 @@ data = struct('batchFcn', batchFcn, 'numUnknowns', u, 'numBatches', nb);
 %       + you must DISCOVER the noise model ......... kind A,  Estimate="noise", Pool="stream", ArcFactors=false
 %
 % Our Section-1 problem is flat with known-ish weights, so: the default.
-R = lsqvce.fit(data);
+R = lsqvce.fit(task);
 D = R.diag;
 
 %% ------------------------------------------------------------------------
@@ -176,30 +193,32 @@ fprintf('  blunders     : %d flagged\n', D.nFlag);
 % If different systems share SOME unknowns (the common field) but each keeps its
 % OWN nuisance parameters, do NOT flatten them into one giant u. DECLARE it:
 %
-%       COMMON (nc)  : the shared field       -- one row of data.commonParams
-%                      per unknown, estimated once, seen by all.
-%       LOCAL  (nl)  : per-system nuisances   -- declared on the SYSTEM as the
-%                      SCOPED localParams table: column 1 is the scope token
-%                      'arc' | 'day' | 'system', the rows are TEMPLATES and nl
-%                      is DERIVED from their expansion over the calendar.
-%                      Eliminated on the fly, never forming the full
-%                      (nc + sum nl) normal.
+%       COMMON (nc)  : the shared field       -- task.addCommon(names), one
+%                      unique name per unknown, estimated once, seen by all.
+%       LOCAL  (nl)  : per-system nuisances   -- sys.addLocal(names, Scope=...)
+%                      on the SYSTEM, Scope "arc" | "day" | "system"; the
+%                      names are TEMPLATES and nl is DERIVED from their
+%                      expansion over the calendar. Eliminated on the fly,
+%                      never forming the full (nc + sum nl) normal.
 %
-%       data.commonParams = commonTbl;             % scoped rows, nc derived
-%       data.days = 1:30;
-%       s.buildDay      = @myBuildDay;             % the one function you write
-%       s.covariance.rr = struct('type','arma', ...);   % fieldnames = the types
-%       s.localParams   = [repmat({'system'}, 4, 1), num2cell((1:4).')];
-%                                                  % 4 'system' rows -> nl = 4,
-%                                                  % this system's own ('arc'
-%                                                  % rows give one block per
-%                                                  % (day, arc), 'day' rows one
-%                                                  % per day with arcs)
-%       data.systems(1) = s;                       % ... (2) for the next system
-%       R = lsqvce.fit(data);                      % Estimate="none": one solve
+%       task = lsqvce.TaskDefinition(Days=1:30);
+%       task.addCommon(fieldNames);                % one name per unknown, nc derived
+%       sys = task.addSystem("sat1", Prepare=@myPrepare);   % once per system and day
+%       sys.addLocal(["b1" "b2" "b3" "b4"], Scope="system");
+%                                                  % 4 "system" names -> nl = 4,
+%                                                  % this system's own ("arc"
+%                                                  % gives one block per (day,
+%                                                  % arc) and needs Arcs= on the
+%                                                  % system, "day" one per day
+%                                                  % with arcs)
+%       sys.addStream("rr", Build=@myBuildRr, Noise=lsqvce.Noise.arma(ar, sigma));
+%                                                  % the one function per stream
+%       sys2 = task.addSystem("sat2", ...);        % ... the next system
+%       R = lsqvce.fit(task);                      % Estimate="none": one solve
 %
-% where buildDay(day, obsType, common, local, procOpt) returns that day's raw
-% design and observations (A, B, l, t -- the API reference, chapter buildDay).
+% where out = myBuildRr(day, ctx) returns that day's raw design and
+% observations: out = ctx.newDay(); out.addArc(A, l, t, Local={names, P})
+% for each arc, the local partials by name (LSQVCE.DAYCONTEXT, LSQVCE.DAYDATA).
 %
 % WHEN to reach for this instead of the flat kinds:
 %   * you have MORE THAN ONE system with its own biases/scales, or
@@ -207,18 +226,20 @@ fprintf('  blunders     : %d flagged\n', D.nFlag);
 % The eliminated locals are handled EXACTLY (Helmert reduction), not dropped --
 % and the redundancy accounting uses the FULL Qxx including them.
 %
-% (No runnable block here: it needs your multi-system buildDay. See
-% examples/demo_combine.m for the declaration pattern, demo_sensors.m for a
-% complete system/sensor/day hierarchy, and demo_grace.m for the full
-% Estimate="noise", Pool="stream", ArcFactors=false loop.)
+% (No runnable block here: it needs your multi-system Build functions. See
+% examples/demo_tutorial.m for a complete runnable TaskDefinition with a
+% Prepare and two streams, demo_combine.m for the declaration pattern,
+% demo_sensors.m for a complete system/sensor/day hierarchy, and demo_grace.m
+% for the full Estimate="noise", Pool="stream", ArcFactors=false loop.)
 fprintf('\n[Section 3 is a recipe -- see demo_combine / demo_sensors / demo_grace.]\n');
 
 %% ------------------------------------------------------------------------
 % SECTION 4.  Wrong weights? Estimate them: variance components.
 % -------------------------------------------------------------------------
 % When s0^2 is inflated but the residuals are CLEAN and show NO structure, the
-% weights themselves are wrong. Declare one covariance field per observation
-% GROUP and let Estimate="noise", Pool="stream", ArcFactors=false estimate one variance component per group.
+% weights themselves are wrong. Declare one STREAM per observation GROUP and
+% let Estimate="noise", Pool="stream", ArcFactors=false estimate one variance
+% component per group.
 %
 % Here: two instrument groups, the second secretly 3x noisier, but we CLAIM
 % equal noise -- the normal state of affairs when instrument headers disagree
@@ -228,25 +249,23 @@ sgTrue = sg;  sgTrue(g==2) = sgTrue(g==2) * 3;
 l5     = A*xt + sgTrue .* randn(rs, n, 1);
 t5     = (0:n-1).' * 5;                             % seconds (any monotone works)
 
-vdata.commonParams = [repmat({'common'}, u, 1), num2cell((1:u).')];  % the same u unknowns
-vdata.days = 1;                                     % the whole set is one "day"
-vs.buildDay = @(day, ot) struct( ...                % rows of ONE group, as ONE arc
-        'A', {{A(g == 1 + strcmp(ot,'g2'), :)}}, ...   % v6: one cell = one arc
-        'B', {{zeros(sum(g == 1 + strcmp(ot,'g2')), 0)}}, ...
-        'l', {{l5(g == 1 + strcmp(ot,'g2'))}}, ...
-        't', {{t5(g == 1 + strcmp(ot,'g2'))}}, ...
-        'Cep', {{sg(g == 1 + strcmp(ot,'g2'))}});   % nEpoch x 1: the CLAIMED
-                                                    % accuracy, one sigma per row
-% v5.3: that accuracy is DATA -- what the preprocessing knows about each
-% observation -- so it travels WITH the day, as D.Cep. The covariance spec keeps
-% the TEMPORAL law and its LEVEL only: sigma is 1 because Cep already carries the
-% accuracy, and estimate "scale" asks for that one LEVEL per stream -- the factor
-% group 2 is really off by (the API reference, chapters Covariance specifications and buildDay).
-vs.covariance.g1 = struct('type', 'diag', 'sigma', 1, 'estimate', "scale");
-vs.covariance.g2 = struct('type', 'diag', 'sigma', 1, 'estimate', "scale");
-vdata.systems = vs;
+vtask = lsqvce.TaskDefinition(Days=1);              % the whole set is one "day"
+vtask.addCommon(compose("x%d", 1:u));               % the same u unknowns, one name each
+vsys = vtask.addSystem("groups");                   % one system, no locals
+% One stream per group, each with its own Build (groupArc, at the end of this
+% file): the rows of ONE group as ONE arc, with the CLAIMED accuracy of every
+% row, one sigma per row. That accuracy is DATA -- what the preprocessing knows
+% about each observation -- so Build passes it WITH the arc, as Sigma=. The
+% stream's lsqvce.Noise keeps the TEMPORAL law and its LEVEL only: sigma is 1
+% because Sigma= already carries the accuracy, and the stream's
+% Estimate="scale" asks for that one LEVEL per stream -- the factor group 2 is
+% really off by (LSQVCE.NOISE, LSQVCE.DAYDATA).
+vsys.addStream("g1", Build=@(day, ctx) groupArc(ctx, A, l5, t5, sg, g == 1), ...
+               Noise=lsqvce.Noise.white(1), Estimate="scale");
+vsys.addStream("g2", Build=@(day, ctx) groupArc(ctx, A, l5, t5, sg, g == 2), ...
+               Noise=lsqvce.Noise.white(1), Estimate="scale");
 
-Rv = lsqvce.fit(vdata, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+Rv = lsqvce.fit(vtask, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
          Verbose=false));
 
 sigEnd = Rv.history.sigma(end, :);
@@ -266,17 +285,25 @@ fprintf('               the loop rescaled the group covariances and re-solved: s
 % SECTION 5.  The decision tree, condensed.
 % -------------------------------------------------------------------------
 disp(' ');
-disp('  THE DATA STRUCT (fit picks the engine from its shape)');
-disp('    one parameter block, known noise ............ data.A/l/p or batchFcn');
-disp('    common + per-system locals, known noise ..... data.systems');
-disp('    must DISCOVER the noise model ............... data.systems, Estimate="noise", Pool="stream", ArcFactors=false');
+disp('  THE TASK (its constructor fixes the kind fit runs)');
+disp('    one parameter block, known noise ............ TaskDefinition.fromMatrices or .fromBatches');
+disp('    common + per-system locals, known noise ..... TaskDefinition(Days=...), addSystem');
+disp('    must DISCOVER the noise model ............... addSystem, Estimate="noise", Pool="stream", ArcFactors=false');
 disp(' ');
 disp('  READING THE RESULT (in this order)');
-disp('    integrity fails            -> fix your batchFcn/buildDay. Nothing else matters.');
+disp('    integrity fails            -> fix your batchFcn/Build. Nothing else matters.');
 disp('    ratio ~ 1                  -> done.');
 disp('    ratio >> 1, contamination  -> R.diag.flagIdx, or Robust="huber"');
-disp('                                  (any kind, with Estimate="none"; not with data.x0).');
+disp('                                  (any kind, with Estimate="none"; not with X0).');
 disp('    ratio >> 1, clean, STRUCTURE -> plot R.diag.w vs time etc. Fix the MODEL.');
 disp('    ratio >> 1, clean, no structure -> Estimate="noise", Pool="stream", ArcFactors=false. Fix the WEIGHTS.');
 disp('    ratio << 1                 -> over-parameterised?');
 disp(' ');
+
+%% ------------------------------------------------------------------ local
+function out = groupArc(ctx, A, l, t, sg, inGroup)
+%GROUPARC  The Build of Section 4: the rows of ONE group as ONE arc (no
+%   locals), with the CLAIMED accuracy of each row as the arc's Sigma.
+    out = ctx.newDay();
+    out.addArc(A(inGroup, :), l(inGroup), t(inGroup), Sigma=sg(inGroup));
+end

@@ -68,6 +68,8 @@ function demo_messaging(varargin)
 %   See also LSQVCE.UTIL.VERBOSITY, LSQVCE.UTIL.LOG, LSQVCE.FIT,
 %            LSQVCE.OPTIONS, DEMO_GRACE, DEMO_GRACE_DATALOADER
 %
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: the run fits the loader's
+%   lsqvce.TaskDefinition. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: level 2 is documented as
 %   not reachable through LSQVCE.FIT, the level-1 line names what is actually
 %   printed, the retired case convention is replaced by the capitalised-label
@@ -141,14 +143,14 @@ function txt = runAtLevel(lvl)
 
     lsqvce.util.log.set('fid', fid, 'screen', false);
     try
-        [~, data] = demo_grace_dataLoader();
+        [~, ~, task] = demo_grace_dataLoader();      % its lsqvce.TaskDefinition
         % MaxPasses 1 keeps the demo quick: the point is WHAT is
         % printed at each level, not how long the loop takes to converge. A
         % short run does mean it stops before convergence, which is why the
         % level-0 block below still shows warnings. Options.Verbose carries the
         % level 0..2 (v3, L10 WP-74), but engineArgs hands the drivers a
         % LOGICAL, so 1 and 2 reach them alike -- see the help block.
-        lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, Verbose=lvl, ...
+        lsqvce.fit(task, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, Verbose=lvl, ...
                 MaxPasses=1));
     catch ME
         lsqvce.util.log.reset();

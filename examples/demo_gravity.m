@@ -21,7 +21,7 @@ function [R, score] = demo_gravity(opt)
 %        arc. Each system carries its OWN number of per-arc empirical
 %        parameters (2, 3 and 1), so the block-arrow solver meets three
 %        different local block sizes in one adjustment.
-%     2. THE WEIGHTS. The covariance declared to the toolbox has the right AR
+%     2. THE WEIGHTS. The noise declared to the toolbox has the right AR
 %        shape but unit sigma on all three streams, while the observations
 %        were generated with sigmas 1.0 / 2.0 / 0.5. VCE has to find that,
 %        under real column correlation rather than the benign Gaussian
@@ -102,10 +102,17 @@ function [R, score] = demo_gravity(opt)
 %     These are the numbers of ONE run; they are quoted, not asserted -- the
 %     tests assert the structural claims and leave the statistics to the
 %     formal-error reading.
+%     DECLARATION: measured on the v6 data struct. WP-161 declares the same
+%     rows as a lsqvce.TaskDefinition (DEMO_GRAVITY_DATALOADER keeps every
+%     seed, draw and the dense local design); not re-measured in the
+%     migrating session (no MATLAB there).
 %
 %   ERRORS
 %     lsqvce:demoGravity:noExportDir  'ExportDir' names a folder that does
 %                                     not exist and could not be created
+%     A declaration mistake is raised by the add-call that makes it
+%     (lsqvce:TaskDefinition:*), a mistake inside a Build while the day is
+%     read (lsqvce:DayContext:*); the engines' refusals keep their own ids.
 %
 %   EXAMPLE
 %     R = demo_gravity();                 % ~1.6 s, prints the three sections
@@ -120,8 +127,10 @@ function [R, score] = demo_gravity(opt)
 %     cached, which is the honest streaming behaviour and still cheap here.
 %
 %   See also DEMO_GRAVITY_DATALOADER, DEMO_GRAVITY_DESIGN, DEMO_GRACE,
-%   LSQVCE.FIT, LSQVCE.OPTIONS
+%   LSQVCE.TASKDEFINITION, LSQVCE.FIT, LSQVCE.OPTIONS
 %
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: the run fits the loader's lsqvce.TaskDefinition. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-17 (CEST, UTC+02:00), WP-150 (F7): the formal error is
 %   sqrt(diag(R.sol.Cxx)) -- it was multiplied by sigma0 a second time. With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -167,7 +176,7 @@ end
         end
     end
 
-    [cfg, data] = demo_gravity_dataLoader();
+    [cfg, ~, task] = demo_gravity_dataLoader();   % the declaration (this folder)
 
     % ---- 1. the problem -------------------------------------------------
     section('1. The problem: GRACE-like, physically structured, ragged');
@@ -193,7 +202,7 @@ end
     % of 48 per bin), so the unsmoothed loop crept toward it at 0.977 per pass
     % and needed 72 passes. Averaging each bin with its two neighbours costs
     % nothing on these smooth AR spectra and settles in 4 passes.
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=opt.MaxPasses, ...
+    R = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=opt.MaxPasses, ...
             Noise=struct('Smooth', 1), Verbose=opt.Verbose));
 
     % ---- 2. the weights --------------------------------------------------

@@ -66,7 +66,7 @@ function [spec, systems] = declaration(data, cacheDays)
 end
 
 function spec = validateData(data)
-%VALIDATEDATA  Enforce the API reference (The data struct) on the raw struct; fail fast.
+%VALIDATEDATA  Enforce the API reference (The compiled declaration) on the raw struct; fail fast.
 %   OUTPUT spec 1x1 struct  .commonParams (RxC cell), .days (double),
 %                           .systems (1xM), .ids (1xM cellstr, resolved)
     topAllowed = {'commonParams', 'days', 'systems', 'priors', 'paramColumns'};   % priors: R5 M5 5b; paramColumns: R5-D8 round 3

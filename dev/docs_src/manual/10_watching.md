@@ -3,8 +3,9 @@
 ## During the run: `OnPass`
 
 `Options.OnPass` is called after every pass of every iterative run (the noise loop,
-IRLS, Gauss–Newton) with the pass state, the live accumulator, your declaration and your
-`processingOptions`. Plot, `drawnow`, save — or return `false` to stop after the pass:
+IRLS, Gauss–Newton) with the pass state, the live accumulator, your declaration (as the
+compiled struct `task.declaration()`, in `ctx.data`) and every system's `Settings` (in
+`ctx.processingOptions`). Plot, `drawnow`, save — or return `false` to stop after the pass:
 
 ```matlab
 function go = myInspect(ctx)
@@ -14,7 +15,7 @@ function go = myInspect(ctx)
     fprintf('pass %d: largest change %.3g\n', ctx.pass, ctx.maxDev);
 end
 
-R = lsqvce.fit(data, Estimate="noise", OnPass=@myInspect);
+R = lsqvce.fit(task, Estimate="noise", OnPass=@myInspect);
 ```
 
 The fields of `ctx` are listed in the API reference (`lsqvce.Options`, *OnPass*). An

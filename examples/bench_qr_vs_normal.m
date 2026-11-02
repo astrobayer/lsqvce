@@ -7,12 +7,12 @@ function bench_qr_vs_normal(varargin)
 %   BENCH_QR_VS_NORMAL()              a default sweep
 %   BENCH_QR_VS_NORMAL('u', [10 50 100], 'n', 2e5, 'nk', 5000)
 %
-%   Both runs are the USER path on the same declaration -- only the Options
-%   knob changes:
+%   Both runs are the USER path on the same batched lsqvce.TaskDefinition --
+%   only the Options knob changes:
 %
-%       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nb);
-%       lsqvce.fit(data, lsqvce.Options(Backend="normal", Verbose=false))
-%       lsqvce.fit(data, lsqvce.Options(Backend="qr",     Verbose=false))
+%       task = lsqvce.TaskDefinition.fromBatches(src, NumBatches=nb, NumUnknowns=u);
+%       lsqvce.fit(task, lsqvce.Options(Backend="normal", Verbose=false))
+%       lsqvce.fit(task, lsqvce.Options(Backend="qr",     Verbose=false))
 %
 %   WHAT YOU SHOULD SEE
 %     * The QR solve costs roughly 2-9x the normal-equation solve, growing
@@ -45,6 +45,19 @@ function bench_qr_vs_normal(varargin)
 %     'reps'  1x1 double  repetitions, best-of              (default 3)
 %   OUTPUT   none (prints two tables)
 %
+%   ACCURACY
+%     Nothing is pinned: the bench MEASURES and prints. Its timings are your
+%     machine's; its error columns are relative errors against an SVD
+%     reference of the same seeded draws (mt19937ar, seed 1).
+%   ERRORS
+%     none of its own. The normal path's refusal of a numerically singular N
+%     (lsqvce:normalEq:notSPD) is caught and printed as the verdict; any other
+%     error of a fit is rethrown.
+%
+%   See also LSQVCE.TASKDEFINITION, LSQVCE.FIT, LSQVCE.OPTIONS
+%
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: the batches declared as lsqvce.TaskDefinition.fromBatches. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the cond(N) recipe says
 %   that SOL carries no condN field (R.diag.condN does exist), not that the
 %   block path reports none.
@@ -98,12 +111,12 @@ for u = o.u(:).'
     e = unique([0:o.nk:o.n, o.n]);
     nb = numel(e) - 1;
     src = @(k) deal(A(e(k)+1:e(k+1), :), l(e(k)+1:e(k+1)), p(e(k)+1:e(k+1)));
-    data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nb);
+    task = lsqvce.TaskDefinition.fromBatches(src, NumBatches=nb, NumUnknowns=u);
 
     tN = inf;  tQ = inf;
     for rep = 1:o.reps
-        t = tic;  RN = lsqvce.fit(data, optN);  tN = min(tN, toc(t));
-        t = tic;  RQ = lsqvce.fit(data, optQ);  tQ = min(tQ, toc(t));
+        t = tic;  RN = lsqvce.fit(task, optN);  tN = min(tN, toc(t));
+        t = tic;  RQ = lsqvce.fit(task, optQ);  tQ = min(tQ, toc(t));
     end
 
     agree = norm(RN.x - RQ.x) / max(norm(RN.x), realmin);
@@ -144,17 +157,17 @@ for eps = [1e-1 1e-3 1e-5 1e-7 1e-8]
     e = unique([0:nk:n, n]);
     nb = numel(e) - 1;
     src = @(k) deal(A(e(k)+1:e(k+1), :), l(e(k)+1:e(k+1)), p(e(k)+1:e(k+1)));
-    data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nb);
+    task = lsqvce.TaskDefinition.fromBatches(src, NumBatches=nb, NumUnknowns=u);
 
     W = warning('off', 'all');
     refused = false;
     try
-        RN = lsqvce.fit(data, optN);
+        RN = lsqvce.fit(task, optN);
     catch err
         if ~strcmp(err.identifier, 'lsqvce:normalEq:notSPD'), rethrow(err), end
         refused = true;                          % N singular in double: honest refusal
     end
-    RQ = lsqvce.fit(data, optQ);
+    RQ = lsqvce.fit(task, optQ);
     warning(W);
 
     eQ = norm(RQ.x - xr)/norm(xr);

@@ -35,17 +35,21 @@ well on a small problem: a levelling network, a calibration, or a curve fit.
 
 ```matlab
 lsqvce_setup                                   % once, to install
-R = lsqvce.fit(data, Estimate="noise");        % the one verb
+R = lsqvce.fit(task, Estimate="noise");        % the one verb
 R.report                                       % the verdict
 ```
 
-`data` is a plain MATLAB struct that describes your problem. The options say how to run
-it. `R` holds everything that comes back. You never call anything else unless you want
-to. The toolbox has exactly six user-facing names:
+`task` is a `lsqvce.TaskDefinition` that describes your problem, filled with flat `add`
+calls. The options say how to run it. `R` holds everything that comes back. The toolbox
+has these user-facing names:
 
 | name | what it is |
 |---|---|
-| `lsqvce.fit` | runs the adjustment: `R = lsqvce.fit(data, opts)` |
+| `lsqvce.TaskDefinition` | the declaration: parameters, systems, streams, priors (`addCommon`, `addSystem`, `addPrior`) |
+| `lsqvce.SystemDefinition` | one system of a task, made by `addSystem`: `addLocal`, `addStream`, `addPrior` |
+| `lsqvce.Noise` | the noise law of a stream: `white`, `arma`, `psd`, `acf`, `var`, `custom` |
+| `lsqvce.DayContext`, `lsqvce.DayData` | what your daily functions receive and return |
+| `lsqvce.fit` | runs the adjustment: `R = lsqvce.fit(task, opts)` |
 | `lsqvce.Options` | every setting of a run, with safe defaults |
 | `lsqvce.Results` | what `fit` returns: estimates, errors, diagnostics, plots |
 | `lsqvce.report` | prints the verdict (`R.report` calls it for you) |
@@ -65,7 +69,7 @@ to. The toolbox has exactly six user-facing names:
 | document | answers | where |
 |---|---|---|
 | **this Manual** | *How do I use it?* Installation, concepts, a tutorial, the workflow, declaring your problem, the noise model, priors, reading the report, the examples | `doc lsqvce`, `lsqvce_manual.pdf` |
-| **the API reference** | *What exactly does each interface accept and return?* The `data` struct, `buildDay` and `prepareDay`, covariance specifications, `Options`, `Results`, every error identifier | `html/lsqvce_api.html`, `lsqvce_api.pdf` |
+| **the API reference** | *What exactly does each interface accept and return?* The task definition, `Prepare` and `Build`, the noise laws, `Options`, `Results`, every error identifier | `html/lsqvce_api.html`, `lsqvce_api.pdf` |
 | **the theory** | *What is computed, and why?* The mathematical framework | `lsqvce_theory.pdf` |
 
 Every function also has its own page: `doc lsqvce.<name>` or `help lsqvce.<name>`.
@@ -77,7 +81,7 @@ Every function also has its own page: `doc lsqvce.<name>` or `help lsqvce.<name>
 1. *Installation* — five minutes.
 2. *Key concepts* — the vocabulary every later chapter uses: common and local
    parameters, systems, days, arcs, streams, and the two functions you write
-   (`buildDay` and, optionally, `prepareDay`).
+   (a stream's `Build` and, optionally, a system's `Prepare`).
 3. *Your first adjustment* — a complete, runnable example
    (`examples/demo_tutorial.m`). Run it, then change it.
 4. *The workflow, step by step* — the same path for your own data, with every decision

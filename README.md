@@ -1,13 +1,15 @@
 # lsqvce v6.35.1 — least-squares adjustment with variance component estimation
 
-Declare your problem as a plain `data` struct, `fit` it, and get a judged
+Declare your problem as a `lsqvce.TaskDefinition`, `fit` it, and get a judged
 result: estimates with formal errors, per-observation diagnostics, and a
 five-level verdict that says whether to believe them.
 
-**The user surface is six names** at `lsqvce.` — `fit`, `Options`, `Results`,
-`report`, `layout` (the column layout to declare priors in) and `solveContributions`
-(a fit's days re-weighted without re-reading them: a bootstrap) — plus the `data`
-struct specified in the API reference (`doc lsqvce`). Everything
+**The user surface** at `lsqvce.` is the declaration — `TaskDefinition` (with the
+`SystemDefinition` its `addSystem` returns), `Noise` (the temporal laws), and the
+`DayContext` / `DayData` your `Prepare` and `Build` functions receive and fill — and the
+run: `fit`, `Options`, `Results`, `report`, `layout` (the column layout to declare priors
+in) and `solveContributions` (a fit's days re-weighted without re-reading them: a
+bootstrap). The API reference (`doc lsqvce`) specifies every one. Everything
 that does the work lives one level down (`lsqvce.engine.*` drivers,
 accumulators, loaders, VCE, diagnostics; `lsqvce.kernel.*` transforms, filters,
 statistics) and stays reachable for experts.
@@ -47,48 +49,62 @@ into your own project.
 
 ## Quick start
 
-Three lines, whatever kind of data you have:
+Declare the problem once, then run it:
 
 ```matlab
-opts = lsqvce.Options(Estimate="noise");   % what to do (defaults = the engines' own)
-R    = lsqvce.fit(data, opts);             % the one verb
-R    = lsqvce.fit(data, Estimate="noise"); % the same, Name=Value straight on fit
-R.report                                   % the five-level verdict
+task = lsqvce.TaskDefinition(Days=59396:59425);          % the calendar (MJD)
+task.addCommon(coeffNames);                               % parameters shared by all data
+grace = task.addSystem("graceC", Prepare=@prepareOrbit, Arcs=4);   % one instrument
+grace.addLocal(["x0" "y0" "z0" "vx0" "vy0" "vz0"], Scope="arc");   % eliminated per arc
+grace.addLocal(["accScale" "accBias"], Scope="day");
+grace.addStream("kbrr", Build=@buildKbrr, Noise=lsqvce.Noise.psd(f, S));
+grace.addStream("pos",  Build=@buildPos,  Noise=lsqvce.Noise.white(1), Axes=3);
+task.addPrior("kaula", On="^[CS]", Sigma=1e-10, Estimate="scale");
+
+R = lsqvce.fit(task, Estimate="noise", Pool="obsType");  % the one verb
+R.report                                                  % the five-level verdict
+T = R.toTable(task);                                      % every parameter, estimate, std
 ```
 
-`data` is a plain struct; `fit` tells the three kinds apart by the fields present:
+The two functions you write have one home each and take `(day, ctx)`: the system's
+`Prepare` does the work all streams of a day share (`ctx.Prepared` in every `Build`), and
+each stream's `Build` returns its arcs of the day:
 
 ```matlab
-% (B) in memory, diagonal weights p = 1./sigma.^2, no arc-wise unknowns
-data = struct('A', A, 'l', l, 'p', p);                          R = lsqvce.fit(data);
-%     (a full SPD weight matrix is kind C's: return it from batchFcn -- R6 WP-101)
-R = lsqvce.fit(data, Robust="huber");                           % M-estimation (IRLS)
-data.priors = struct('L', B.', 'sigma', 1, 'name', 'datum');    % a free network's datum
+function out = buildKbrr(day, ctx)
+    orb = ctx.Prepared;                      % from prepareOrbit(day, ctx)
+    out = ctx.newDay();
+    for a = ctx.ArcIds
+        [A, l, t, P] = kbrrArc(orb, a);      % your model: A m x nc, l = O - C, t in seconds
+        out.addArc(A, l, t, Local={["x0" "y0" "z0" "vx0" "vy0" "vz0"], P}, Arc=a);
+    end
+end
+```
 
-% (C) batched callback [A,l,p] = batchFcn(k); with data.x0 the nonlinear form
-data = struct('batchFcn', @(k) src(k), 'numUnknowns', u, 'numBatches', nBatch);
+Partials of local parameters are given by name; the toolbox places them in the right
+columns. Data that fit in memory, or a design read in batches, take one line each:
 
-% (A) streaming: days, arcs, scoped parameter tables, coloured noise (GRACE-FO)
-data.commonParams = [repmat({'common'}, nc, 1), yourColumns];   data.days = 59396:59425;
-data.systems = struct('buildDay', @buildDayC, 'covariance', cov, 'id', 'C', ...
-                      'localParams', localTemplates);       % buildDayC returns one CELL
-R = lsqvce.fit(data, Estimate="noise", Pool="obsType", OnPass=@myInspect);   % per arc (v6)
+```matlab
+R = lsqvce.fit(lsqvce.TaskDefinition.fromMatrices(A, l, Weights=1./sigma.^2));
+R = lsqvce.fit(lsqvce.TaskDefinition.fromBatches(@batchFcn, NumBatches=K, NumUnknowns=u));
+R = lsqvce.fit(lsqvce.TaskDefinition.fromBatches(@jacFcn, NumBatches=K, X0=x0));  % nonlinear
 ```
 
 Every kind runs on the same accumulator and the same loop; `Robust` and `OnPass`
 (your inspection hook after every pass) work on all of them, and the nonlinear form
-(`x0`) on the batched kind — but not together with `Robust` (`lsqvce:fit:notYet`). The v5 → v6 migration is one change (`RELEASE_NOTES.md`).
+(`X0`) on the batched kind — but not together with `Robust` (`lsqvce:fit:notYet`). The
+v6 → v7 migration table (`data` struct → `TaskDefinition`) is in `RELEASE_NOTES.md`.
 
 **New here?** `doc lsqvce` opens the landing page (`html/index.html`). Three documents, each with one job:
 
 1. **The Manual** (`html/lsqvce_manual.html`, `lsqvce_manual.pdf`) — how to use the toolbox:
    installation, the key concepts, a tutorial you can run (`examples/demo_tutorial.m`), the
-   workflow step by step, declaring your problem (including `prepareDay`, the work all
-   streams of a day share), choosing the stochastic model, priors, reading the report,
+   workflow step by step, declaring your problem (the task, its systems and streams, and
+   where `Prepare` and `Build` go), choosing the stochastic model, priors, reading the report,
    every example explained, and troubleshooting.
 2. **The API reference** (`html/lsqvce_api.html`, `lsqvce_api.pdf`) — what every interface
-   accepts and returns: the `data` struct, `buildDay` and `prepareDay`, covariance specifications, `Options`,
-   `Results`, every error identifier.
+   accepts and returns: `TaskDefinition`, `Prepare` and `Build`, the `Noise` laws, `Options`,
+   `Results`, every error identifier, and the compiled declaration the engines read.
 3. **The theory** (`lsqvce_theory.pdf`) — the mathematical framework.
 
 Then run `demo_tutorial` and read the Manual's chapter *Your first adjustment* beside it;
@@ -108,25 +124,19 @@ words: `"vce"` = `Estimate="noise", Pool="stream", ArcFactors=false`;
 (default 60; keep it with the default `Noise.Smooth = 1`). `Robust="huber" |
 "igg3" | "bisquare"` is IRLS on the same loop, on every kind except the nonlinear form.
 
-**Declaring the stochastic model.** Each observation stream carries a
-covariance spec — its temporal law: `diag` (white), `arma` (a whitening
-filter), `acf` / `psd` (an exact Toeplitz law; `psd` can also be AR-whitened), `var`
-(axes correlated across time; not under `Estimate="noise"`) or `custom` — plus the per-stream policy
-`estimate = "none" | "scale" | "law"` and `arcFactors`
-(`examples/demo_noisePolicy.m` runs all four against a planted truth). The per-epoch accuracy
-of the observations (a sigma per epoch, or a 3 × 3 covariance per epoch for
-positions) comes back from `buildDay` with the day as `D.Cep`; the toolbox
-composes the two (v5.3). Since v6 the day comes back as ONE CELL PER ARC
-(`A`, `B`, `l`, `t`, `Cep`) and the arc schedule is optional — the cells are the
-arcs. Batches are
-overlapped by the filter memory automatically, so batching never changes the
-result. Priors on the common parameters — a datum, a Kaula rule, a
-background model — are `data.priors`, written in the columns
-`lsqvce.layout` announces (`examples/demo_priors.m`). When several streams of a day rest
-on one expensive computation (an orbit integration, a file every stream reads), the
-system's optional `prepareDay` runs it once per day and hands the result to every
-`buildDay` of that day as `procOpt.prepared`. Details and the `buildDay` rules:
-the API reference (`doc lsqvce`).
+**Declaring the stochastic model.** Each stream carries its temporal law with its level,
+`Noise=lsqvce.Noise.white(sigma)`, `.arma(ar, sigma)`, `.psd(f, S)`, `.acf(@rho, sigma)`,
+`.var(ar, Sigma)` (axes correlated across time; not under `Estimate="noise"`) or
+`.custom(@covFcn)`, and on `addStream` what the estimator may change about it:
+`Estimate="law" | "scale" | "none"` and `ArcFactors` (`examples/demo_noisePolicy.m` runs
+all four against a planted truth). The per-epoch accuracy of the observations (a sigma
+per epoch, or a 3 × 3 covariance per epoch for positions) travels with each arc,
+`out.addArc(..., Sigma=s)`; the toolbox composes the two. Batches are overlapped by the
+filter memory automatically, so batching never changes the result. Priors — a datum, a
+Kaula rule, a background model, calibration constraints — are `task.addPrior` on the
+common parameters and `sys.addPrior` on a system's locals, by name pattern (`On=`) or as
+an operator in the columns `task.layout()` announces (`examples/demo_priors.m`). Details
+and the `Build` rules: the API reference (`doc lsqvce`).
 
 **Options.** `lsqvce.Options` is a typed value class: 12 knobs and five
 groups (`Noise`, `RobustOpts`, `Diagnostics`, `Parallel`, `GaussNewton`);
@@ -136,7 +146,7 @@ knobs deviate from the defaults. You rarely need more than `Estimate`,
 
 **Watching a run.** `OnPass=@(ctx) ...` is called at the end of every pass
 with the current solution, the noise state, the live accumulator, your
-declaration and your `processingOptions`; plot or save what you like, return
+compiled declaration and every system's `Settings`; plot or save what you like, return
 `false` to stop. After the run, `R.plot("residuals" | "contribution" | "psd"
 | "convergence")`.
 
@@ -159,12 +169,12 @@ be trusted. A `sigma0` of `NaN` means the quadratic form cancelled in double
 precision — the toolbox reports that instead of clamping
 (`lsqvce_theory.pdf`, section 1.3).
 
-**Combining several data sets.** Add one system per satellite / instrument via
-`data.systems(k)`; common parameters are stated once, each system's arc-local
+**Combining several data sets.** Add one system per satellite / instrument with
+`task.addSystem`; common parameters are stated once, each system's arc-local
 parameters are eliminated by a Schur complement, and the variance components
 weight the systems against each other. Regularisation is always declared, never
-silent, and never an option: `data.priors(k)` on the common parameters and
-`data.systems(k).priors(l)` on the local ones, each a pseudo-observation group
+silent, and never an option: `task.addPrior` on the common parameters and
+`sys.addPrior` on the local ones, each a pseudo-observation group
 that carries its own redundancy (the Manual, chapter Priors and regularisation).
 
 **Parallelism.** Days within a system (`Parallel.DistributeDays = true`), arcs in the

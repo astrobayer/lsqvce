@@ -532,7 +532,7 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups, froms)
     hist.nIter = out.nIter;
     hist.skips = out.skips;
     % arcKeys is a CELL: braces keep struct() from expanding it into a struct
-    % ARRAY (the API reference, chapter The data struct pitfall -- it bit this very line in L3 r1).
+    % ARRAY (the API reference, chapter The compiled declaration, pitfall -- it bit this very line in L3 r1).
     noise = struct('S', out.S, 'C', out.C, 'sigma2', out.sigma2, 'arcKeys', {out.arcKeys}, ...
                    'Sgroups', out.Sgroups, 'Cgroups', out.Cgroups, ...   % R5 M3 3d: one law per pool group
                    'checks', out.checks);                                % WP-154: the model checks

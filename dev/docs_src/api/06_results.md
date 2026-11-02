@@ -28,7 +28,7 @@ the map.
 | `R.summary()` | one row per stream: final σ, law, whiteness (iterative runs) |
 | `R.convergence()` | one row per pass: the stream levels, whiteness, `maxDev`, and the stop-rule quantities `binRatio` and `levelDev`, with the solution's step `xStep` (iterative runs) |
 | `R.coefficients(Alpha=a)` | estimates with formal errors and (1 − a) confidence bounds |
-| `R.toTable(data)` | your parameter tables with estimate and standard deviation written in |
+| `R.toTable(task)` | one table of every parameter instance (`System`, `Name`, `Scope`, `Day`, `Arc`, `Estimate`, `Std`); `System` is `""` for commons |
 | `R.residuals(...)` | whitened (and raw) residuals per stream, re-read from the arcs |
 | `R.contributions()` | every (system, day)'s reduced contribution under the run's final weights, for `lsqvce.solveContributions` (one more pass over the data) |
 | `R.contribution(...)` | the share of every group in the common solution, t_g = tr(N⁻¹N_g) (Level 2: per parameter) |

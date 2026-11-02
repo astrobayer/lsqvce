@@ -41,3 +41,7 @@ at least the longest arc,WP-111 part 3,Noise.Grid had to cover the longest arc f
 longest arc for an exact law,WP-111 part 3,the Options table's form of the same claim
 defaults 'C0',WP-111 part 3,the joint driver started from a non-white C0 because the white start was degenerate under the DCT weighting
 'ZeroFreqRule',WP-111 part 3,psdVCE's zero-frequency rule (retired with the DCT components in 6.7.0)
+a plain `data` struct,WP-161,the README told a user to declare the problem as a plain data struct (a lsqvce.TaskDefinition since v7)
+The user surface is six names,WP-161,the README's count of the user surface before TaskDefinition / Noise / DayContext / DayData
+tells the three kinds apart by the fields present,WP-161,fit was said to read the kind from the struct's fields on the user path (the TaskDefinition constructor decides it)
+reads the KIND from the shape of your,WP-161,the landing page's form of the same claim

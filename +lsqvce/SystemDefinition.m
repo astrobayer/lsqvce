@@ -31,8 +31,9 @@ classdef SystemDefinition < handle
 %       Build      @(day, ctx) -> LSQVCE.DAYDATA   required; once per stream and day
 %       Noise      LSQVCE.NOISE              required; the temporal law and its level
 %       Estimate   "law" | "scale" | "none"  what Options.Estimate="noise" may change: the
-%                                           shape and level (default "law"), the level
-%                                           only, or nothing
+%                                           shape and level (default "law"; "scale"
+%                                           for a per-row sigma), the level only, or
+%                                           nothing
 %       ArcFactors logical                   one variance factor per arc (default:
 %                                           Options.ArcFactors)
 %       Axes       integer >= 1              axes per epoch, rows epoch-major (default 1)
@@ -85,6 +86,8 @@ classdef SystemDefinition < handle
 %
 %   Created 2026-11-02 (CET, UTC+01:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5.5 -- level v7, WP-160.
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: Estimate names the per-row-sigma
+%   default "scale". With assistance from Claude (Anthropic), model Claude Opus 5.5.
 
     properties (SetAccess = private)
         Name (1,1) string = ""

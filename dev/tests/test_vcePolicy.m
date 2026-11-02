@@ -765,8 +765,16 @@ function testDemoNoisePolicyIsTheWorkedPolicyExample(tc)
     % near 1 (no split at all) -- a factor 2 band on a 9 is the honest bound
     tc.verifyGreaterThan(s.arcRatio(1), 4.5, 'the degraded arc is isolated');
     tc.verifyLessThan(s.arcRatio(1), 18, 'and not blown up');
-    tc.verifyEqual(s.badEstimate, "lsqvce:fit:badEstimate", ...
-                   'a policy that is not one of the three names is refused by name');
+    % WP-161: the demo declares a lsqvce.TaskDefinition, whose addStream
+    % validates Estimate on the spot; the engine's own check on the compiled
+    % struct stays pinned on the declaration of this suite's shared run
+    tc.verifyEqual(s.badEstimate, "MATLAB:validators:mustBeMember", ...
+                   'a policy that is not one of the three names is refused when declared');
+    d = tc.TestData.data;
+    if isa(d, 'lsqvce.TaskDefinition'), d = d.declaration(); end
+    ot = fieldnames(d.systems(1).covariance);
+    d.systems(1).covariance.(ot{1}).estimate = "lwa";
+    tc.verifyError(@() lsqvce.fit(d, Verbose=false), 'lsqvce:fit:badEstimate');
 end
 
 %% ------------------------------------------- arc factors (R6 WP-97, F-01)

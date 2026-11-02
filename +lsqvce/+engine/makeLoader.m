@@ -61,7 +61,7 @@ function L = makeLoader(buildDay, opt)
 %     takes (common, local, procOpt) receives the parametrisation tables and
 %     processing options passed to makeLoader; the 6th argument is the day's
 %     expansion slice (offsets of every block of A and B, the rows present on
-%     the day; the API reference, chapter buildDay, info). A varargin builder receives
+%     the day; the API reference, The compiled declaration, buildDay, info). A varargin builder receives
 %     all six. common / local have ONE ROW per template and C columns of YOUR
 %     convention; nc and nl are DERIVED (see 'CommonParams' / 'LocalParams').
 %
@@ -297,6 +297,9 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 %
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: the API reference's buildDay and
+%   Cep sections now live in its chapter The compiled declaration. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-155: the dense step solves with the
 %   law's Cholesky factor instead of forming its inverse (denseLawWhiten).
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
