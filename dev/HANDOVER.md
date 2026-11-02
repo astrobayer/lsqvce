@@ -12854,7 +12854,7 @@ relabelling at run time, so the Manual cites the makeLoader ids and says how fit
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 160 | `lsqvce.TaskDefinition` and its companions `SystemDefinition`, `Noise`, `DayContext`, `DayData`: flat add-calls with name-value arguments, Prepare on the system (once per system and day), Build on the stream (once per stream and day), both called `(day, ctx)`; local partials by name (`Local=`) or as a raw `B=` with columns from `ctx.cols`; compiled to the v6.35.1 data struct; `fit` accepts a TaskDefinition; a new suite with the bitwise equivalence against a hand-written v6 struct | 159 | GREEN IN BRANCH (2026-11-02: CI on 20fc844 ci_gate 811/811, inventory lsqvce:internal:testProbe only; local postflight on 20fc844 GREEN 811/811) -- DONE on the level's merge |
-| 161 | Manual and API reference rewritten around TaskDefinition; every example and template migrated; migration table v6 -> v7; old wording in superseded_claims.csv; `R.toTable(task)` | 160 | IN BRANCH (2026-11-03: local postflight on 65e43cf GREEN 812/812, inventory lsqvce:internal:testProbe only; CI on 65e43cf: audit GREEN, the MATLAB job queued -- the self-hosted runner was offline) -- DONE on the level's merge |
+| 161 | Manual and API reference rewritten around TaskDefinition; every example and template migrated; migration table v6 -> v7; old wording in superseded_claims.csv; `R.toTable(task)` | 160 | IN BRANCH (2026-11-03: local postflight on 65e43cf GREEN 812/812, inventory lsqvce:internal:testProbe only; CI on d35cd8a GREEN: audit, matlab (ci_gate), measure) -- DONE on the level's merge |
 | 162 | The raw data struct leaves the user tier: `fit` and `layout` refuse it with a pointer to the migration table; tiers, Contents, help index; version 7.0.0 (BREAKING) | 161 | OPEN |
 
 **The user's request (2026-11-02):** "I find the declaration of parameters and noise very
@@ -12969,6 +12969,6 @@ clone on the user's PC; model Claude Opus 5.5).**
 - Gates: audit CLEAN (36 checks). Local postflight (tier A, `matlab -batch` ci_gate in the
   separate clone) on 43e0f20 RED 809/812 (the three points above), on 65e43cf GREEN 812/812,
   282 s, inventory lsqvce:internal:testProbe only. CI on 65e43cf: audit job GREEN; the MATLAB
-  job stayed queued because the self-hosted runner was not running on the PC -- to be re-run
-  once it is back. Commits 407bf41, 43e0f20, 65e43cf and this record (wip commits of one WP,
+  job waited for the self-hosted runner, which then ran it on d35cd8a: CI GREEN on d35cd8a
+  (audit, matlab, measure). Commits 407bf41, 43e0f20, 65e43cf and this record (wip commits of one WP,
   squashed or kept at the user's choice on merge).
