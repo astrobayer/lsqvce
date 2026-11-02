@@ -155,7 +155,9 @@ function testInMemoryTasksFitLikeTheirStructs(tc)
     tc.verifyError(@() t.addPrior("p", On="^c", Sigma=1), 'lsqvce:TaskDefinition:wrongKind');
     tc.verifyError(@() t.layout(), 'lsqvce:TaskDefinition:wrongKind');
     tc.verifyError(@() lsqvce.TaskDefinition.fromBatches(@(k) k), 'lsqvce:TaskDefinition:missingArgument');
-    tc.verifySubstring(evalc('disp(t)'), 'matrices');
+    shown = evalc('disp(t)');
+    echoWarnings(shown);   % WP-145: a capture passes its warnings on
+    tc.verifySubstring(shown, 'matrices');
 end
 
 function testDeclarationRefusesWhatItCannotCompile(tc)
@@ -282,6 +284,7 @@ function testContextAnnouncesTheDay(tc)
     tc.verifyEqual(Q.ArcIds, [1 3], 'the stream''s own resolver');
     tc.verifyEqual(lsqvce.layout(F.task).nc, lay.nc, 'lsqvce.layout takes a task');
     out = evalc('disp(F.task)');
+    echoWarnings(out);     % WP-145: a capture passes its warnings on
     tc.verifySubstring(out, 'system "S"');
     tc.verifySubstring(out, 'prior');
 end
