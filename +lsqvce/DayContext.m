@@ -34,9 +34,10 @@ classdef DayContext
 %                               or without Prepare)
 %     NumCommon  1x1 double     nc, the columns of A
 %     NumLocal   1x1 double     nl, the columns of B of this system (0 without locals)
-%     ArcIds     1 x A double   the stream's scheduled arc ids of this day ([] when
-%                               the system declares no schedule: the arcs are what
-%                               Build adds)
+%     ArcIds     1 x A double   the stream's scheduled arc ids of this day; in
+%                               Prepare, the system's scheduled arcs of the day ([]
+%                               when the system declares no schedule: the arcs are
+%                               what Build adds)
 %     Common     table          Name, Scope, OnDay, Info of every common template
 %     Local      table          Name, Scope, OnDay, Info of every local template
 %   METHODS
@@ -73,6 +74,9 @@ classdef DayContext
 %
 %   See also LSQVCE.DAYDATA, LSQVCE.SYSTEMDEFINITION, LSQVCE.TASKDEFINITION
 %
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: ArcIds in Prepare are the
+%   system's scheduled arcs of the day (they were empty). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-11-02 (CET, UTC+01:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5.5 -- level v7, WP-160.
 
@@ -116,6 +120,10 @@ classdef DayContext
                 st = spec.Streams(k);
                 obj.Stream = st.Name;
                 obj.ArcIds = lsqvce.DayContext.scheduleOf(st.Arcs, day, char(st.Name));
+            elseif isstruct(info) && isfield(info, 'arcId')
+                obj.ArcIds = reshape(double(info.arcId), 1, []);   % Prepare: the system's arcs of the day
+            else
+                obj.ArcIds = lsqvce.DayContext.scheduleOf(spec.SystemArcs, day, '');
             end
         end
     end

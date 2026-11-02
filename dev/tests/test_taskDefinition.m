@@ -261,6 +261,7 @@ function testContextAnnouncesTheDay(tc)
     tc.verifyEqual(P.Stream, "", 'Prepare has no stream');
     tc.verifyEmpty(P.Prepared, 'Prepare sees no Prepared');
     tc.verifyEqual(P.Settings.note, 'mine', 'Prepare sees the Settings');
+    tc.verifyEqual(P.ArcIds, [1 2 3], 'Prepare sees the system''s arcs of the day (a, p: 1 2; q: 1 3)');
     B = seen('a|2');
     tc.verifyEqual(B.Day, 2);
     tc.verifyEqual([B.System, B.Stream], ["S", "a"]);
@@ -470,7 +471,7 @@ end
 function P = recordPrepare(day, ctx, rec)
 %RECORDPREPARE  The fixture's Prepare: makeDay, and what the context said.
     rec(sprintf('prepare|%d', day)) = struct('Stream', ctx.Stream, 'Prepared', ctx.Prepared, ...
-                                             'Settings', ctx.Settings);
+                                             'Settings', ctx.Settings, 'ArcIds', ctx.ArcIds);
     P = makeDay(day);
 end
 
