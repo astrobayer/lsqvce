@@ -12873,6 +12873,9 @@ declaration interface"); the user answered "Excellent suggestion" and decided:
 | D5 | every parameter has a mandatory, unique name |
 | D6 | in-memory tasks through `TaskDefinition.fromMatrices` / `fromBatches` |
 | N1 | the class is `lsqvce.TaskDefinition` (UpperCamelCase like Options / Results; the user's first spelling was taskDefinition) |
+| D7 | (2026-11-03, "Loader output: yes") the example loaders and the templates return the task only; the engine tier compiles with `task.declaration()` |
+| D8 | (2026-11-03, "Covariance: absolute") GRAVFIRE's `iSpp` is the absolute per-epoch accuracy: `gravfire_data` declares level 1 on the position streams |
+| D9 | (2026-11-03, "Merge: squash them") the level's commits are squashed on merge |
 
 **Design invariant (binding for 160-162):** no engine change. `task.declaration()` writes exactly
 the v6.35.1 data struct and `fit` hands it to the unchanged `lsqvce.engine.declaration`. The

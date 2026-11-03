@@ -55,7 +55,7 @@ function [sol, D, V] = flatAdjust(u, batchFcn, nBatch, varargin)
              Diagnostics=struct('Alpha', o.alpha, 'Bonferroni', o.bonferroni, 'Beta', o.beta, ...
                                 'RMin', o.rMin, 'RWeak', o.rWeak, 'Test', string(o.test), ...
                                 'Store', string(o.store), 'NWorst', o.nWorst, 'RobustCheck', o.robustCheck));
-    R = lsqvce.fit(data, opts);
+    R = lsqvce.engine.fitDeclaration(data, opts);   % WP-162: the engine tier takes the struct
     D = R.diag;
     V = R.report('Verbose', false);
     d = numel([]);
