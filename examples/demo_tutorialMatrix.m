@@ -21,9 +21,11 @@ function [R, s] = demo_tutorialMatrix(varargin)
 %     2. fits it: the estimates with their formal errors, sigma0, the verdict;
 %     3. reads the reliability of every observation (redundancy number r, the
 %        test statistic w, the minimal detectable bias);
-%     4. plants a gross error of 20 mm in one line and lets the report find it,
-%        then removes it with data snooping (R.snoop) and, as an alternative,
-%        down-weights it with a robust estimator (Robust="huber");
+%     4. plants a gross error of 20 mm in one line: the default test (Pope's,
+%        which scales by the s0 the blunder inflates) misses it in a network this
+%        small; Baarda's w-test, right for weights known in absolute terms,
+%        flags it; the worst observation is removed and the network refitted;
+%        as an alternative, a robust estimator (Robust="huber") down-weights it;
 %     5. drops the benchmark: the free network has a datum defect, fit refuses it
 %        by name, and a declared datum prior (task.addPrior) gives the
 %        minimum-constraint solution -- with the SAME height differences.
@@ -41,10 +43,12 @@ function [R, s] = demo_tutorialMatrix(varargin)
 %       .verdict    1x1 string   step 2's verdict
 %       .rMin       1x1 double   the smallest redundancy number of step 3
 %       .rSum       1x1 double   sum of the redundancy numbers (= n - u = 9)
-%       .blunder    1x1 struct   step 4: .row (the planted line), .flagged (the
-%                                rows the report flags), .verdict, .rejected (the
-%                                rows snooping rejects), .xSnoop, .factor (the
-%                                robust weight factor of the planted row), .xRobust
+%       .blunder    1x1 struct   step 4: .row (the planted line), .sigma0 and
+%                                .popeFlagged (the default test), .flagged (Baarda),
+%                                .worst (the row removed), .sigma0Removed and
+%                                .flaggedRemoved (after the removal), .xRemoved,
+%                                .factor (the robust weight factor of the planted
+%                                row), .xRobust
 %       .free       1x1 struct   step 5: .refusal (the identifier without a
 %                                datum), .x (7x1 heights incl. BM), .dhGap (the
 %                                largest difference of the height differences
@@ -55,8 +59,10 @@ function [R, s] = demo_tutorialMatrix(varargin)
 %     Measured values are printed and pinned in dev/tests/test_examples.m
 %     (testTutorialMatrixIsTheManualsTutorial): the estimates within 3 formal
 %     sigma of the planted heights, sigma0 within the chi-square band of 9
-%     degrees of freedom, sum(r) = 9 to 1e-10, the planted blunder flagged and
-%     rejected (and only it), the robust weight factor of its row below 0.5, the
+%     degrees of freedom, sum(r) = 9 to 1e-10, the planted blunder missed by
+%     the default test and flagged by Baarda's, the worst |w| in the planted
+%     line, nothing flagged after its removal, the robust weight factor of its
+%     row below 0.5, the
 %     free network's height differences equal to the fixed network's to 1e-10 m.
 %
 %   ERRORS  none of its own. Without a datum, fit refuses the free network with
@@ -76,7 +82,7 @@ function [R, s] = demo_tutorialMatrix(varargin)
     % ---- the network: 15 lines between BM (point 0) and P1 .. P6 -------------
     from = [0 1 2 3 1 4 5 6 4 3 0 2 1 6 5].';
     to   = [1 2 3 0 4 5 6 2 6 5 4 5 3 0 1].';
-    rs   = RandStream('mt19937ar', 'Seed', 163);
+    rs   = RandStream('mt19937ar', 'Seed', 169);
     L    = 1 + 3 * rand(rs, 15, 1);                    % line lengths, 1 .. 4 km
     sigma = 0.001 * sqrt(L);                           % 1 mm / sqrt(km)
     Hbm   = 100;                                       % the benchmark (m)
@@ -108,26 +114,37 @@ function [R, s] = demo_tutorialMatrix(varargin)
     % ---- Step 3: how well is every observation controlled? ---------------------
     Q = R.reliability();
     [rMin, iMin] = min(Q.r);
-    fprintf(['\nStep 3 -- sum(r) = %.4f (= n - u = %d); the weakest line is %d (BM/P%d - P%d), ' ...
-             'r = %.2f, MDB = %.1f mm\n'], sum(Q.r), n - u, iMin, from(iMin), to(iMin), rMin, ...
-            1e3 * Q.mdb(iMin));
+    mdbMm = 1e3 * Q.mdb .* sigma;                      % MDB is in units of the line's sigma
+    fprintf(['\nStep 3 -- sum(r) = %.4f (= n - u = %d); the weakest line is %d (point %d to %d):\n' ...
+             '          r = %.2f, MDB = %.1f sigma = %.1f mm\n'], sum(Q.r), n - u, iMin, from(iMin), ...
+            to(iMin), rMin, Q.mdb(iMin), mdbMm(iMin));
 
     % ---- Step 4: a gross error -------------------------------------------------
     bad = 7;                                           % line P5 - P6
     lb = l;  lb(bad) = lb(bad) + 0.020;                % a 20 mm blunder
-    Rb = lsqvce.fit(lsqvce.TaskDefinition.fromMatrices(A, lb, Weights=w));
-    Vb = Rb.report(Verbose=o.verbose);
+    taskBad = lsqvce.TaskDefinition.fromMatrices(A, lb, Weights=w);
+    Rp = lsqvce.fit(taskBad);                          % the default test (Pope)
+    Vp = Rp.report(Verbose=o.verbose);
+    % The weights are ABSOLUTE (1 mm / sqrt(km) is known): test with sigma0 = 1,
+    % Baarda's w-test, instead of the s0 the blunder itself inflates
+    baarda = lsqvce.Options(Diagnostics=struct('Test', "baarda"));
+    Rb = lsqvce.fit(taskBad, baarda);
     flagged = Rb.diag.flagIdx(:).';
-    [~, REJ, solSnoop] = Rb.snoop();
-    rejected = REJ.idx(:).';
-    Rr = lsqvce.fit(lsqvce.TaskDefinition.fromMatrices(A, lb, Weights=w), Robust="huber");
+    [~, worst] = max(abs(Rb.diag.w));                  % reject ONE observation: the worst
+    keep = setdiff(1:n, worst);
+    Rk = lsqvce.fit(lsqvce.TaskDefinition.fromMatrices(A(keep, :), lb(keep), Weights=w(keep)), baarda);
+    Rr = lsqvce.fit(taskBad, Robust="huber");          % or: down-weight instead of reject
     factor = Rr.history(end).factor(bad);
-    fprintf(['\nStep 4 -- a 20 mm blunder in line %d: verdict %s, flagged %s, snooping rejects %s;\n' ...
-             '          the robust weight factor of line %d is %.3f\n'], bad, Vb.verdict, ...
-            mat2str(flagged), mat2str(rejected), bad, factor);
-    fprintf('%-6s %10s %10s %10s %10s\n', 'point', 'clean', 'blunder', 'snooped', 'huber');
+    fprintf(['\nStep 4 -- a 20 mm blunder in line %d\n' ...
+             '          default (Pope) test: sigma0 %.2f, flagged %s, verdict %s\n' ...
+             '          Baarda w-test:       flagged %s, worst |w| %.1f in line %d\n' ...
+             '          line %d removed:     sigma0 %.2f, flagged %s\n' ...
+             '          Robust="huber":      weight factor of line %d = %.3f\n'], bad, ...
+            Rp.sigma0, mat2str(Rp.diag.flagIdx(:).'), Vp.verdict, mat2str(flagged), ...
+            abs(Rb.diag.w(worst)), worst, worst, Rk.sigma0, mat2str(Rk.diag.flagIdx(:).'), bad, factor);
+    fprintf('%-6s %10s %10s %10s %10s\n', 'point', 'clean', 'blunder', 'removed', 'huber');
     for k = 1:u
-        fprintf('P%-5d %10.4f %10.4f %10.4f %10.4f\n', k, R.x(k), Rb.x(k), solSnoop.x(k), Rr.x(k));
+        fprintf('P%-5d %10.4f %10.4f %10.4f %10.4f\n', k, R.x(k), Rb.x(k), Rk.x(k), Rr.x(k));
     end
 
     % ---- Step 5: a free network and its datum ----------------------------------
@@ -155,9 +172,10 @@ function [R, s] = demo_tutorialMatrix(varargin)
 
     s = struct('truth', truth, 'x', T.estimate, 'se', T.se, 'sigma0', R.sigma0, ...
                'verdict', string(V.verdict), 'rMin', rMin, 'rSum', sum(Q.r), ...
-               'blunder', struct('row', bad, 'flagged', flagged, 'verdict', string(Vb.verdict), ...
-                                 'rejected', rejected, 'xSnoop', solSnoop.x(:), ...
-                                 'factor', factor, 'xRobust', Rr.x(:)), ...
+               'blunder', struct('row', bad, 'popeFlagged', Rp.diag.flagIdx(:).', ...
+                                 'sigma0', Rp.sigma0, 'flagged', flagged, 'worst', worst, ...
+                                 'sigma0Removed', Rk.sigma0, 'flaggedRemoved', Rk.diag.flagIdx(:).', ...
+                                 'xRemoved', Rk.x(:), 'factor', factor, 'xRobust', Rr.x(:)), ...
                'free', struct('refusal', refusal, 'x', Rf.x(:), 'dhGap', dhGap, ...
                               'datumSum', datumSum));
 end
