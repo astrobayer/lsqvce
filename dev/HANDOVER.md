@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-11-03 — LEVEL v7, WP-161 IN BRANCH on `claude/level-v7` (tier A; model Claude Opus 5.5; user: "Very good. Go ahead"): the Manual, the API reference, README, landing page, GRAVFIRE guide and every example and template declare a `lsqvce.TaskDefinition`; `R.toTable(task)`; v6 -> v7 migration table; local postflight GREEN 812/812; WP-162 (the struct leaves the user tier, v7.0.0) OPEN; §12.95.
+Last substantive update: 2026-11-03 — LEVEL v7 COMPLETE IN BRANCH on `claude/level-v7`, version 7.0.0 BREAKING (tier A; model Claude Opus 5.5; user: "Loader output: yes / Covariance: absolute / Merge: squash them", D7-D9): WP-162 -- `lsqvce.fit`, `lsqvce.layout`, `R.toTable` take a `lsqvce.TaskDefinition` only; the struct is the engine tier's (`lsqvce.engine.fitDeclaration`, `layoutDeclaration`, hidden `R.declarationTables`); local postflight GREEN 812/812; PR #212 ready for the user's squash merge; §12.95.
+Preceding entry: Last substantive update: 2026-11-03 — LEVEL v7, WP-161 IN BRANCH on `claude/level-v7` (tier A; model Claude Opus 5.5; user: "Very good. Go ahead"): the Manual, the API reference, README, landing page, GRAVFIRE guide and every example and template declare a `lsqvce.TaskDefinition`; `R.toTable(task)`; v6 -> v7 migration table; local postflight GREEN 812/812; WP-162 (the struct leaves the user tier, v7.0.0) OPEN; §12.95.
 Preceding entry: Last substantive update: 2026-11-02 — LEVEL v7 OPEN on `claude/level-v7` (tier A; model Claude Opus 5.5; user: "I find the declaration of parameters and noise very cryptical. Suggest a more intuitive and easy to use way", decisions D1-D6 and N1 the same day): `lsqvce.TaskDefinition` becomes the only user-tier declaration, compiled to the v6.35.1 data struct; WP-160 (classes and compiler) IN PROGRESS, WP-161 (docs, examples, templates) and WP-162 (the struct leaves the user tier, v7.0.0) OPEN; §12.95.
 Preceding entry: Last substantive update: 2026-10-19 — WP-158 OPEN (tier A; model Claude Opus 5.5; user: "Look at the open issues and fix them", interface "New lsqvce.solveContributions", locals "on request"): issue #183 -- R.contributions() and lsqvce.solveContributions(C, c), a bootstrap over days without re-reading them, fit reproduced to 2e-10 (bound 1e-8); version 6.35.0; §12.93.
 Preceding entry: Last substantive update: 2026-10-18 — WP-155 DONE (PR #208, merge f621c30; CI GREEN on 68a628e in the first round: ci_gate 790/790, inventory lsqvce:internal:testProbe only): speed without loss of precision, version 6.34.1; the closure in §12.92. Review 12.84's packages are all closed (153, 154, 157, 156, 155).
@@ -12855,7 +12856,7 @@ relabelling at run time, so the Manual cites the makeLoader ids and says how fit
 |----|-------|-----------|--------|
 | 160 | `lsqvce.TaskDefinition` and its companions `SystemDefinition`, `Noise`, `DayContext`, `DayData`: flat add-calls with name-value arguments, Prepare on the system (once per system and day), Build on the stream (once per stream and day), both called `(day, ctx)`; local partials by name (`Local=`) or as a raw `B=` with columns from `ctx.cols`; compiled to the v6.35.1 data struct; `fit` accepts a TaskDefinition; a new suite with the bitwise equivalence against a hand-written v6 struct | 159 | GREEN IN BRANCH (2026-11-02: CI on 20fc844 ci_gate 811/811, inventory lsqvce:internal:testProbe only; local postflight on 20fc844 GREEN 811/811) -- DONE on the level's merge |
 | 161 | Manual and API reference rewritten around TaskDefinition; every example and template migrated; migration table v6 -> v7; old wording in superseded_claims.csv; `R.toTable(task)` | 160 | IN BRANCH (2026-11-03: local postflight on 65e43cf GREEN 812/812, inventory lsqvce:internal:testProbe only; CI on d35cd8a GREEN: audit, matlab (ci_gate), measure) -- DONE on the level's merge |
-| 162 | The raw data struct leaves the user tier: `fit` and `layout` refuse it with a pointer to the migration table; tiers, Contents, help index; version 7.0.0 (BREAKING) | 161 | OPEN |
+| 162 | The raw data struct leaves the user tier: `fit`, `layout` and `R.toTable` refuse it with a pointer to the migration table; the struct path is `lsqvce.engine.fitDeclaration` / `layoutDeclaration` / hidden `R.declarationTables`; loaders and templates return the task (D7); gravfire positions at level 1 (D8); tiers, Contents, help index; version 7.0.0 (BREAKING) | 161 | GREEN IN BRANCH (2026-11-03: local postflight on 1ab9180 GREEN 812/812, inventory lsqvce:internal:testProbe only; CI in the verdict comment of PR #212) -- DONE on the level's merge (squashed, D9) |
 
 **The user's request (2026-11-02):** "I find the declaration of parameters and noise very
 cryptical. Suggest a more intuitive and easy to use way. Point out clearly where the daily
@@ -12975,3 +12976,37 @@ clone on the user's PC; model Claude Opus 5.5).**
   job waited for the self-hosted runner, which then ran it on d35cd8a: CI GREEN on d35cd8a
   (audit, matlab, measure). Commits 407bf41, 43e0f20, 65e43cf and this record (wip commits of one WP,
   squashed or kept at the user's choice on merge).
+
+**WP-162 round note (2026-11-03, tier A: MATLAB R2026a through the MCP bridge, the separate
+clone on the user's PC; model Claude Opus 5.5).**
+- D1 carried out. The body of `lsqvce.fit` moved (git mv) to `lsqvce.engine.fitDeclaration`
+  (struct only), the body of `lsqvce.layout` to `lsqvce.engine.layoutDeclaration`, and
+  `R.toTable(data)` became the hidden `R.declarationTables(data)`. The user tier takes a task
+  only: `fit(task, ...)` = `fitDeclaration(task.declaration(), ...)`, `layout(task)` =
+  `task.layout()`, `R.toTable(task)` the one table; a struct is refused by name with the way
+  out (`lsqvce:fit:structDeclaration`, `lsqvce:layout:structDeclaration`,
+  `lsqvce:Results:structDeclaration`; tested in test_taskDefinition). The identifiers the
+  body raises keep their `lsqvce:fit:` prefix (as engine.declaration's do); error_ids.csv
+  names engine.fitDeclaration as their unit.
+- Ratchets: two upward edges recorded as debt in layering_baseline.csv,
+  engine.fitDeclaration -> Options and -> Results (the input and output types the moved body
+  always had; the drivers adjustBlock / Robust / Nonlinear carry the same Results edge).
+  Category exemptions for the two engine units and for `layout` (now a wrapper); the
+  long-line row moved with the file; the audit's selftest anchors on fitDeclaration.
+- D7: `demo_grace_dataLoader` / `demo_gravity_dataLoader` return `[cfg, task]`,
+  `gravfire_data` the task, `kbr_variational` `[task, kit]`; every engine-tier caller compiles
+  with `task.declaration()`. Tests: every struct call of fit / layout / toTable in dev/tests,
+  dev/tests/private and dev/validation goes to the engine entry (first gate RED 750/812: the
+  three private flat* helpers had been missed by the scan of dev/tests/*.m; fixed in 1ab9180).
+- D8: `gravfire_data` declares `Noise.white(1)` on the position streams (iSpp is absolute and
+  travels as Sigma, relative to the law's level); kbr keeps sqrt(variance). Pinned in
+  test_physOracle (posA/posB sigma 1, kbr the bundle's). This changes the relative weight of
+  positions against KBR in an Estimate "none" solve of a real bundle; under "noise" the
+  levels are estimated.
+- Help examples of fit, report, Options, solveContributions, log, verdict, datum,
+  BlockCofactor, contribution fit a task; the API's engine chapter names the engine entries;
+  four phrases added to superseded_claims.csv. Version 7.0.0 (Contents.m, README title,
+  RELEASE_NOTES "7.0.0 -- BREAKING", the PDF titles).
+- Gates: audit CLEAN, selftest every fault caught. Local postflight on 1ab9180 GREEN 812/812,
+  285 s, inventory lsqvce:internal:testProbe only.
+
