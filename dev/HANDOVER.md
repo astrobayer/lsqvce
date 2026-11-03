@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-11-03 — WP-163 IN BRANCH on `claude/wp-163` (tier A; model Claude Opus 5.5; user: "Prepare tutorials on using the toolbox for each case: the single matrix, batch and streaming case"): three tutorials (demo_tutorialMatrix, demo_tutorialBatch, demo_tutorialStreaming renamed from demo_tutorial) and the Manual chapter *Tutorials*; version 7.0.1; §12.96.
+Last substantive update: 2026-11-03 — WP-163 DONE (PR #214, merge cf0a9ed; CI GREEN on 719ff91: audit, matlab ci_gate); closure PR (the loop's record step after the merge): the ledger row in §12.96; no code change; version 7.0.1 stays.
+Preceding entry: Last substantive update: 2026-11-03 — WP-163 IN BRANCH on `claude/wp-163` (tier A; model Claude Opus 5.5; user: "Prepare tutorials on using the toolbox for each case: the single matrix, batch and streaming case"): three tutorials (demo_tutorialMatrix, demo_tutorialBatch, demo_tutorialStreaming renamed from demo_tutorial) and the Manual chapter *Tutorials*; version 7.0.1; §12.96.
 Preceding entry: Last substantive update: 2026-11-03 — LEVEL v7 DONE (PR #212, merge 01bf272, a merge commit; CI GREEN on 2a959d6: audit, matlab ci_gate 812/812 locally, measure); closure PR (the loop's record step after the merge): the ledger rows 160-162 and the closure note in §12.95; no code change; version 7.0.0 stays.
 Preceding entry: Last substantive update: 2026-11-03 — LEVEL v7 COMPLETE IN BRANCH on `claude/level-v7`, version 7.0.0 BREAKING (tier A; model Claude Opus 5.5; user: "Loader output: yes / Covariance: absolute / Merge: squash them", D7-D9): WP-162 -- `lsqvce.fit`, `lsqvce.layout`, `R.toTable` take a `lsqvce.TaskDefinition` only; the struct is the engine tier's (`lsqvce.engine.fitDeclaration`, `layoutDeclaration`, hidden `R.declarationTables`); local postflight GREEN 812/812; PR #212 ready for the user's squash merge; §12.95.
 Preceding entry: Last substantive update: 2026-11-03 — LEVEL v7, WP-161 IN BRANCH on `claude/level-v7` (tier A; model Claude Opus 5.5; user: "Very good. Go ahead"): the Manual, the API reference, README, landing page, GRAVFIRE guide and every example and template declare a `lsqvce.TaskDefinition`; `R.toTable(task)`; v6 -> v7 migration table; local postflight GREEN 812/812; WP-162 (the struct leaves the user tier, v7.0.0) OPEN; §12.95.
@@ -13023,7 +13024,7 @@ for a later round: an example that leaves Options.Seed unset is not reproducible
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 163 | Three tutorials, one per kind of task, each a runnable example and a part of the Manual chapter *Tutorials* (replacing *Your first adjustment*), each guarded by a claims test in test_fit: demo_tutorialMatrix (new), demo_tutorialBatch (new), demo_tutorialStreaming (demo_tutorial renamed, no alias) | 162 | GREEN IN BRANCH (2026-11-03: local postflight on 1756e4e GREEN 814/814; CI in the verdict comment of PR #214) -- DONE on merge |
+| 163 | Three tutorials, one per kind of task, each a runnable example and a part of the Manual chapter *Tutorials* (replacing *Your first adjustment*), each guarded by a claims test in test_fit: demo_tutorialMatrix (new), demo_tutorialBatch (new), demo_tutorialStreaming (demo_tutorial renamed, no alias) | 162 | **DONE** (2026-11-03, PR #214, merge cf0a9ed by the user; CI GREEN on 719ff91: audit, matlab ci_gate; local postflight 814/814 on 1756e4e) |
 
 **The user's request (2026-11-03):** "Prepare tutorials on using the toolbox for each case: the
 single matrix, batch and streaming case." Read as the toolbox's tutorial form since WP-159: a
