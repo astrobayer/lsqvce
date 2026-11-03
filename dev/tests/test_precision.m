@@ -533,13 +533,13 @@ function testFreeNetworkRefusalIsDeterministic(tc)
         l = A * (10 * randn(rs, u, 1)) + 0.01 * randn(rs, size(A, 1), 1);
         id = '';
         try
-            lsqvce.fit(struct('A', A, 'l', l), Verbose=false);
+            lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), Verbose=false);
         catch err
             id = err.identifier;
         end
         tc.verifyEqual(id, 'lsqvce:qr:singularR', sprintf('free network %d (u = %d) must be refused', trial, u));
         Ad = [A; [1, zeros(1, u-1)]];  ld = [l; 0];
-        R = lsqvce.fit(struct('A', Ad, 'l', ld), Verbose=false);
+        R = lsqvce.engine.fitDeclaration(struct('A', Ad, 'l', ld), Verbose=false);
         tc.verifyTrue(all(isfinite(R.x)), sprintf('network %d with a datum must be solved', trial));
     end
 end

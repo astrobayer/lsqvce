@@ -27,6 +27,7 @@ last part (`localPlan`, say), with the original attached as the cause.
 | identifier | usual cause | fix |
 |---|---|---|
 | `MATLAB:validators:*` | a setting of the wrong kind: `Scope="arcs"`, `Estimate="all"`, a negative `Sigma` | the message names the setting and its allowed values |
+| `lsqvce:fit:structDeclaration`, `lsqvce:layout:structDeclaration`, `lsqvce:Results:structDeclaration` | a v6 `data` struct passed to `fit`, `layout` or `R.toTable` (since 7.0.0 they take a task) | declare a `lsqvce.TaskDefinition`: the migration table in `RELEASE_NOTES.md` maps every field to its call |
 | `lsqvce:TaskDefinition:duplicateName` | a name used twice: two commons, two locals of a system, a local named like a common, two systems, streams or priors | every name is unique where it lives |
 | `lsqvce:TaskDefinition:badName` | a stream name that is not a MATLAB identifier (`"pos C"`) | letters, digits and underscores, starting with a letter |
 | `lsqvce:TaskDefinition:badValid` | `Valid` not `[start end]` with start ≤ end | fractional MJD, or `[]` for always |

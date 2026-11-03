@@ -176,7 +176,7 @@ end
         end
     end
 
-    [cfg, ~, task] = demo_gravity_dataLoader();   % the declaration (this folder)
+    [cfg, task] = demo_gravity_dataLoader();   % the declaration (this folder)
 
     % ---- 1. the problem -------------------------------------------------
     section('1. The problem: GRACE-like, physically structured, ragged');

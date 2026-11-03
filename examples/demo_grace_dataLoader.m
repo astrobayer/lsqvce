@@ -1,21 +1,18 @@
-function [cfg, data, task] = demo_grace_dataLoader()
+function [cfg, task] = demo_grace_dataLoader()
 %DEMO_GRACE_DATALOADER  Synthetic GRACE-FO data for the VCE demo, declared as a lsqvce.TaskDefinition.
 %
-%   [cfg, data, task] = demo_grace_dataLoader()
+%   [cfg, task] = demo_grace_dataLoader()
 %   cfg = demo_grace_dataLoader()
 %
 %   Returns a ready-to-run configuration CFG and the declaration TASK, so the
 %   VCE loop on multi-axis and scalar streams can be exercised end to end
 %   without real data:
 %
-%       [cfg, ~, task] = demo_grace_dataLoader();
+%       [cfg, task] = demo_grace_dataLoader();
 %       R = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false));
 %
-%   DATA is the same declaration compiled to the engine-tier struct,
-%   task.declaration(). It stays the second output because the ENGINE-tier
-%   fixtures and the tests that edit a declaration take the struct
-%   (fixture_grace, test_vcePolicy, test_fit, test_speedBudget); lsqvce.fit
-%   compiles a task to exactly that struct, so both give the same fit.
+%   The ENGINE tier (fixture_grace, the tests that edit a declaration) takes
+%   the compiled struct, task.declaration(); lsqvce.fit(task) fits exactly it.
 %
 %   TOPOLOGY (real GRACE-FO, "Option B", plus an independent third satellite).
 %     System 1  -- the C/D PAIR.  TWO satellites C, D each with a 3-D position
@@ -89,8 +86,6 @@ function [cfg, data, task] = demo_grace_dataLoader()
 %                       .common (nc x 15 cell) .localPair (2 nlSat x 15)
 %                       .localE (nlSat x 15), .procOpt (the systems' Settings),
 %                       .obsTypes .obsTypesE .allObsTypes (stream names)
-%     data  1x1 struct  task.declaration(): the engine-tier declaration
-%                       struct (commonParams, days, systems(1x2))
 %     task  1x1 lsqvce.TaskDefinition   6 common parameters; system
 %                       "demo-CD-pair" (8 locals, streams posC posD rr) and
 %                       system "demo-E" (4 locals, stream posE)
@@ -113,6 +108,9 @@ function [cfg, data, task] = demo_grace_dataLoader()
 %            LSQVCE.DAYCONTEXT, LSQVCE.DAYDATA, LSQVCE.FIT, LSQVCE.OPTIONS, DEMO_GRACE,
 %            DEMO_GRAVITY_DATALOADER
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: the outputs are [cfg, task];
+%   the compiled struct is task.declaration() wherever the engine tier needs
+%   it. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as a lsqvce.TaskDefinition, one Build per stream. With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): THE CELLS ARE THE
@@ -152,7 +150,6 @@ function [cfg, data, task] = demo_grace_dataLoader()
 %   Opus 5.5.
     cfg  = demoCfg();
     task = graceTask(cfg);
-    data = task.declaration();       % the engine-tier struct of the same task
 end
 
 %==========================================================================

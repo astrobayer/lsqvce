@@ -1,29 +1,24 @@
-function [cfg, data, task] = demo_gravity_dataLoader()
+function [cfg, task] = demo_gravity_dataLoader()
 %DEMO_GRAVITY_DATALOADER  GRACE-like gravity-recovery data for DEMO_GRAVITY / DEMO_FIT, as a lsqvce.TaskDefinition.
 %
-%   [cfg, data, task] = demo_gravity_dataLoader()
+%   [cfg, task] = demo_gravity_dataLoader()
 %   cfg = demo_gravity_dataLoader()
 %
 %   Returns a configuration CFG and the declaration TASK (what LSQVCE.FIT
 %   takes), so a PHYSICALLY STRUCTURED gravity recovery can be run end to end
 %   without any external data:
 %
-%       [cfg, ~, task] = demo_gravity_dataLoader();
+%       [cfg, task] = demo_gravity_dataLoader();
 %       R = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false));
 %
-%   DATA is the same declaration compiled to the engine-tier struct,
-%   task.declaration(). It stays the second output because the ENGINE-tier
-%   fixture and the tests take the struct (fixture_gravity, test_vcePolicy,
-%   test_physOracle, demo_fit); lsqvce.fit compiles a task to exactly that
-%   struct, so both give the same fit.
+%   The ENGINE tier (fixture_gravity, the tests) takes the compiled struct,
+%   task.declaration(); lsqvce.fit(task) fits exactly it.
 %
 %   INPUT
 %     (none)
 %   OUTPUT
 %     cfg   1x1 struct  the configuration (days, nc, sys, cov, arcsOfDay,
 %                       truth) -- CFG IN DETAIL below
-%     data  1x1 struct  task.declaration(): the engine-tier declaration struct
-%                       (commonParams, days, systems(1x3))
 %     task  1x1 lsqvce.TaskDefinition   77 common parameters named "C2_0",
 %                       "S2_1", ... with Info degree / order / term; three
 %                       systems "GRACE-C", "GRACE-D", "KBR" (Id 1, 2, 3) on a
@@ -124,7 +119,7 @@ function [cfg, data, task] = demo_gravity_dataLoader()
 %     day is read.
 %
 %   EXAMPLE
-%     [cfg, ~, task] = demo_gravity_dataLoader();
+%     [cfg, task] = demo_gravity_dataLoader();
 %     R = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4, ...
 %             Verbose=false));
 %     max(abs(R.x - cfg.xTrue) ./ sqrt(diag(R.sol.Cxx)))   % < 5 (sol.Cxx is sigma0^2-scaled)
@@ -133,6 +128,9 @@ function [cfg, data, task] = demo_gravity_dataLoader()
 %   LSQVCE.TASKDEFINITION, LSQVCE.SYSTEMDEFINITION, LSQVCE.NOISE, LSQVCE.DAYCONTEXT,
 %   LSQVCE.FIT
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: the outputs are [cfg, task];
+%   the compiled struct is task.declaration() wherever the engine tier needs
+%   it. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as a lsqvce.TaskDefinition, one Build per stream. With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): buildGravityDay
@@ -172,7 +170,6 @@ function [cfg, data, task] = demo_gravity_dataLoader()
 
     cfg  = gravityCfg();
     task = gravityTask(cfg);
-    data = task.declaration();       % the engine-tier struct of the same task
 end
 
 %==========================================================================

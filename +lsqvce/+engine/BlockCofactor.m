@@ -78,7 +78,7 @@ classdef BlockCofactor
 %   the pre-elimination used, so Qxx is the cofactor of the solve actually made.
 %
 %   EXAMPLE
-%       R = lsqvce.fit(data);                          % any fit
+%       R = lsqvce.fit(task);                          % any fit
 %       Q = R.source.Q;                                % built by diagnoseAccum
 %       A = R.batchFcn(1);                             % unit-weight rows
 %       h = sum(Q.halfRows(A).^2, 1).';                % leverage of batch 1
@@ -105,6 +105,9 @@ classdef BlockCofactor
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: the examples fit a
+%   lsqvce.TaskDefinition (lsqvce.fit takes no struct since 7.0.0). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84, S1): a local
 %   block's switch to the pseudo-inverse and its solves on the Jacobi-
 %   equilibrated block, its factor solves on the column-equilibrated factor --

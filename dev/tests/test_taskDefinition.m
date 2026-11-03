@@ -66,14 +66,14 @@ function testCompiledTaskFitsBitwiseLikeTheStruct(tc)
     tc.verifyEqual(mcD.Name, 'lsqvce.DayData');
     o1 = lsqvce.Options(Estimate="none", Verbose=false);
     R1 = lsqvce.fit(F.task, o1);
-    H1 = lsqvce.fit(F.data, o1);
+    H1 = lsqvce.engine.fitDeclaration(F.data, o1);
     tc.verifyTrue(isequal(R1.x, H1.x), 'one solve: x bitwise');
     tc.verifyTrue(isequal(R1.sigma0, H1.sigma0), 'one solve: sigma0 bitwise');
     tc.verifyTrue(isequal(R1.sol.Cxx, H1.sol.Cxx), 'one solve: Cxx bitwise');
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');      % MaxPasses 3 on purpose
     o2 = lsqvce.Options(Estimate="noise", MaxPasses=3, Seed=7, Verbose=false);
     R2 = lsqvce.fit(F.task, o2);
-    H2 = lsqvce.fit(F.data, o2);
+    H2 = lsqvce.engine.fitDeclaration(F.data, o2);
     tc.verifyTrue(isequal(R2.x, H2.x), 'noise run: x bitwise');
     tc.verifyTrue(isequal(R2.sigma0, H2.sigma0), 'noise run: sigma0 bitwise');
     tc.verifyTrue(isequal(R2.sol.Cxx, H2.sol.Cxx), 'noise run: Cxx bitwise');
@@ -140,13 +140,13 @@ function testInMemoryTasksFitLikeTheirStructs(tc)
     tc.verifyEqual(t.declaration(), d);
     o = lsqvce.Options(Verbose=false);
     % tol: exact (isequal) -- the same struct
-    tc.verifyTrue(isequal(lsqvce.fit(t, o).x, lsqvce.fit(d, o).x));
+    tc.verifyTrue(isequal(lsqvce.fit(t, o).x, lsqvce.engine.fitDeclaration(d, o).x));
     b = lsqvce.TaskDefinition.fromBatches(@(k) deal(A(k:5:end, :), l(k:5:end), p(k:5:end)), ...
                                           NumBatches=5, NumUnknowns=3);
     tc.verifyEqual(b.declaration(), struct('batchFcn', b.declaration().batchFcn, 'numBatches', 5, ...
                                            'numUnknowns', 3));
     % tol: 1e-12 relative -- batched against one block: cond(A) ~ 2, rounding of the fold order
-    tc.verifyEqual(lsqvce.fit(b, o).x, lsqvce.fit(struct('A', A, 'l', l, 'p', p), o).x, 'RelTol', 1e-12);
+    tc.verifyEqual(lsqvce.fit(b, o).x, lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'p', p), o).x, 'RelTol', 1e-12);
     g = lsqvce.TaskDefinition.fromBatches(@(k, x) deal(A(k:5:end, :), l(k:5:end) - A(k:5:end, :) * x, ...
                                                        p(k:5:end)), NumBatches=5, X0=zeros(3, 1));
     tc.verifyEqual(g.declaration().x0, zeros(3, 1), 'X0 makes the nonlinear form');
@@ -211,6 +211,10 @@ function testDeclarationRefusesWhatItCannotCompile(tc)
     tc.verifyError(@() v.declaration(), 'lsqvce:TaskDefinition:incomplete');   % no calendar
     tc.verifyError(@() lsqvce.TaskDefinition(Days=1).declaration(), 'lsqvce:TaskDefinition:incomplete');
     tc.verifyError(@() lsqvce.fit(42), 'MATLAB:validators:mustBeA');
+    % WP-162: the struct left the user tier -- refused by name, with the way out
+    d = struct('A', eye(2), 'l', [1; 2]);
+    tc.verifyError(@() lsqvce.fit(d), 'lsqvce:fit:structDeclaration');
+    tc.verifyError(@() lsqvce.layout(d), 'lsqvce:layout:structDeclaration');
 end
 
 function testDayContextRefusesWhatItCannotPlace(tc)
@@ -300,6 +304,8 @@ function testToTableOfATaskIsOneTable(tc)
     tc.verifyInstanceOf(F.task, ?lsqvce.TaskDefinition);
     R = lsqvce.fit(F.task, lsqvce.Options(Verbose=false));
     T = R.toTable(F.task);
+    % WP-162: the struct's write-back is the engine tier's (hidden declarationTables)
+    tc.verifyError(@() R.toTable(F.data), 'lsqvce:Results:structDeclaration');
     lay = F.task.layout();
     tc.verifyClass(T, 'table');
     tc.verifyEqual(T.Properties.VariableNames, {'System', 'Name', 'Scope', 'Day', 'Arc', 'Estimate', 'Std'});
@@ -324,7 +330,7 @@ function testTaskOverheadIsSmall(tc)
     F = fixture();
     tc.verifyInstanceOf(F.task, ?lsqvce.TaskDefinition);
     o = lsqvce.Options(Estimate="none", Verbose=false);
-    rec = timePair(@() lsqvce.fit(F.task, o), @() lsqvce.fit(F.data, o), 'Repeats', 9, ...
+    rec = timePair(@() lsqvce.fit(F.task, o), @() lsqvce.engine.fitDeclaration(F.data, o), 'Repeats', 9, ...
                    'Label', 'task vs struct, one solve');
     tc.log(1, sprintf('WP-160 overhead: ratio %.3f, band %.3f-%.3f, tA %.4f s, tB %.4f s', ...
                       rec.ratio, rec.band, rec.tA, rec.tB));

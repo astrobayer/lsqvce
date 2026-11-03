@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.engine.layoutDeclaration</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.layoutDeclaration</div>
+<h1>lsqvce.engine.layoutDeclaration</h1>
+<div class="purpose">The column layout of a compiled declaration (engine tier).</div>
+<h2>Description</h2>
+<pre class="example">lay = lsqvce.engine.layoutDeclaration(data)
+
+ENGINE TIER (v7.0.0, WP-162): the layout of the compiled struct; a user
+asks the task, task.layout() / lsqvce.layout(task), which calls this
+function on task.declaration() and adds the names.
+
+The toolbox derives from your parameter tables (scope tokens, calendar,
+arcs, validity) which column of A and of every system&#x27;s B belongs to
+which instantiated parameter. This function announces that layout BEFORE
+fit runs, so that data.priors(j).L (columns of A) and
+data.systems(k).priors(l).L (columns of B) can be written in it -- the
+only knowledge the user&#x27;s regularisation and the toolbox share.
+
+INPUT   data  1x1 struct  a kind-A compiled declaration (the API reference,
+                          chapter The compiled declaration)
+OUTPUT  lay   1x1 struct
+  .nc            1x1        columns of A
+  .common        nc x 1 struct (.row .day)      the template row and (for &#x27;day&#x27; rows) the day of every column of A
+  .systems(k)    1x1 struct per system:
+     .nl         1x1        columns of B
+     .local      nl x 1 struct (.row .day .arc) the template row / day / arc of every column of B
+     .col        @(row, day, arc) -&gt; column     lookup: the column of template row `row` on
+                                                `day` (and `arc` for &#x27;arc&#x27; rows; [] otherwise);
+                                                0 when that instance does not exist
+  .colCommon     @(row, day) -&gt; column          the same for A ([] day for &#x27;common&#x27; rows)
+
+EXAMPLE  (a Tikhonov prior on local row 7 of system 1, on every day)
+  lay = lsqvce.engine.layoutDeclaration(data);
+  nl  = lay.systems(1).nl;  rows = zeros(0, nl);
+  for d = data.days
+      c = lay.systems(1).col(7, d, []);  r = zeros(1, nl);  r(c) = 1;  rows(end+1, :) = r;
+  end
+  data.systems(1).priors = struct(&#x27;L&#x27;, rows, &#x27;x0&#x27;, 0, &#x27;sigma&#x27;, 0.01, &#x27;name&#x27;, &#x27;xaccscale&#x27;, &#x27;estimate&#x27;, &quot;scale&quot;);</pre>
+<h3>Accuracy</h3>
+<pre class="example">  Not applicable: it counts and indexes columns -- integers from the
+  declaration&#x27;s plans, the very plans fit builds (declaration); no
+  floating-point result. test_fit pins the columns
+  (testLayoutOfASystemWithoutLocals,
+  testSystemWithoutDaysClaimsOnlyTheGlobalCalendar). WP-139.
+
+See also LSQVCE.LAYOUT, LSQVCE.ENGINE.FITDECLARATION, LSQVCE.ENGINE.DECLARATION,
+         the API reference
+
+Updated 2026-11-03 (CET, UTC+01:00), WP-162: the struct layout moved here
+from lsqvce.layout, which takes a lsqvce.TaskDefinition only. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
+Updated 2026-11-02 (CET, UTC+01:00), WP-160: a lsqvce.TaskDefinition
+is laid out with names. With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
+Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+accuracy, &quot;Not applicable&quot; with its reason. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
+Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 13): a
+system without localParams gets nl = 0 and an empty column table (it
+stopped on the loader&#x27;s empty plan). With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
+Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Fable 5.1 -- R5-D8 round 5.
+
+Updated 2026-10-12 (CEST, UTC+02:00), WP-124: development history taken
+out of the help text (it lives in RELEASE_NOTES.md and dev/HANDOVER.md);
+references point at the API reference. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

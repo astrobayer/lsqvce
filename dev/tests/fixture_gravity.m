@@ -26,7 +26,7 @@ function [cfg, L, data] = fixture_gravity()
 %   Claude (Anthropic), model Claude Fable 5.1.
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- Level L10, WP-74.
-    [cfg, data] = demo_gravity_dataLoader();
+    [cfg, data] = demo_gravity_dataLoader();  data = data.declaration();   % WP-162: the compiled struct
     % WP-161: the loader declares a lsqvce.TaskDefinition; its compiled struct
     % reaches the Loaders through the ONE declaration step fit uses (with the
     % commons' plan, which a hand-written makeLoader call does not build)

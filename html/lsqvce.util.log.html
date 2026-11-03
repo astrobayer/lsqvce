@@ -109,7 +109,7 @@ THREAD SAFETY / PARALLEL
 <h3>Example</h3>
 <pre class="example">  fid = fopen(&#x27;vce.log&#x27;, &#x27;w&#x27;);
   lsqvce.util.log.set(&#x27;fid&#x27;, fid, &#x27;screen&#x27;, true);   % file AND screen
-  R = lsqvce.fit(data, Estimate=&quot;noise&quot;);            % all output captured
+  R = lsqvce.fit(task, Estimate=&quot;noise&quot;);            % all output captured
   lsqvce.util.log.reset();
   fclose(fid);
 
@@ -136,6 +136,9 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also FPRINTF, WARNING, PARALLEL.POOL.DATAQUEUE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
          LSQVCE.ENGINE.MAPREDUCE
 
+Updated 2026-11-03 (CET, UTC+01:00), WP-162: the examples fit a
+lsqvce.TaskDefinition (lsqvce.fit takes no struct since 7.0.0). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 accuracy, &quot;Not applicable&quot; with its reason. With assistance from Claude
 (Anthropic), model Claude Opus 5.5.

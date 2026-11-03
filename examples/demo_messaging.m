@@ -143,7 +143,7 @@ function txt = runAtLevel(lvl)
 
     lsqvce.util.log.set('fid', fid, 'screen', false);
     try
-        [~, ~, task] = demo_grace_dataLoader();      % its lsqvce.TaskDefinition
+        [~, task] = demo_grace_dataLoader();      % its lsqvce.TaskDefinition
         % MaxPasses 1 keeps the demo quick: the point is WHAT is
         % printed at each level, not how long the loop takes to converge. A
         % short run does mean it stops before convergence, which is why the

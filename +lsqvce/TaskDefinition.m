@@ -187,7 +187,7 @@ classdef TaskDefinition < handle
         function lay = layout(obj)
             % LAYOUT  The columns of A and of every system's B, with names (see LSQVCE.LAYOUT).
             obj.requireKind("streaming", 'layout');
-            lay = lsqvce.layout(obj.declaration());
+            lay = lsqvce.engine.layoutDeclaration(obj.declaration());
             names = string({obj.Commons.Name});
             for j = 1:numel(lay.common)
                 lay.common(j).name = names(lay.common(j).row);

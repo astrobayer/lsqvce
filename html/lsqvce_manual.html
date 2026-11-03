@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.35.1 — User Manual</title>
+  <title>lsqvce 7.0.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.35.1 — User Manual</h1>
+<h1 class="title">lsqvce 7.0.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -4479,15 +4479,14 @@ them are <strong>helper files</strong> that the demos call:</p>
 <tr class="odd">
 <td><code>demo_grace_dataLoader</code></td>
 <td><code>demo_grace</code>, <code>demo_messaging</code></td>
-<td><code>[cfg, data, task]</code>: a GRACE-FO-shaped task with a random
-design (<code>data</code> is its compiled declaration, for the
-engine-tier tests)</td>
+<td><code>[cfg, task]</code>: a GRACE-FO-shaped task with a random
+design</td>
 </tr>
 <tr class="even">
 <td><code>demo_gravity_dataLoader</code></td>
 <td><code>demo_gravity</code>, <code>demo_fit</code></td>
-<td><code>[cfg, data, task]</code>: a gravity task with a physical
-design and planted truth (<code>data</code> as above)</td>
+<td><code>[cfg, task]</code>: a gravity task with a physical design and
+planted truth</td>
 </tr>
 <tr class="odd">
 <td><code>demo_gravity_design</code></td>
@@ -5042,7 +5041,7 @@ its <code>Build</code> functions.</p>
 <div class="sourceCode" id="cb60"><pre
 class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">demo_grace</span>()<span class="op">;</span>                                  <span class="co">% maxPasses 10, verbose true</span></span>
 <span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">demo_grace</span>(<span class="ss">&#39;maxPasses&#39;</span><span class="op">,</span> <span class="fl">8</span><span class="op">,</span> <span class="ss">&#39;verbose&#39;</span><span class="op">,</span> <span class="va">false</span>)<span class="op">;</span></span>
-<span id="cb60-3"><a href="#cb60-3" aria-hidden="true" tabindex="-1"></a>[<span class="va">cfg</span><span class="op">,</span> <span class="op">~,</span> <span class="va">task</span>] <span class="op">=</span> <span class="va">demo_grace_dataLoader</span>()<span class="op">;</span>          <span class="co">% the task alone</span></span></code></pre></div>
+<span id="cb60-3"><a href="#cb60-3" aria-hidden="true" tabindex="-1"></a>[<span class="va">cfg</span><span class="op">,</span> <span class="va">task</span>] <span class="op">=</span> <span class="va">demo_grace_dataLoader</span>()<span class="op">;</span>             <span class="co">% the task alone</span></span></code></pre></div>
 <p><strong>Outline.</strong> <code>demo_grace</code> holds the run and
 the reading. <code>demo_grace_dataLoader</code> holds the declaration,
 with the local functions:</p>
@@ -5147,7 +5146,7 @@ functions are <code>section</code>, <code>streamType</code>,
 <code>degreeVariances</code>, <code>plotDegreeVariances</code>,
 <code>plotCoefficientErrors</code> and <code>exportIf</code>.</li>
 <li><code>demo_gravity_dataLoader()</code> returns
-<code>[cfg, data, task]</code>. Its local functions are
+<code>[cfg, task]</code>. Its local functions are
 <code>gravityTask</code>, <code>gravityCfg</code>, one
 <code>Build</code> per stream (<code>buildPotC</code>,
 <code>buildPotD</code>, <code>buildKbr</code>, all calling
@@ -5288,10 +5287,9 @@ and <code>m × ctx.NumLocal</code> (every local column from
 <li><code>'DryRun'</code>: deterministic random <code>A</code> and
 <code>B</code>, seeded per day and observation type.</li>
 </ul>
-<p><code>[task, data] = gravfire_data(...)</code> returns the
-<code>lsqvce.TaskDefinition</code> and, second, its compiled declaration
-(<code>task.declaration()</code>) for engine-tier work. The task has the
-calendar of <code>myOptions.days</code>, one common per Stokes row named
+<p><code>task = gravfire_data(...)</code> returns the
+<code>lsqvce.TaskDefinition</code>. It has the calendar of
+<code>myOptions.days</code>, one common per Stokes row named
 <code>type_degree_order</code> (<code>c_2_0</code>, <code>s_2_1</code>,
 …) with the 14 GRAVFIRE columns as <code>Info</code>, and one system
 <code>"GRACE"</code> (<code>Id=1</code>, the bundle options as
@@ -5306,7 +5304,10 @@ the pieces each <code>Build</code> adds are the arcs.</p>
 <li>Take the calendar from <code>myOptions.days</code>.</li>
 <li>Name the streams: <code>posA</code>/<code>posB</code> for
 <code>kinematicPosition</code>, <code>kbr</code> for
-<code>range-rate</code>. Each gets
+<code>range-rate</code>. The positions get
+<code>lsqvce.Noise.white(1)</code>, because their absolute per-epoch
+accuracy <code>iSpp</code> travels as <code>Sigma</code>;
+<code>kbr</code> gets
 <code>lsqvce.Noise.white(sqrt(variance(g)))</code>.</li>
 <li>Take one day’s rows of the expanded local table as
 <code>"day"</code>-scoped templates, with times in seconds of the
@@ -5494,8 +5495,8 @@ struct <code>.GM .R .C .S</code>;</li>
 </tbody>
 </table>
 <p><strong>Outputs.</strong>
-<code>[task, kit, data] = kbr_variational(cfg)</code>. The
-<code>task</code> has:</p>
+<code>[task, kit] = kbr_variational(cfg)</code>. The <code>task</code>
+has:</p>
 <ul>
 <li>the commons <code>C_n_m</code> and <code>S_n_m</code>, each with its
 unit (1e-10) as <code>Info</code>;</li>
@@ -5516,9 +5517,7 @@ satellite;</li>
 </ul>
 <p>Every parameter carries a declared unit as <code>Info</code>, so the
 physical value is <code>unit .* estimate</code>. Position streams carry
-their sigmas in each arc’s <code>Sigma</code>. <code>data</code> is the
-compiled declaration (<code>task.declaration()</code>), for engine-tier
-work.</p>
+their sigmas in each arc’s <code>Sigma</code>.</p>
 <p><code>kit</code> exposes the physics as function handles:</p>
 <ul>
 <li><code>unitCommon</code> and <code>unitLocal</code>;</li>
@@ -5813,87 +5812,97 @@ attached as the cause.</p>
 <td>the message names the setting and its allowed values</td>
 </tr>
 <tr class="even">
+<td><code>lsqvce:fit:structDeclaration</code>,
+<code>lsqvce:layout:structDeclaration</code>,
+<code>lsqvce:Results:structDeclaration</code></td>
+<td>a v6 <code>data</code> struct passed to <code>fit</code>,
+<code>layout</code> or <code>R.toTable</code> (since 7.0.0 they take a
+task)</td>
+<td>declare a <code>lsqvce.TaskDefinition</code>: the migration table in
+<code>RELEASE_NOTES.md</code> maps every field to its call</td>
+</tr>
+<tr class="odd">
 <td><code>lsqvce:TaskDefinition:duplicateName</code></td>
 <td>a name used twice: two commons, two locals of a system, a local
 named like a common, two systems, streams or priors</td>
 <td>every name is unique where it lives</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:TaskDefinition:badName</code></td>
 <td>a stream name that is not a MATLAB identifier
 (<code>"pos C"</code>)</td>
 <td>letters, digits and underscores, starting with a letter</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:TaskDefinition:badValid</code></td>
 <td><code>Valid</code> not <code>[start end]</code> with start ≤
 end</td>
 <td>fractional MJD, or <code>[]</code> for always</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:TaskDefinition:infoRows</code></td>
 <td>an <code>Info</code> table without one row per name</td>
 <td>one row per name</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:TaskDefinition:badHandle</code></td>
 <td><code>Prepare</code> or <code>Build</code> is not a function handle,
 or takes fewer than two arguments</td>
 <td><code>@myBuild</code>, with
 <code>function out = myBuild(day, ctx)</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:TaskDefinition:missingArgument</code></td>
 <td><code>addStream</code> without <code>Build</code> or
 <code>Noise</code>; a prior without <code>Sigma</code>;
 <code>fromBatches</code> without <code>NumBatches</code></td>
 <td>add it</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:TaskDefinition:priorTarget</code></td>
 <td>a prior with both <code>On</code> and <code>L</code>, or
 neither</td>
 <td>one of the two</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:TaskDefinition:wrongKind</code></td>
 <td><code>addCommon</code>, <code>addSystem</code> or a prior with
 <code>On</code> on a task made by <code>fromMatrices</code> /
 <code>fromBatches</code></td>
 <td>in-memory tasks take priors by <code>L</code> only</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:TaskDefinition:badArcs</code></td>
 <td>some streams of a system have an arc schedule and others none</td>
 <td>give the system one <code>Arcs</code>, or every stream its own</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:TaskDefinition:incomplete</code></td>
 <td>no <code>addCommon</code>, no <code>addSystem</code>, a system
 without a stream, or no calendar</td>
 <td>complete the task</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:makeLoader:localPlan</code></td>
 <td><code>"arc"</code> locals without an arc schedule</td>
 <td><code>addSystem(..., Arcs=...)</code>: a count, an id vector or
 <code>@(day, stream)</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:makeLoader:preparedField</code></td>
 <td>the system’s <code>Settings</code> has a field
 <code>prepared</code></td>
 <td>rename your field; the name carries <code>Prepare</code>’s
 result</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:fit:badPrior</code></td>
 <td>a pattern <code>On</code> that matches no name, or <code>L</code> of
 the wrong width</td>
 <td>check the names; write <code>L</code> in the columns
 <code>task.layout()</code> announces</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:fit:modelKind</code></td>
 <td><code>Estimate = "noise"</code> on a task made by
 <code>fromMatrices</code> / <code>fromBatches</code></td>

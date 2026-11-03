@@ -1,9 +1,8 @@
-function [task, data] = gravfire_data(commonData, myOptions, systemsData, opt)
+function task = gravfire_data(commonData, myOptions, systemsData, opt)
 %GRAVFIRE_DATA  Declare a GRAVFIRE preprocessing bundle as an lsqvce.TaskDefinition.
 %   task = gravfire_data(commonData, myOptions, systemsData)
 %   task = gravfire_data(..., 'DesignFcn', @myDesign)      % your A/B builder
 %   task = gravfire_data(..., 'DryRun', true)              % random A/B: pipeline check
-%   [task, data] = gravfire_data(...)                      % + the engines' declaration struct
 %
 %   TEMPLATE (R5 M0 close-out, HANDOVER §12.8): the GRAVFIRE bundle
 %   (commonData / myOptions / systemsData, as saved in testdata.mat) already
@@ -65,11 +64,8 @@ function [task, data] = gravfire_data(commonData, myOptions, systemsData, opt)
 %   OUTPUT
 %     task  1x1 lsqvce.TaskDefinition   the declaration: R = lsqvce.fit(task, opts);
 %           disp(task) lists it, task.layout() names every column of A and B
-%     data  1x1 struct   task.declaration(), the engines' declaration struct the task
-%           compiles to (commonParams {scope, name} rows, days, priors, systems(1)
-%           with id, name, buildDay, covariance, localParams, priors,
-%           processingOptions) -- for engine-tier work and for inspecting the
-%           compiled tables; fit(task) and fit(data) are the same fit
+%           (task.declaration() is the engines' compiled struct, for
+%           engine-tier work and for inspecting the compiled tables)
 %
 %   ACCURACY
 %     Not applicable: bookkeeping -- the bundle's tables, flags and per-epoch
@@ -103,6 +99,11 @@ function [task, data] = gravfire_data(commonData, myOptions, systemsData, opt)
 %            LSQVCE.DAYDATA, LSQVCE.NOISE, LSQVCE.FIT, LSQVCE.OPTIONS,
 %            dev/GRAVFIRE_INTERFACE.md
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: returns the task only (the
+%   compiled struct is task.declaration()); a position stream declares level 1,
+%   because iSpp is absolute and travels as Sigma (user decision 2026-11-03: the
+%   bundle's sqrt(variance) on top counted the level twice in an Estimate "none"
+%   solve). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as a lsqvce.TaskDefinition
 %   (addCommon / addSystem / addLocal / addStream / addPrior, the GRAVFIRE columns as
 %   Info); one Build per stream adds the pieces as arcs; DesignFcn is f(o, day, ctx);
@@ -197,14 +198,21 @@ end
     %      the per-epoch error information of the positions -- the 3x3
     %      covariance from iSpp -- comes back from Build with each arc (Sigma=,
     %      STEP 9) and the toolbox composes C = D (R_t kron I_3) D; the axis
-    %      count is derived from it, so no Axes is declared.
+    %      count is derived from it, so no Axes is declared. iSpp is ABSOLUTE
+    %      (user decision 2026-11-03), so a position stream's law has level 1:
+    %      Sigma is relative to it, and sqrt(variance) on top would count the
+    %      level twice. A stream without iSpp (kbr) takes its level from the
+    %      bundle's variance.
     sys = task.addSystem("GRACE", Settings=po, Id=1);
     if ~isempty(T)
         sys.addLocal(string(T(:, 1)), Scope="day", Info=gravfireInfo(T));
     end
     for g = 1:G
-        sys.addStream(obsTypes{g}, Build=@buildGravfireDay, ...
-                      Noise=lsqvce.Noise.white(sqrt(sd.variance(g))));
+        level = sqrt(sd.variance(g));                         % kbr: the bundle's variance
+        if strcmp(char(groups{g}.observationQuantity), 'kinematicPosition')
+            level = 1;                                        % positions: Sigma = iSpp, absolute
+        end
+        sys.addStream(obsTypes{g}, Build=@buildGravfireDay, Noise=lsqvce.Noise.white(level));
     end
 
     % ---- STEP 6 (R5-D8 round 1): column 11 on COMMON rows -> task.addPrior
@@ -238,10 +246,6 @@ end
     for k = 1:numel(lp)
         sys.addPrior(lp(k).name, On=lp(k).group, Value=lp(k).x0, Sigma=lp(k).sigma, ...
                      Estimate=lp(k).estimate, From=lp(k).from);
-    end
-
-    if nargout > 1
-        data = task.declaration();
     end
 end
 

@@ -159,7 +159,7 @@ end
     say('\n== (A) streaming: the GRACE-like oracle ==\n');
     % the declaration is DEMO_GRAVITY_DATALOADER's (its help says how it is
     % written); it goes to fit as it comes
-    [cfg, ~, gravity] = demo_gravity_dataLoader();   % its lsqvce.TaskDefinition
+    [cfg, gravity] = demo_gravity_dataLoader();   % its lsqvce.TaskDefinition
     out.gls = lsqvce.fit(gravity, lsqvce.Options(Verbose=opt.Verbose));
     show(out.gls, opt.Verbose);
 

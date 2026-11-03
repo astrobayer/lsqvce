@@ -146,7 +146,7 @@ function testFitDispatchOverheadIsNegligible(tc)
     opts = lsqvce.Options(Verbose=false);
 
     tDirect = timeit(@() lsqvce.engine.adjustBlock(L, days, 'Verbose', false));
-    tFit    = timeit(@() lsqvce.fit(data, opts));
+    tFit    = timeit(@() lsqvce.engine.fitDeclaration(data, opts));
 
     % tol: 1.25 -- the front door may add at most a quarter of a two-day,
     % three-system solve (~ tens of ms of validation + Options mapping on top

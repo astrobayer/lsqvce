@@ -50,7 +50,7 @@ function wp122_measure(outFile)
         d = tempname;  mkdir(d);  cl = onCleanup(@() rmdir(d, 's')); %#ok<NASGU>
         t = tic;  [cfg, truth] = fixture_kbr_l1b(d);
         fprintf('fixture ok (%.1f s): %s\n', toc(t), strjoin({dir(d).name}, ' '));
-        t = tic;  [task, kit, data] = kbr_variational(cfg);   % WP-161: the task first
+        t = tic;  [task, kit] = kbr_variational(cfg);  data = task.declaration();   % WP-162
         fprintf('declaration ok (%.1f s): nc %d, local rows %d\n', toc(t), ...
                 size(data.commonParams, 1), size(data.systems.localParams, 1));
         t = tic;  R = lsqvce.fit(task, Verbose=false);

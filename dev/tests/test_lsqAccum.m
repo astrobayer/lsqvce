@@ -705,7 +705,7 @@ function testRankDecisionIsUnitFree(tc)
     data.systems = struct('buildDay', @(day, ot) struct('A', {{A}}, 'B', {{B}}, 'l', {{l}}, 't', {{t}}), ...
         'covariance', struct('o', struct('type', 'diag', 'sigma', 1)), 'arcs', 1, 'id', 1, ...
         'name', 'one', 'localParams', {{'arc', 'b1'; 'arc', 'b2'}});
-    R = tc.verifyWarningFree(@() lsqvce.fit(data, lsqvce.Options(Backend="normal", Verbose=0)));
+    R = tc.verifyWarningFree(@() lsqvce.engine.fitDeclaration(data, lsqvce.Options(Backend="normal", Verbose=0)));
     % tol: the verdict's own sum(r) integrity line is 1e-6; the cofactor
     % reads the same equilibrated block (BlockCofactor)
     tc.verifyLessThan(R.diag.sumRRelErr, 1e-9, 'the cofactor counts both locals');

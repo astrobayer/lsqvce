@@ -42,271 +42,89 @@ a { color: #0b5ea8; }
 <body>
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.fit</div>
 <h1>lsqvce.fit</h1>
-<div class="purpose">Fit a least-squares adjustment (optionally with VCE) to declared data.</div>
+<div class="purpose">Fit a least-squares adjustment (optionally with VCE) to a declared task.</div>
 <h2>Description</h2>
-<pre class="example">R = lsqvce.fit(task)                        a lsqvce.TaskDefinition (v7, WP-160)
-R = lsqvce.fit(data)                        every default (one GLS solve)
-R = lsqvce.fit(data, opts)                  a lsqvce.Options object
-R = lsqvce.fit(data, Name, Value, ...)      the Options properties, straight on fit
-R = lsqvce.fit(data, opts, Name, Value)     both: the pairs override opts</pre>
-<h3>THE ONE VERB. You describe the problem with a plain struct `data`</h3>
-<pre class="example">(the API reference), say what to do with lsqvce.Options, and
-get a lsqvce.Results back:
+<pre class="example">R = lsqvce.fit(task)                        every default (one GLS solve)
+R = lsqvce.fit(task, opts)                  a lsqvce.Options object
+R = lsqvce.fit(task, Name, Value, ...)      the Options properties, straight on fit
+R = lsqvce.fit(task, opts, Name, Value)     both: the pairs override opts</pre>
+<h3>THE ONE VERB. You declare the problem as a lsqvce.TaskDefinition, say</h3>
+<pre class="example">what to do with lsqvce.Options, and get a lsqvce.Results back:
 
-    R = lsqvce.fit(data, Estimate=&quot;noise&quot;, Pool=&quot;obsType&quot;, OnPass=@myInspect);
-    R.report;  R.plot(&quot;psd&quot;);  [C, L] = R.toTable(data);
+    task = lsqvce.TaskDefinition(Days=59396:59425);
+    task.addCommon(coeffNames);
+    sys = task.addSystem(&quot;grace&quot;, Prepare=@prepareOrbit, Arcs=4);
+    sys.addLocal([&quot;x0&quot; &quot;y0&quot; &quot;z0&quot; &quot;vx0&quot; &quot;vy0&quot; &quot;vz0&quot;], Scope=&quot;arc&quot;);
+    sys.addStream(&quot;kbrr&quot;, Build=@buildKbrr, Noise=lsqvce.Noise.white(1e-7));
+    R = lsqvce.fit(task, Estimate=&quot;noise&quot;, Pool=&quot;obsType&quot;, OnPass=@myInspect);
+    R.report;  R.plot(&quot;psd&quot;);  T = R.toTable(task);
 
-THREE DATA KINDS, told apart by the fields of `data`, all on ONE accumulator:
-  (A) streaming   data.commonParams, data.days, data.systems(k) with
-                  buildDay / covariance / localParams / priors /
-                  processingOptions and the optional arc schedule `arcs`
-                  (buildDay returns one CELL per arc -- A, B, l, t,
-                  Cep as 1 x nArc cells -- and the cells are the schedule
-                  unless `arcs` declares one); optional data.priors,
-                  data.paramColumns. buildDay is a function handle of
-                  each system: several readers in one run are several
-                  systems; one reader for several setups takes the setup
-                  through processingOptions (its 5th argument) or a
-                  closure; data that share no common parameters are
-                  separate fit calls. What every stream of a day needs
-                  (orbits and partials of a satellite pair) goes in the
-                  system&#x27;s optional prepareDay: called once per build
-                  of a day (the current day&#x27;s result only is kept), its
-                  result reaches each buildDay as procOpt.prepared (WP-141)
-  (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
-                  weights); optional data.priors. A FULL m x m SPD weight
-                  matrix is kind C&#x27;s: return it from batchFcn
-  (C) batched     data.batchFcn @(k) -&gt; [A, l, p] (or @(k, x) -&gt; [J, w, p] with
-                  data.x0 for Gauss-Newton), data.numUnknowns, data.numBatches;
-                  optional data.priors</pre>
-<h3>WHAT RUNS (opts.Estimate / opts.Robust / data.x0):</h3>
-<pre class="example">  Estimate &quot;none&quot;    one generalised solve under the declared laws (adjustBlock)
-  Estimate &quot;noise&quot;   the joint variance-component estimator (adjustVCEjoint):
-                     one spectral shape per Pool group, one level per stream,
-                     per-arc factors when ArcFactors; prior groups with
-                     estimate &quot;scale&quot; get their sigma by Helmert / Koch-Kusche,
-                     one step per pass from the previous solution, and the
-                     loop converges only when that step is below Tolerance too
-  Robust &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same loop: alone it is
-                     adjustRobust; with Estimate &quot;noise&quot; the robust pass runs
-                     INSIDE the joint loop, R.noise.robust carries
-                     the final factors
-  data.x0            Gauss-Newton with damping (adjustNonlinear)
-REGULARISATION is declared, never an option: data.priors(j) on the common
-parameters and data.systems(k).priors(l) on the local ones -- one struct per
-group, by `group` (a name pattern) or `L` (in the columns lsqvce.layout
-announces), x0, sigma, from, name, estimate. A free network&#x27;s datum is the
-prior on its null space.
+THREE KINDS OF TASK, made by the constructor that fits the data, all on
+ONE accumulator:
+  streaming   lsqvce.TaskDefinition(Days=...) and its add-calls: arc-wise
+              data read day by day through each stream&#x27;s Build, local
+              parameters eliminated per system, the noise declared per
+              stream (LSQVCE.TASKDEFINITION, LSQVCE.SYSTEMDEFINITION)
+  in memory   lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p)
+  batched     lsqvce.TaskDefinition.fromBatches(@batchFcn, NumBatches=K,
+              NumUnknowns=u), or X0=x0 for the nonlinear form</pre>
+<h3>WHAT RUNS (opts.Estimate / opts.Robust / X0):</h3>
+<pre class="example">  Estimate &quot;none&quot;    one generalised solve under the declared laws
+  Estimate &quot;noise&quot;   the joint variance-component estimator: one spectral
+                     shape per Pool group, one level per stream, per-arc
+                     factors when ArcFactors; a prior group declared with
+                     Estimate=&quot;scale&quot; gets its sigma by Helmert /
+                     Koch-Kusche, one step per pass
+  Robust &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same loop (inside the
+                     joint loop with Estimate &quot;noise&quot;)
+  X0                 Gauss-Newton with damping (fromBatches only)
+REGULARISATION is declared on the task, never an option: task.addPrior on
+the common parameters, sys.addPrior on a system&#x27;s locals.
 WATCHING A RUN: Options.OnPass fires after every pass with the pass state,
-the live accumulator, `data` and every system&#x27;s processingOptions.</pre>
+the live accumulator, ctx.data (the compiled declaration) and every
+system&#x27;s Settings.</pre>
 <h3>Input</h3>
-<pre class="example">task   1x1 lsqvce.TaskDefinition   the declaration as flat add-calls; fit
-                     compiles it with task.declaration() to the struct below
-data   1x1 struct    the declaration (kind A, B or C as above)
+<pre class="example">task   1x1 lsqvce.TaskDefinition   the declaration; fit compiles it with
+                     task.declaration() and fits that with
+                     LSQVCE.ENGINE.FITDECLARATION
 opts   1x1 lsqvce.Options   default lsqvce.Options()
 Name, Value          any property of lsqvce.Options</pre>
 <h3>Output</h3>
 <pre class="example">R      1x1 lsqvce.Results   x, sigma0, sol (Cxx, dof, vtv), diag, acc, history,
                             noise (S, Sgroups, C, Cgroups, stream, model, priors,
-                            checks -- the model checks, WP-154), stopReason,
-                            meta (options as resolved, warnings, seeds, version);
-                            methods report, summary, convergence, residuals,
-                            contribution, contributions, compare, plot,
-                            toTable, coefficients, reliability, systematic,
-                            snoop, ellipse, redundancy (LSQVCE.RESULTS)</pre>
+                            checks), stopReason, meta (options as resolved,
+                            warnings, seeds, version); methods report, summary,
+                            convergence, residuals, contribution, contributions,
+                            compare, plot, toTable, coefficients, reliability,
+                            systematic, snoop, ellipse, redundancy (LSQVCE.RESULTS)</pre>
 <h3>Accuracy</h3>
-<pre class="example">fit adds no arithmetic of its own: the estimate is the block
-accumulator&#x27;s (LSQVCE.ENGINE.BLOCKACCUMULATOR: the monolithic solve to
-1e-8 relative), the verdict LSQVCE.ENGINE.VERDICT&#x27;s and the noise
-model LSQVCE.ENGINE.ADJUSTVCEJOINT&#x27;s -- see theirs. End to end, the
-matrix kind (data.A / .l / .p) reproduces the dense normal equations to
-1e-12 relative (test_fit). WP-138.
-THE FORMAL ERRORS OF AN ESTIMATED NOISE MODEL ARE PLUG-IN (WP-154, M5):
-R.sol.Cxx treats the estimated covariance as known. Measured in the
-review&#x27;s closed loop (HANDOVER 12.84): their optimism is 3-13 % in sigma
-on short or few arcs (256 epochs, 12 arcs) and ~0 on long records; the
-estimator&#x27;s own variance adds 4-10 % to x&#x27;s (eff 1.04-1.10 against the
-oracle that knows the true covariance). Read them as a floor on short
-records; R.noise.checks says when the model&#x27;s assumptions fail.</pre>
+<pre class="example">fit adds no arithmetic of its own: it compiles the task (bookkeeping;
+test_taskDefinition pins fit(task) BITWISE equal to the fit of the
+equivalent hand-written struct) and returns LSQVCE.ENGINE.FITDECLARATION&#x27;s
+result -- see its ACCURACY for the estimate, the verdict and the plug-in
+formal errors of an estimated noise model.</pre>
 <h3>Errors</h3>
-<pre class="example">  Your declaration is wrong (raised BEFORE any data is read):
-    lsqvce:fit:unknownField    a field name the contract does not know
-                               (names the field; typos are errors on
-                               purpose)
-    lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
-    lsqvce:fit:noCommon        data.commonParams missing, or not a 2-D
-                               cell of template rows
-    lsqvce:fit:badScope        a scope-token column 1 does not carry:
-                               commonParams needs &#x27;common&#x27;|&#x27;day&#x27; (raised
-                               here), localParams needs
-                               &#x27;arc&#x27;|&#x27;day&#x27;|&#x27;system&#x27; (raised by makeLoader
-                               and relabelled)
-    lsqvce:fit:badParamColumns data.paramColumns is malformed: not a
-                               struct, an unknown field, only one of
-                               start / end, or a column the table lacks
-    lsqvce:fit:missingField    a required system field is absent, or
-                               covariance carries no observation type
-    lsqvce:fit:noDays          no day list anywhere
-    lsqvce:fit:badDays         a day list that is not numeric integers
-                               (WP-138; it was noDays)
-    lsqvce:fit:duplicateDay    data.days or a system&#x27;s days names a day
-                               twice (it was accumulated twice; WP-135)
-    lsqvce:fit:badId           id is not a finite numeric scalar or single
-                               char
-    lsqvce:fit:mixedIdTypes    the ids mix numbers and characters (an
-                               index default is a number; WP-135, its own
-                               id since WP-138 -- it was badId)
-    lsqvce:fit:duplicateSystem two systems share an id (explicit or
-                               index default)
-    lsqvce:fit:badValidity     a commonParams validity entry is not [], a
-                               fractional MJD or [MJD seconds], or its start
-                               is after its end (WP-135; localParams: the
-                               makeLoader id, relabelled)
-    lsqvce:fit:builderKind     buildDay or prepareDay is not a function
-                               handle
-    lsqvce:fit:badArcs         arcs is a string (omit arcs: the cells are
-                               the arcs), or a
-                               resolver returned something that is not
-                               unique positive integers
-    lsqvce:fit:&lt;makeLoader id&gt; a makeLoader construction error, relabelled
-                               (e.g. paramType, badArcs, localPlan);
-                               the original is attached as the cause
-  Your choice is not available here:
-    lsqvce:fit:notYet          Robust ~= &quot;none&quot; on a NONLINEAR batch problem
-                               (x0): IRLS inside Gauss-Newton is not written;
-                               linearise first
-    lsqvce:fit:modelKind       Estimate = &quot;noise&quot; on kinds B / C, which have
-                               no streams to estimate a law for
-    lsqvce:batchSystem:weightMatrix  a batch returned a weight argument that
-                               is neither m x 1 nor an m x m SPD matrix. A
-                               full SPD P IS accepted on kind C and whitened
-                               by its Cholesky factor -- raised
-                               by lsqvce.engine.batchSystem
-    lsqvce:fit:priorNotActive  (warning) a prior with from &gt; 1 in a
-                               single-pass run is not applied (a common
-                               or a local group, WP-128), or its from lies
-                               beyond the passes the joint loop ran
-                               (WP-131)
-    lsqvce:fit:priorScaleHeld  (warning) a prior group with estimate
-                               &quot;scale&quot; in a run that cannot estimate a
-                               prior&#x27;s sigma (Estimate &quot;none&quot;, or the
-                               kinds A / B / C) is applied with its
-                               declared sigma (WP-150)
-    lsqvce:fit:badPrior        data.priors is malformed (unknown
-                               field, L not p x nc, sigma not a positive scalar,
-                               x0 of the wrong length)
-    lsqvce:fit:badEstimate     covariance.&lt;type&gt;.estimate is not
-                               &quot;none&quot; | &quot;scale&quot; | &quot;law&quot;
-    lsqvce:fit:lawOnFixedStructure  estimate &quot;law&quot; on a stream whose
-                               sigma is per-row (a fixed structure: level only)
-    lsqvce:fit:varUnderNoise   a &#x27;var&#x27; law under Estimate = &quot;noise&quot;: the
-                               joint sweep has no vector-AR path
-    lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
-                               p m x 1)
-    lsqvce:fit:missingField    kind C lacks batchFcn / numBatches, or the
-                               linear form lacks numUnknowns
-    lsqvce:fit:uCount          kind C carries BOTH x0 and numUnknowns --
-                               u is stated once (numel(x0))
-  Your buildDay is wrong (raised WHILE READING, by the engine, ids
-  unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / buildDay
-  (your buildDay threw: the day, the stream and your error as the cause) /
-  prepareDay (your prepareDay threw: the day and your error as the cause) /
-  badDayCep / axisConflict / cepTwice (the day&#x27;s Cep and
-  axis count), lsqvce:covModel:cepOnVar, lsqvce:accum:arcBadNc / arcBadNl;
-  lsqvce:makeLoader:noCep is a once-per-run warning (a multi-axis day
-  without Cep is composed with D = I)
+<pre class="example">  lsqvce:fit:structDeclaration   a struct was passed: since 7.0.0 the
+                                 declaration is a lsqvce.TaskDefinition
+                                 (RELEASE_NOTES, &quot;Migrating a declaration
+                                 from v6 to v7&quot;); the struct is the engine
+                                 tier&#x27;s, LSQVCE.ENGINE.FITDECLARATION
+  MATLAB:validators:mustBeA      neither a struct nor a lsqvce.TaskDefinition
+  lsqvce:TaskDefinition:incomplete / badArcs / duplicateName   the task does
+                                 not compile (task.declaration())
+  lsqvce:fit:*, lsqvce:makeLoader:*, lsqvce:DayContext:*   raised by the
+                                 compiled declaration&#x27;s checks and while the
+                                 days are read; LSQVCE.ENGINE.FITDECLARATION
+                                 lists them
 
-See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT, LSQVCE.ENGINE.DECLARATION,
-         LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
-         LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
+See also LSQVCE.TASKDEFINITION, LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT,
+         LSQVCE.ENGINE.FITDECLARATION
 
-Updated 2026-11-02 (CET, UTC+01:00), WP-160: fit takes a
-lsqvce.TaskDefinition and fits its compiled declaration. With assistance
-from Claude (Anthropic), model Claude Opus 5.5.
-Updated 2026-10-29 (CET, UTC+01:00), WP-159: OUTPUT lists every method
-of Results. With assistance from Claude (Anthropic), model Claude Opus
-5.5.
-Updated 2026-10-18 (CEST, UTC+02:00), WP-154 (review 12.84, M2-M5): R.noise
-carries the joint estimator&#x27;s model checks (.checks); ACCURACY states the
-formal errors&#x27; plug-in optimism. With assistance from Claude (Anthropic),
-model Claude Opus 5.5.
-Updated 2026-10-17 (CEST, UTC+02:00), WP-144 (A6): a prior group with
-estimate &quot;scale&quot; is updated also when the normal backend refuses a
-cancelled v&#x27;Pv (N^-1 from the cofactor). With assistance from Claude
-(Anthropic), model Claude Opus 5.5.
-Updated 2026-10-16 (CEST, UTC+02:00), WP-142: prepareDay runs once per
-build of a day, not once per day of the run. With assistance from Claude
-(Anthropic), model Claude Opus 5.5.
-Updated 2026-10-15 (CEST, UTC+02:00), WP-141: the help names the system&#x27;s
-optional prepareDay (once per day, its result procOpt.prepared) and its
-identifiers. With assistance from Claude (Anthropic), model Claude Opus
-5.5.
-Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
-ERRORS name lsqvce:fit:badDays and lsqvce:fit:mixedIdTypes; the prior
-streams are marked from their obsType (lsqvce.util.priorStream), not
-parsed out of the stream key; ACCURACY. With assistance from Claude
-(Anthropic), model Claude Opus 5.5.
-Updated 2026-10-15 (CEST, UTC+02:00), WP-136: the help says where buildDay
-goes (one handle per system; a setup through processingOptions or a
-closure). With assistance from Claude (Anthropic), model Claude Opus 5.5.
-Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): the closing
-solve updates a common prior group activated on the last pass (from &lt;= pass
-on model.final; it was never scaled); Noise.Whitener reaches the joint path
-lowercased; ERRORS: duplicateDay, badValidity, the id-kind rule, buildDay&#x27;s
-cause, badArcId (never raised) removed. With assistance from Claude
-(Anthropic), model Claude Opus 5.5.
-Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (review 3 finding 1): a common
-prior group with estimate &quot;scale&quot; is in the joint loop&#x27;s stop rule (its
-change, and no convergence while it is in the solve but not yet updated)
--- it was outside, and a loop that settled on pass 1 never estimated it.
-With assistance from Claude (Anthropic), model Claude Opus 5.5.
-Updated 2026-10-13 (CEST, UTC+02:00), WP-131: lsqvce:fit:priorNotActive also
-when the joint loop ends before a group&#x27;s from. With assistance from
-Claude (Anthropic), model Claude Opus 5.5.
-Updated 2026-10-13 (CEST, UTC+02:00), WP-128: lsqvce:fit:priorNotActive also
-counts a late LOCAL group (data.systems(k).priors). With assistance from
-Claude (Anthropic), model Claude Opus 5.5.
-Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-05): priorsOf notes
-that a datum&#x27;s covariance is weight-independent too. With assistance from
-Claude (Anthropic), model Claude Opus 5.5.
-Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: R.noise carries
-the law as the bin spectrum (.S, .Sgroups) next to its ACV (.C,
-.Cgroups); .Shat is gone. With assistance from Claude (Anthropic), model
-Claude Opus 5.5.
-Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-23): the
-warning inventory is reset once, before anything can warn, for every
-kind. With assistance from Claude (Anthropic), model Claude Opus 5.5.
-Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-37):
-ERRORS lists badParamColumns; the joint seed recorded is the one used.
-With assistance from Claude (Anthropic), model Claude Opus 5.5.
-Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: a &#x27;var&#x27; law under Estimate = &quot;noise&quot; is refused by
-name (lsqvce:fit:varUnderNoise, R7-07). With
-assistance from Claude (Anthropic), model Claude Opus 5.5.
-
-Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
-model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
-Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
-the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
-Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: Robust together with
-Estimate &quot;noise&quot; runs (the robust pass inside the joint loop; the notYet
-refusal stays for x0 problems only). With assistance from Claude
-(Anthropic), model Claude Fable 5.1.
-Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the day contract is
-ONE CELL PER ARC and the arc schedule is optional. With assistance from
-Claude (Anthropic), model Claude Fable 5.1.
-Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.noise.model{k}.C is the
-law of the stream&#x27;s pool group and EMPTY where no law was estimated, instead
-of falling back to another stream&#x27;s fitted spectrum. With assistance from
-Claude (Anthropic), model Claude Opus 5.
-Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
-travels with the day (D.Cep); epochCovariance retired; the See also on
-the units that exist. With assistance from Claude (Anthropic), model
-Claude Fable 5.1.
-
-Updated 2026-10-12 (CEST, UTC+02:00), WP-124: development history taken
-out of the help text (it lives in RELEASE_NOTES.md and dev/HANDOVER.md);
-references point at the API reference. With assistance from Claude
-(Anthropic), model Claude Opus 5.5.</pre>
+Created 2026-11-03 (CET, UTC+01:00) with assistance from Claude (Anthropic),
+model Claude Opus 5.5 -- level v7, WP-162: the user tier of fit takes a
+lsqvce.TaskDefinition only; the fit of a struct is
+LSQVCE.ENGINE.FITDECLARATION, where the body of fit (2026-08-31, R4 L2
+WP-56, to 2026-11-02, WP-160) now lives.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

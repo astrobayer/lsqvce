@@ -1,97 +1,73 @@
-function lay = layout(data)
+function lay = layout(task)
 %LSQVCE.LAYOUT  The column layout fit will use -- so you can declare priors in it.
-%   lay = lsqvce.layout(data)
+%   lay = lsqvce.layout(task)
 %
-%   The toolbox derives from your parameter tables (scope tokens, calendar,
-%   arcs, validity) which column of A and of every system's B belongs to
-%   which instantiated parameter. This function announces that layout BEFORE
-%   fit runs, so that data.priors(j).L (columns of A) and
-%   data.systems(k).priors(l).L (columns of B) can be written in it -- the
-%   only knowledge the user's regularisation and the toolbox share.
+%   The toolbox derives from your task (scopes, calendar, arc schedules,
+%   validity) which column of A and of every system's B belongs to which
+%   instantiated parameter. This function announces that layout BEFORE fit
+%   runs, so that a prior operator L (task.addPrior(..., L=...) in the columns
+%   of A, sys.addPrior(..., L=...) in the columns of B) can be written in it --
+%   the only knowledge your regularisation and the toolbox share. It is
+%   task.layout(), the method; both read the same plans fit builds.
 %
-%   lay = lsqvce.layout(task)   a lsqvce.TaskDefinition: the same layout, plus
-%                               .common(j).name, .systems(k).name and
-%                               .systems(k).local(c).name (WP-160)
-%
-%   INPUT   data  1x1 struct  a kind-A declaration (the API reference), or a
-%                             1x1 lsqvce.TaskDefinition
+%   INPUT   task  1x1 lsqvce.TaskDefinition   a streaming task (the API
+%                                              reference, chapter The task
+%                                              definition)
 %   OUTPUT  lay   1x1 struct
 %     .nc            1x1        columns of A
-%     .common        nc x 1 struct (.row .day)      the template row and (for 'day' rows) the day of every column of A
-%     .systems(k)    1x1 struct per system:
+%     .common        nc x 1 struct (.name .row .day)   the name, the template
+%                               row (its position in addCommon order) and (for
+%                               "day" commons) the day of every column of A
+%     .systems(k)    1x1 struct per system, in addSystem order:
+%        .name       string     the system's name
 %        .nl         1x1        columns of B
-%        .local      nl x 1 struct (.row .day .arc) the template row / day / arc of every column of B
-%        .col        @(row, day, arc) -> column     lookup: the column of template row `row` on
-%                                                   `day` (and `arc` for 'arc' rows; [] otherwise);
-%                                                   0 when that instance does not exist
-%     .colCommon     @(row, day) -> column          the same for A ([] day for 'common' rows)
+%        .local      nl x 1 struct (.name .row .day .arc)   the same for every
+%                               column of B
+%        .col        @(row, day, arc) -> column     lookup: the column of
+%                               template row `row` on `day` (and `arc` for
+%                               "arc" locals; [] otherwise); 0 when that
+%                               instance does not exist
+%     .colCommon     @(row, day) -> column          the same for A ([] day
+%                               for "common" templates)
 %
-%   EXAMPLE  (a Tikhonov prior on local row 7 of system 1, on every day)
-%     lay = lsqvce.layout(data);
-%     nl  = lay.systems(1).nl;  rows = zeros(0, nl);
-%     for d = data.days
-%         c = lay.systems(1).col(7, d, []);  r = zeros(1, nl);  r(c) = 1;  rows(end+1, :) = r;
-%     end
-%     data.systems(1).priors = struct('L', rows, 'x0', 0, 'sigma', 0.01, 'name', 'xaccscale', 'estimate', "scale");
+%   EXAMPLE  (the mean of a "day" common over the calendar is zero)
+%     lay = lsqvce.layout(task);
+%     c   = find([lay.common.name] == "offset");
+%     L   = zeros(1, lay.nc);  L(c) = 1 / numel(c);
+%     task.addPrior("offsetMean", L=L, Sigma=1e-3);
 %
 %   ACCURACY
 %     Not applicable: it counts and indexes columns -- integers from the
-%     declaration's plans, the very plans fit builds (declaration); no
-%     floating-point result. test_fit pins the columns
-%     (testLayoutOfASystemWithoutLocals,
-%     testSystemWithoutDaysClaimsOnlyTheGlobalCalendar). WP-139.
+%     plans fit builds (LSQVCE.ENGINE.LAYOUTDECLARATION on the compiled
+%     declaration); no floating-point result. test_taskDefinition pins the
+%     names and columns.
 %
-%   See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the API reference
+%   ERRORS
+%     lsqvce:layout:structDeclaration   a struct was passed: since 7.0.0 the
+%                                       declaration is a lsqvce.TaskDefinition;
+%                                       the struct's layout is the engine tier's,
+%                                       LSQVCE.ENGINE.LAYOUTDECLARATION
+%     MATLAB:validators:mustBeA         neither a struct nor a lsqvce.TaskDefinition
+%     lsqvce:TaskDefinition:wrongKind   an in-memory task (fromMatrices,
+%                                       fromBatches) has no layout to announce
+%     lsqvce:TaskDefinition:incomplete  the task does not compile yet
 %
-%   Updated 2026-11-02 (CET, UTC+01:00), WP-160: a lsqvce.TaskDefinition
-%   is laid out with names. With assistance from Claude (Anthropic), model
-%   Claude Opus 5.5.
-%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
-%   accuracy, "Not applicable" with its reason. With assistance from Claude
-%   (Anthropic), model Claude Opus 5.5.
-%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 13): a
-%   system without localParams gets nl = 0 and an empty column table (it
-%   stopped on the loader's empty plan). With assistance from Claude
-%   (Anthropic), model Claude Opus 5.5.
-%   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
-%   (Anthropic), model Claude Fable 5.1 -- R5-D8 round 5.
+%   See also LSQVCE.TASKDEFINITION, LSQVCE.FIT, LSQVCE.RESULTS,
+%            LSQVCE.ENGINE.LAYOUTDECLARATION
 %
-%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: development history taken
-%   out of the help text (it lives in RELEASE_NOTES.md and dev/HANDOVER.md);
-%   references point at the API reference. With assistance from Claude
-%   (Anthropic), model Claude Opus 5.5.
-    if isa(data, 'lsqvce.TaskDefinition')
-        lay = data.layout();                  % WP-160: the same layout, with names
-        return
-    end
-    [spec, systems] = lsqvce.engine.declaration(data);
-    cp = spec.commonPlan;
-    common = struct('row', cell(cp.nc, 1), 'day', cell(cp.nc, 1));
-    for j = 1:cp.commonCount, common(j).row = cp.rows.common(j);  common(j).day = []; end
-    for i = 1:numel(cp.days)
-        if cp.dayCount(i) == 0, continue, end
-        rows = cp.rows.day;  if isfield(cp, 'dayRowsOf'), rows = cp.dayRowsOf{i}; end
-        for q = 1:cp.dayCount(i)
-            j = cp.dayOffset(i) + q;  common(j).row = rows(q);  common(j).day = cp.days(i);
-        end
-    end
-    K = numel(systems);  S = struct('nl', cell(1, K), 'local', cell(1, K), 'col', cell(1, K));
-    for k = 1:K
-        loc = lsqvce.engine.localColumns(systems{k}.plan);   % [] plan: nl = 0 (WP-135)
-        S(k).nl = systems{k}.nl;  S(k).local = loc;
-        S(k).col = @(row, day, arc) findCol(loc, row, day, arc);
-    end
-    lay = struct('nc', cp.nc, 'common', common, 'systems', S, ...
-                 'colCommon', @(row, day) findCol(common, row, day, []));
+%   Created 2026-11-03 (CET, UTC+01:00) with assistance from Claude (Anthropic),
+%   model Claude Opus 5.5 -- level v7, WP-162: the user tier of layout takes a
+%   lsqvce.TaskDefinition only; the layout of a struct is
+%   LSQVCE.ENGINE.LAYOUTDECLARATION, where the body of layout (2026-09-03,
+%   R5-D8 round 5, to 2026-11-02, WP-160) now lives.
+arguments
+    task (1,1) {mustBeA(task, ["struct", "lsqvce.TaskDefinition"])}
 end
-
-function c = findCol(tbl, row, day, arc)
-    c = 0;
-    for j = 1:numel(tbl)
-        e = tbl(j);
-        if e.row ~= row, continue, end
-        if ~isempty(e.day) && (isempty(day) || e.day ~= day), continue, end
-        if isfield(e, 'arc') && ~isempty(e.arc) && (isempty(arc) || e.arc ~= arc), continue, end
-        c = j;  return
+    if isstruct(task)
+        error('lsqvce:layout:structDeclaration', ...
+              ['lsqvce.layout takes a lsqvce.TaskDefinition since 7.0.0, not a data struct ' ...
+               '(RELEASE_NOTES.md, "Migrating a declaration from v6 to v7"); the layout of a ' ...
+               'compiled struct is lsqvce.engine.layoutDeclaration(data).']);
     end
+    lay = task.layout();
 end

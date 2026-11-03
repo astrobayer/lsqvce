@@ -97,7 +97,7 @@ function testFitGlsReproducesAdjustBlock(tc)
     % call it stands for. Same code path, so agreement is solver precision.
     [data, cfg] = declaration();
     opts = lsqvce.Options();                          % Model "gls"
-    Rf = lsqvce.fit(data, opts);
+    Rf = lsqvce.engine.fitDeclaration(data, opts);
     L  = loaderOf(cfg, data.systems(1), data);
     a  = opts.engineArgs("adjustBlock");
     Rd = lsqvce.engine.adjustBlock({L}, data.days, a.nv{:});
@@ -123,11 +123,11 @@ function testFitVceReproducesTheEngine(tc)
     [data, ~] = declaration();
     % the same budget on both spellings: vce reads MaxOuter, ellmer JointMaxIter
     base = {'MaxPasses', 2, 'Noise', struct('Grid', 8), 'Seed', 7, 'Verbose', false};
-    Rv = lsqvce.fit(data, lsqvce.Options(base{:}, Estimate="noise", Pool="stream", ArcFactors=false));
+    Rv = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}, Estimate="noise", Pool="stream", ArcFactors=false));
     dataE = data;
     ots = fieldnames(dataE.systems(1).covariance);
     for k = 1:numel(ots), dataE.systems(1).covariance.(ots{k}).arcFactors = false; end
-    Re = lsqvce.fit(dataE, lsqvce.Options(base{:}, Estimate="noise", Pool="stream"));
+    Re = lsqvce.engine.fitDeclaration(dataE, lsqvce.Options(base{:}, Estimate="noise", Pool="stream"));
     % tol: exact -- one code path, one seed
     tc.verifyEqual(Rv.x, Re.x);
     tc.verifyEqual(Rv.noise.C, Re.noise.C);
@@ -148,8 +148,8 @@ function testFitVceReproducesTheEngine(tc)
     % "stream" since WP-157); the fixture pools an ARMA position with a white
     % KBR stream, which WP-154's check reports
     muteWarn(tc, 'lsqvce:adjustVCEjoint:poolNotWhite');
-    Rp = lsqvce.fit(data, lsqvce.Options(base{:}, Estimate="noise", Pool="all", ArcFactors=false));
-    Rpe = lsqvce.fit(dataE, lsqvce.Options(base{:}, Estimate="noise", Pool="all"));
+    Rp = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}, Estimate="noise", Pool="all", ArcFactors=false));
+    Rpe = lsqvce.engine.fitDeclaration(dataE, lsqvce.Options(base{:}, Estimate="noise", Pool="all"));
     % tol: exact -- as above
     tc.verifyEqual(Rp.x, Rpe.x);
     tc.verifyEqual(keys(Rp.noise.Cgroups), {'all'});
@@ -163,55 +163,55 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
     data.systems(1).buildDay = bomb;
 
     d = data;  d.nonsense = 1;
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:unknownField');
     d = data;  d.systems(1).arcz = 2;
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:unknownField');
     % the retired v2 fields are unknown fields now -- loud, named failures
     d = data;  d.common.nc = 6;                    % the v2 sub-struct itself
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:unknownField');
     d = data;  d.systems(1).numLocal = 4;
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:unknownField');
     d = data;  d.systems(1).observationTypes = {'pos', 'kbr'};
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:unknownField');
     d = data;  d.systems(1).systemId = 1;
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:unknownField');
     d = data;  d.systems(1).loader = bomb;
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:unknownField');
     d = rmfield(data, 'systems');
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noSystems');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:noSystems');
     d = data;  d.systems = struct([]);
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noSystems');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:noSystems');
     d = data;  d.systems = rmfield(d.systems, 'covariance');
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:missingField');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:missingField');
     d = data;  d.systems(1).covariance = struct();               % no obs types
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:missingField');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:missingField');
     d = data;  d.systems(1).id = 'CD';
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badId');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:badId');
     d = data;  d.systems(1).localsPerArc = 2;                    % retired in v4
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:unknownField');
     d = data;  d.commonParams{2, 1} = 'arc';                     % not a common scope
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badScope');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:badScope');
     d = data;  d.commonParams{1, 1} = 42;                        % not a token at all
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badScope');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:badScope');
     d = data;  d.systems(1).arcs = 'fromDay';                    % v6: the string form is gone
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badArcs');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:badArcs');
     d = rmfield(data, 'commonParams');
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noCommon');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:noCommon');
     d = data;  d.commonParams = 6;                               % a count, not a table
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noCommon');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:noCommon');
     d = rmfield(data, 'days');
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noDays');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:noDays');
     d = data;  d.days = [1 2.5];                                  % WP-138: not noDays
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badDays');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:badDays');
     d = data;  d.days = {1, 2};                                   % a cell is no day list
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badDays');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:badDays');
     d = data;  d.systems(1).id = 7;  d.systems(2) = d.systems(1);   % same explicit id
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:duplicateSystem');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:duplicateSystem');
     d = data;  d.systems(1).id = 2;  d.systems(2) = d.systems(1);
     d.systems(2).id = [];                                        % explicit 2 vs default 2
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:duplicateSystem');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:duplicateSystem');
     d = data;  d.systems(1).buildDay = 'notAHandle';
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:builderKind');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:builderKind');
     % a makeLoader CONSTRUCTION error is relabelled under lsqvce:fit with the
     % original attached as the cause. (noCov is UNREACHABLE through fit since
     % v3 -- the type list IS fieldnames(covariance) -- so the mechanism is
@@ -220,7 +220,7 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
     % validation id, before the body runs -- the b1-r3 split.)
     d = data;  d.systems(1).localParams = cell(2, 2, 2);
     try
-        lsqvce.fit(d);
+        lsqvce.engine.fitDeclaration(d);
         tc.verifyFail('a non-matrix localParams cell must be refused by makeLoader via fit');
     catch e
         tc.verifyEqual(e.identifier, 'lsqvce:fit:paramType');
@@ -230,7 +230,7 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
     % v4: a bad LOCAL scope token is makeLoader's badScope, relabelled
     d = data;  d.systems(1).localParams{1, 1} = 'daily';
     try
-        lsqvce.fit(d);
+        lsqvce.engine.fitDeclaration(d);
         tc.verifyFail('a bad localParams scope token must be refused');
     catch e
         tc.verifyEqual(e.identifier, 'lsqvce:fit:badScope');
@@ -249,29 +249,29 @@ function testDeclarationIsRefusedBeforeAnyRead(tc)
     data.systems(1).buildDay = bomb;
     % finding 11: a repeated day was accumulated twice
     d = data;  d.days = [1 2 2 3];
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:duplicateDay');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:duplicateDay');
     d = data;  d.systems(1).days = [1 1 2];
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:duplicateDay');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:duplicateDay');
     d = data;  d.systems(1).days = [1 2.5];
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badDays');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:badDays');
     % finding 12: a character id next to an index default (a number); WP-138:
     % its own id, the accumulator's reason name
     d = data;  d.systems(1).id = 'C';  d.systems(2) = d.systems(1);  d.systems(2).id = [];
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:mixedIdTypes');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:mixedIdTypes');
     d = data;  d.systems(1).id = NaN;
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badId');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:badId');
     % a common validity entry of another type, or a start after its end
     d = data;  d.paramColumns = struct('start', 3, 'end', 4);
     d.commonParams(:, 3:4) = {[]};  d.systems(1).localParams(:, 3:4) = {[]};
     d.commonParams{1, 3} = 'tomorrow';
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badValidity');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:badValidity');
     d.commonParams{1, 3} = 10;  d.commonParams{1, 4} = 5;
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badValidity');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:badValidity');
     % local prior groups: from a pass number, and one stream per group
     d = data;  d.systems(1).priors = struct('L', [1 0 0 0], 'x0', 0, 'sigma', 1, 'from', NaN);
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badPrior');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:badPrior');
     d = data;  d.systems(1).priors = struct('L', {[1 0 0 0], [0 1 0 0]}, 'x0', 0, 'sigma', 1, 'name', 'a');
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badPrior');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:badPrior');
 end
 
 function testCharacterIdsAndAThrowingBuildDay(tc)
@@ -286,7 +286,7 @@ function testCharacterIdsAndAThrowingBuildDay(tc)
     data.systems(1).buildDay = @throwingBuildDay;
     data.systems(1).id = 'i';  data.systems(2) = data.systems(1);  data.systems(2).id = 'j';
     try
-        lsqvce.fit(data, Verbose=false);
+        lsqvce.engine.fitDeclaration(data, Verbose=false);
         tc.verifyFail('the builder throws');
     catch e
         tc.verifyEqual(e.identifier, 'lsqvce:makeLoader:buildDay');
@@ -383,7 +383,7 @@ function testPrepareDayHandOff(tc)
     d.systems.prepareDay = @(day, c, l, po, info) recordedResult(rec, sprintf('hook%d', day), ...
         struct('pos', buildDayImpl(cfg, day, 'pos'), 'kbr', buildDayImpl(cfg, day, 'kbr')), c, l, po, info);
     d.systems.buildDay = @(day, ot, c, l, po, info) recordedPick(rec, day, ot, c, l, po, info);
-    lsqvce.fit(d, Verbose=false);
+    lsqvce.engine.fitDeclaration(d, Verbose=false);
     for day = data.days
         hook = rec(sprintf('hook%d', day));  build = rec(sprintf('build%d', day));
         tc.verifyEqual(hook{3}, d.systems.processingOptions, 'the hook sees the plain processingOptions');
@@ -415,16 +415,16 @@ function testPrepareDayGivesTheSameFitOnceADay(tc)
     % picked per stream gives bitwise the same x and sigma0 -- and with
     % CacheDays = Inf the hook runs exactly once per day of the run.
     [data, cfg] = declaration();
-    R0 = lsqvce.fit(data, Verbose=false);
+    R0 = lsqvce.engine.fitDeclaration(data, Verbose=false);
     cnt = containers.Map('KeyType', 'double', 'ValueType', 'double');
     d = data;
     d.systems.buildDay   = @(day, ot, c, l, po) preparedStream(po, ot);
     d.systems.prepareDay = @(day) prepareCounted(cnt, cfg, day);
-    R1 = lsqvce.fit(d, Verbose=false);
+    R1 = lsqvce.engine.fitDeclaration(d, Verbose=false);
     tc.verifyEqual(R1.x, R0.x, 'bitwise: the same rows in the same order');
     tc.verifyEqual(R1.sigma0, R0.sigma0);
     remove(cnt, keys(cnt));
-    lsqvce.fit(d, lsqvce.Options(Verbose=false, CacheDays=Inf));
+    lsqvce.engine.fitDeclaration(d, lsqvce.Options(Verbose=false, CacheDays=Inf));
     tc.verifyEqual(cell2mat(values(cnt, num2cell(data.days))), ones(1, numel(data.days)), ...
                    'CacheDays Inf: one call per day per run');
 end
@@ -475,10 +475,10 @@ function testPrepareDayRefusals(tc)
     L = lsqvce.engine.makeLoader(noBuilder, base{:});
     tc.verifyError(@() L.day(1, 'pos'), 'lsqvce:makeLoader:buildDay');
     d = data;  d.systems.prepareDay = 'notAHandle';
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:builderKind');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d)), 'lsqvce:fit:builderKind');
     d = data;  d.systems.prepareDay = @(day) day;     % the fixture's buildDay is @(d, ot)
     try
-        lsqvce.fit(d);
+        lsqvce.engine.fitDeclaration(d);
         tc.verifyFail('a buildDay without procOpt must refuse the hook');
     catch e
         tc.verifyEqual(e.identifier, 'lsqvce:fit:prepareUnused');
@@ -489,7 +489,7 @@ function testPrepareDayRefusals(tc)
     d = data;  d.systems.buildDay = picker;  d.systems.prepareDay = @(day) day;
     d.systems.processingOptions = struct('prepared', 1);
     try
-        lsqvce.fit(d);
+        lsqvce.engine.fitDeclaration(d);
         tc.verifyFail('processingOptions.prepared is the user''s and never overwritten');
     catch e
         tc.verifyEqual(e.identifier, 'lsqvce:fit:preparedField');
@@ -531,7 +531,7 @@ function testUnsettledGaussNewtonRunAdvisesItsOwnRecord(tc)
     t = linspace(0, 4, 30).';  y = 3*exp(-1.3*t) + 0.05*sin(7*t);
     bf = @(k, x) deal([exp(x(2)*t), x(1)*t.*exp(x(2)*t)], y - x(1)*exp(x(2)*t), []);
     muteWarn(tc, 'lsqvce:adjustNonlinear:maxIter');
-    R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.1; 1]), ...
+    R = lsqvce.engine.fitDeclaration(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.1; 1]), ...
                    lsqvce.Options(MaxPasses=10, Tolerance=1e-10, Verbose=false));
     tc.assumeEqual(R.stopReason, "maxPasses", 'ten passes do not settle from this start');
     V = R.report('Verbose', false);
@@ -559,7 +559,7 @@ function testLayoutOfASystemWithoutLocals(tc)
     % lsqvce.layout stopped on plan.nl (the Manual's chapter 6 example).
     [data, ~] = declaration();
     data.systems = rmfield(data.systems, 'localParams');
-    lay = lsqvce.layout(data);
+    lay = lsqvce.engine.layoutDeclaration(data);
     tc.verifyEqual(lay.systems(1).nl, 0);
     tc.verifyEmpty(lay.systems(1).local);
     tc.verifyEqual(lay.systems(1).col(1, 1, []), 0, 'no instance: column 0');
@@ -580,7 +580,7 @@ function testSystemWithoutDaysClaimsOnlyTheGlobalCalendar(tc)
     s2 = data.systems(1);  s2.id = 2;  s2.days = 1:3;
     s2.arcs = @(day, obsType) 1:(day < 3);           % no arc on day 3
     data.systems(2) = s2;
-    lay = lsqvce.layout(data);
+    lay = lsqvce.engine.layoutDeclaration(data);
     tc.verifyEqual(lay.nc, 3, 'one common row and a day row on days 1 and 2 only');
     tc.verifyEqual(lay.colCommon(2, 3), 0, 'no day-3 block');
 end
@@ -596,7 +596,7 @@ function testLocalPriorRowsFollowTheCommonPriorsRules(tc)
     [data, cfg] = declaration();
     data.systems(1).buildDay = @(d, ot) twinLocals(buildDayImpl(cfg, d, ot));
     data.systems(1).priors = struct('L', [0 0 1 -1], 'x0', 0, 'sigma', 1, 'name', 'twin');
-    R = lsqvce.fit(data, Verbose=false);
+    R = lsqvce.engine.fitDeclaration(data, Verbose=false);
     D = R.diag;
     tc.verifyNumElements(D.priorRows, 1, 'the one prior row');
     tc.verifyEqual(D.datumRows, D.priorRows, 'the blind local prior row is a datum row');
@@ -604,10 +604,10 @@ function testLocalPriorRowsFollowTheCommonPriorsRules(tc)
     tc.verifyEqual(D.nTests, D.n - 1, 'the datum row is not tested');
     % (b) a soft local prior the data contradict
     [data, ~] = declaration();
-    R0 = lsqvce.fit(data, Verbose=false);
+    R0 = lsqvce.engine.fitDeclaration(data, Verbose=false);
     y0 = R0.residuals('Verbose', false).sys(1).y;
     data.systems(1).priors = struct('L', [0 1 0 0], 'x0', y0(2) + 10, 'sigma', 1, 'name', 'off');
-    R1 = lsqvce.fit(data, Verbose=false);
+    R1 = lsqvce.engine.fitDeclaration(data, Verbose=false);
     pr = R1.diag.priorRows;
     tc.verifyNumElements(pr, 1);
     tc.verifyTrue(ismember(pr, R1.diag.flagIdx), 'the inconsistent prior row is flagged (tested)');
@@ -633,14 +633,14 @@ function testNotYetPathsAreRefusedExplicitly(tc)
     % never as a silent fallback, is Robust on a NONLINEAR batch problem.
     [data, ~] = declaration();
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % MaxPasses 2 stops early by design (a contract point)
-    R = lsqvce.fit(data, lsqvce.Options(Robust="huber", Estimate="noise", Pool="stream", ...
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Robust="huber", Estimate="noise", Pool="stream", ...
                                         ArcFactors=false, MaxPasses=2, Verbose=false));
     tc.verifyEqual(R.noise.robust.influence, 'huber');
     tc.verifyEqual(numel(R.noise.robust.factor), 2 * 3 * 2 * 300, 'one factor per observation');
     tc.verifyEqual(size(R.noise.robust.keys, 2), 4);
     tc.verifyEqual(numel(R.history.nDown), R.history.nIter, 'one robust record per pass');
     nl = struct('batchFcn', @(k, x) deal(ones(3, 1), zeros(3, 1), ones(3, 1)), 'numBatches', 2, 'x0', 0);
-    tc.verifyEqual(idOf(@() lsqvce.fit(nl, lsqvce.Options(Robust="huber"))), 'lsqvce:fit:notYet');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(nl, lsqvce.Options(Robust="huber"))), 'lsqvce:fit:notYet');
 end
 
 function testRobustRunsOnTheStreamingKind(tc)
@@ -649,8 +649,8 @@ function testRobustRunsOnTheStreamingKind(tc)
     % every observation's factor, and agrees with the GLS solve to the
     % influence's tolerance when there is no outlier (all factors ~ 1)
     [data, ~] = declaration();
-    R  = lsqvce.fit(data, lsqvce.Options(Robust="huber", Verbose=false));
-    R0 = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    R  = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Robust="huber", Verbose=false));
+    R0 = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false));
     tc.verifyEqual(R.stopReason, "converged");
     fac = R.history(end).factor;
     tc.verifyGreaterThan(mean(fac), 0.9, 'clean data: almost every factor is 1');
@@ -681,9 +681,9 @@ function testRobustStopRuleIsUnitInvariant(tc)
     m = 400;  A = [ones(m, 1), randn(rs, m, 3)];  x = [1; -2; 0.5; 3];
     l = A*x + randn(rs, m, 1);  b = randperm(rs, m, 40);  l(b) = l(b) + 25;   % 10 % blunders
     opts = lsqvce.Options(Robust="igg3", Verbose=false);
-    R1 = lsqvce.fit(struct('A', A, 'l', l), opts);
+    R1 = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), opts);
     k  = 1e-9;
-    Rk = lsqvce.fit(struct('A', A / k, 'l', l), opts);
+    Rk = lsqvce.engine.fitDeclaration(struct('A', A / k, 'l', l), opts);
     tc.verifyEqual(numel(Rk.history), numel(R1.history), 'the same pass count in any units');
     tc.verifyGreaterThan(numel(R1.history), 2, 'a 10 %-blunder IRLS does not settle in 2 passes');
     % tol: 1e-8 relative -- the same arithmetic on rescaled columns; the stop
@@ -697,11 +697,11 @@ function testRobustReportSaysTheFitIsRobust(tc)
     % nothing, and judged the reweighted sigma0 and covariance as least squares.
     rs = RandStream('mt19937ar', 'Seed', 18);
     A = [ones(200, 1), randn(rs, 200, 2)];  l = A*[1; 2; 3] + randn(rs, 200, 1);
-    Rr = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Robust="huber", Verbose=false));
+    Rr = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), lsqvce.Options(Robust="huber", Verbose=false));
     V = Rr.report('Verbose', false);
     codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
     tc.verifyTrue(any(strcmp(codes, 'ROBUST_FIT')), 'a robust fit says so in its verdict');
-    R0 = lsqvce.fit(struct('A', A, 'l', l), Verbose=false);
+    R0 = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), Verbose=false);
     V0 = R0.report('Verbose', false);
     codes0 = cellfun(@(f) f.code, V0.findings, 'UniformOutput', false);
     tc.verifyFalse(any(strcmp(codes0, 'ROBUST_FIT')), 'a least-squares fit does not');
@@ -716,7 +716,7 @@ function testRobustReportCountsItsOwnPasses(tc)
     rs = RandStream('mt19937ar', 'Seed', 18);
     A = [ones(200, 1), randn(rs, 200, 2)];  l = A*[1; 2; 3] + randn(rs, 200, 1);
     l(7) = l(7) + 30;                                      % something to re-weight
-    Rr = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Robust="huber", Verbose=false));
+    Rr = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), lsqvce.Options(Robust="huber", Verbose=false));
     tc.assumeGreaterThan(numel(Rr.history), 1, 'IRLS took more than one pass');
     V = Rr.report('Verbose', false);
     codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
@@ -737,7 +737,7 @@ function testUnsettledRobustRunAdvisesItsOwnOptions(tc)
     A = [ones(200, 1), randn(rs, 200, 2)];  l = A*[1; 2; 3] + randn(rs, 200, 1);
     l(7) = l(7) + 30;
     muteWarn(tc, 'lsqvce:adjustRobust:notConverged');
-    Rr = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Robust="huber", ...
+    Rr = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), lsqvce.Options(Robust="huber", ...
                     RobustOpts=struct('MaxIter', 1), Verbose=false));
     tc.assumeFalse(Rr.converged, 'one IRLS pass does not settle');
     V = Rr.report('Verbose', false);
@@ -767,13 +767,13 @@ function testRobustWarnsAtTheBreakdownPoint(tc)
     m = 500;  A = [ones(m, 1), randn(rs, m, 2)];  l = A*[1; 2; 3] + randn(rs, m, 1);
     b = randperm(rs, m, 240);  l(b) = l(b) + 25 * sign(randn(rs, 240, 1));
     muteWarn(tc, 'lsqvce:robust:atBreakdown');   % provoked on purpose
-    R = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Robust="igg3", Verbose=false));
+    R = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), lsqvce.Options(Robust="igg3", Verbose=false));
     tc.verifyTrue(any(strcmp(R.meta.warnings, 'lsqvce:robust:atBreakdown')), ...
                   'the breakdown warning is in the run''s warning inventory');
     tc.verifyTrue(all(isfinite(R.x)), 'diagnostic only: the fit still returns');
     % 10 % blunders: far from breakdown, no warning
     l2 = A*[1; 2; 3] + randn(rs, m, 1);  l2(b(1:50)) = l2(b(1:50)) + 25;
-    R2 = lsqvce.fit(struct('A', A, 'l', l2), lsqvce.Options(Robust="igg3", Verbose=false));
+    R2 = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l2), lsqvce.Options(Robust="igg3", Verbose=false));
     tc.verifyFalse(any(strcmp(R2.meta.warnings, 'lsqvce:robust:atBreakdown')));
 end
 
@@ -786,7 +786,7 @@ function testRobustReportsNoFactorForAPriorRow(tc)
     [d, e, cj] = priorFixture();
     d.systems(1).priors = struct('L', e(cj), 'x0', 0.123, 'sigma', 1e-6, ...
                                  'from', 1, 'name', 'pin', 'estimate', "none");
-    R = lsqvce.fit(d, lsqvce.Options(Robust="huber", Verbose=false));
+    R = lsqvce.engine.fitDeclaration(d, lsqvce.Options(Robust="huber", Verbose=false));
     obsTypes = string(R.history(end).keys(:, 2));
     tc.verifyFalse(any(startsWith(obsTypes, "prior_")), ...
         'the robust pass must report no factor for a prior pseudo-row');
@@ -806,8 +806,8 @@ function testRobustScaleIsFormedOverDataRowsAlone(tc)
                                       'from', 1, 'name', 'loose', 'estimate', "none");
     % tol: 1e-12 relative -- the same data residuals through the same MAD;
     % only floating-point re-association separates them.
-    tc.verifyEqual(lsqvce.fit(dLoose, ropt).history(end).scale, ...
-                   lsqvce.fit(d, ropt).history(end).scale, 'RelTol', 1e-12, ...
+    tc.verifyEqual(lsqvce.engine.fitDeclaration(dLoose, ropt).history(end).scale, ...
+                   lsqvce.engine.fitDeclaration(d, ropt).history(end).scale, 'RelTol', 1e-12, ...
         'a prior group must not enter the robust scale of the data');
 end
 
@@ -819,9 +819,9 @@ function testRobustDoesNotMoveAPinnedLocal(tc)
     [d, e, cj] = priorFixture();
     d.systems(1).priors = struct('L', e(cj), 'x0', 0.123, 'sigma', 1e-6, ...
                                  'from', 1, 'name', 'pin', 'estimate', "none");
-    yIrls = lsqvce.fit(d, lsqvce.Options(Robust="huber", Verbose=false)) ...
+    yIrls = lsqvce.engine.fitDeclaration(d, lsqvce.Options(Robust="huber", Verbose=false)) ...
                 .residuals('Verbose', false).sys(1).y;
-    yGls  = lsqvce.fit(d, Verbose=false).residuals('Verbose', false).sys(1).y;
+    yGls  = lsqvce.engine.fitDeclaration(d, Verbose=false).residuals('Verbose', false).sys(1).y;
     % tol: 1e-6 absolute -- the group's own sigma. On clean data IRLS may
     % move the pinned local only within the pin that holds it.
     tc.verifyEqual(yIrls(2), yGls(2), 'AbsTol', 1e-6, ...
@@ -840,11 +840,11 @@ function testRobustFactorVectorCountsDataRowsOnly(tc)
     % the data rows themselves, are identical in both runs.
     [d, e, cj] = priorFixture();
     ropt = lsqvce.Options(Robust="huber", Verbose=false);
-    nWithout = numel(lsqvce.fit(d, ropt).history(end).factor);
+    nWithout = numel(lsqvce.engine.fitDeclaration(d, ropt).history(end).factor);
     dP = d;
     dP.systems(1).priors = struct('L', e(cj), 'x0', 0, 'sigma', 1e6, ...
                                   'from', 1, 'name', 'loose', 'estimate', "none");
-    nWith = numel(lsqvce.fit(dP, ropt).history(end).factor);
+    nWith = numel(lsqvce.engine.fitDeclaration(dP, ropt).history(end).factor);
     tc.verifyEqual(nWith, nWithout, ...
         'the factor vector, and so nAlive, must count data rows only');
 end
@@ -866,8 +866,8 @@ function testRobustWithPriorsAndALawReproducesGlsOnCleanData(tc)
     [d, e, cj] = priorFixture();
     d.systems(1).priors = struct('L', e(cj), 'x0', 0, 'sigma', 1e6, ...
                                  'from', 1, 'name', 'loose', 'estimate', "none");
-    R  = lsqvce.fit(d, lsqvce.Options(Robust="huber", Verbose=false));
-    R0 = lsqvce.fit(d, Verbose=false);
+    R  = lsqvce.engine.fitDeclaration(d, lsqvce.Options(Robust="huber", Verbose=false));
+    R0 = lsqvce.engine.fitDeclaration(d, Verbose=false);
     tc.verifyEqual(R.stopReason, "converged");
     % tol: 3e-3 absolute -- the bound testRobustRunsOnTheStreamingKind states,
     % for the same reason: Huber leaves ~5 % of Gaussian rows below factor 1,
@@ -878,7 +878,7 @@ end
 function [data, e, cj] = priorFixture()
 %PRIORFIXTURE  declaration(), plus the column selector its prior groups use.
     data = declaration();
-    lay  = lsqvce.layout(data);
+    lay  = lsqvce.engine.layoutDeclaration(data);
     nl   = lay.systems(1).nl;
     e    = @(c) double((1:nl) == c);
     cj   = lay.systems(1).col(2, [], []);
@@ -917,9 +917,9 @@ function verifyBlundersAreRejected(tc, influence)
     dirty = clean;
     dirty.systems(1).buildDay = @(day, ot) plantBlunders(buildDayImpl(cfg, day, ot), 5, 200);
     xTrue  = cfg.x_c;
-    eClean = norm(lsqvce.fit(clean, Verbose=false).x - xTrue);
-    eGls   = norm(lsqvce.fit(dirty, Verbose=false).x - xTrue);
-    R      = lsqvce.fit(dirty, lsqvce.Options(Robust=influence, Verbose=false));
+    eClean = norm(lsqvce.engine.fitDeclaration(clean, Verbose=false).x - xTrue);
+    eGls   = norm(lsqvce.engine.fitDeclaration(dirty, Verbose=false).x - xTrue);
+    R      = lsqvce.engine.fitDeclaration(dirty, lsqvce.Options(Robust=influence, Verbose=false));
     eRob   = norm(R.x - xTrue);
     tc.verifyEqual(R.stopReason, "converged");
     tc.verifyLessThan(eRob, eGls/10, ...
@@ -957,7 +957,7 @@ function testRobustFixedPointOnTheBatchKind(tc)
     idx  = {1:15, 16:30};
     bf   = @(k) deal(A(idx{k}, :), l(idx{k}), p(idx{k}));
     data = struct('batchFcn', bf, 'numUnknowns', size(A, 2), 'numBatches', 2);
-    R = lsqvce.fit(data, lsqvce.Options(Robust="huber", ...
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Robust="huber", ...
                    RobustOpts=struct('MaxIter', 40, 'Tol', 1e-12), Verbose=false));
     fac = R.history(end).factor;
     tc.verifyEqual(R.meta.options.kind, 'batch');
@@ -985,11 +985,11 @@ function testArmaAndPsdLawsAgreeNoWorseUnderIrls(tc)
     % Lipschitz function of residuals that differ only by that gap.
     [dArma, cfg] = declaration();
     dPsd = withPsdLaw(dArma, cfg);
-    xA = lsqvce.fit(dArma, Verbose=false).x;
-    xP = lsqvce.fit(dPsd,  Verbose=false).x;
+    xA = lsqvce.engine.fitDeclaration(dArma, Verbose=false).x;
+    xP = lsqvce.engine.fitDeclaration(dPsd,  Verbose=false).x;
     ropt = lsqvce.Options(Robust="huber", Verbose=false);
-    rA = lsqvce.fit(dArma, ropt).x;
-    rP = lsqvce.fit(dPsd,  ropt).x;
+    rA = lsqvce.engine.fitDeclaration(dArma, ropt).x;
+    rP = lsqvce.engine.fitDeclaration(dPsd,  ropt).x;
     gapGls  = norm(xA - xP);
     gapIrls = norm(rA - rP);
     % the premise: the two declarations ARE the same process to the AR order,
@@ -1011,14 +1011,14 @@ function testWhitenerReachesADeclaredPsdLaw(tc)
     % the AR(30) fit, small against the estimate), with plain GLS and IRLS.
     [dArma, cfg] = declaration();
     dPsd = withPsdLaw(dArma, cfg);
-    xT = lsqvce.fit(dPsd, lsqvce.Options(Noise=struct('Whitener', "toeplitz"), Verbose=false)).x;
-    xR = lsqvce.fit(dPsd, lsqvce.Options(Noise=struct('Whitener', "ar"), Verbose=false)).x;
+    xT = lsqvce.engine.fitDeclaration(dPsd, lsqvce.Options(Noise=struct('Whitener', "toeplitz"), Verbose=false)).x;
+    xR = lsqvce.engine.fitDeclaration(dPsd, lsqvce.Options(Noise=struct('Whitener', "ar"), Verbose=false)).x;
     tc.verifyNotEqual(xT, xR, 'the Whitener must reach the declared law');
     % tol: the same premise as testArmaAndPsdLawsAgreeNoWorseUnderIrls -- two
     % whiteners of one process differ by the AR(30) fit, well under 1 %
     tc.verifyLessThan(norm(xT - xR), 1e-2 * norm(xT), 'both whiten the same process');
-    rT = lsqvce.fit(dPsd, lsqvce.Options(Robust="huber", Noise=struct('Whitener', "toeplitz"), Verbose=false)).x;
-    rR = lsqvce.fit(dPsd, lsqvce.Options(Robust="huber", Noise=struct('Whitener', "ar"), Verbose=false)).x;
+    rT = lsqvce.engine.fitDeclaration(dPsd, lsqvce.Options(Robust="huber", Noise=struct('Whitener', "toeplitz"), Verbose=false)).x;
+    rR = lsqvce.engine.fitDeclaration(dPsd, lsqvce.Options(Robust="huber", Noise=struct('Whitener', "ar"), Verbose=false)).x;
     tc.verifyNotEqual(rT, rR, 'the Whitener must reach the declared law under IRLS too');
 end
 
@@ -1033,9 +1033,9 @@ function testWhitenerIsCaseFreeOnTheNoisePath(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % two passes on purpose (gate rule 7)
     [dArma, cfg] = declaration();
     dPsd = withPsdLaw(dArma, cfg);
-    xLo = lsqvce.fit(dPsd, lsqvce.Options(Estimate="noise", MaxPasses=2, Seed=3, ...
+    xLo = lsqvce.engine.fitDeclaration(dPsd, lsqvce.Options(Estimate="noise", MaxPasses=2, Seed=3, ...
                      Noise=struct('Grid', 16, 'Whitener', "ar"), Verbose=false)).x;
-    xUp = lsqvce.fit(dPsd, lsqvce.Options(Estimate="noise", MaxPasses=2, Seed=3, ...
+    xUp = lsqvce.engine.fitDeclaration(dPsd, lsqvce.Options(Estimate="noise", MaxPasses=2, Seed=3, ...
                      Noise=struct('Grid', 16, 'Whitener', "AR"), Verbose=false)).x;
     tc.verifyEqual(xUp, xLo, 'the Whitener''s case does not matter on the noise path');
 end
@@ -1053,9 +1053,9 @@ function testNoiseEstimatesADeclaredPhysicalPsdLaw(tc)
     [dArma, cfg] = declaration();
     dPsd = withPsdLaw(dArma, cfg);
     o = lsqvce.Options(Estimate="noise", MaxPasses=3, Noise=struct('Grid', 16), Verbose=false);
-    R = lsqvce.fit(dPsd, o);                          % errored on pass 1 before
+    R = lsqvce.engine.fitDeclaration(dPsd, o);                          % errored on pass 1 before
     tc.verifyEqual(R.stopReason == "converged" || R.stopReason == "maxPasses", true);
-    xA = lsqvce.fit(dArma, Verbose=false).x;
+    xA = lsqvce.engine.fitDeclaration(dArma, Verbose=false).x;
     % tol: 5 % -- the premise of testArmaAndPsdLawsAgreeNoWorseUnderIrls (1 %
     % between two fixed spellings of one law), widened because here the law
     % is RE-ESTIMATED on a 16-bin grid over three passes; a law on the wrong
@@ -1072,7 +1072,7 @@ function testStreamNamedLikeAPriorIsRefused(tc)
     d = declaration();
     d.systems(1).covariance.prior_pos = d.systems(1).covariance.pos;
     try
-        lsqvce.fit(d, Verbose=false);
+        lsqvce.engine.fitDeclaration(d, Verbose=false);
         tc.verifyFail('a stream named prior_* must be refused');
     catch e
         tc.verifyEqual(e.identifier, 'lsqvce:fit:priorType');
@@ -1116,7 +1116,7 @@ function testAnAllRejectingInfluenceRaisesTheCollapseError(tc)
     d = declaration();
     opts = lsqvce.Options(Robust="igg3", RobustOpts=struct('Tuning', [1e-8 2e-8]), ...
                           Verbose=false);
-    tc.verifyEqual(idOf(@() lsqvce.fit(d, opts)), 'lsqvce:adjustRobust:collapsed');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d, opts)), 'lsqvce:adjustRobust:collapsed');
 end
 
 % --- issue #110 test 6 / WP-110: the degenerate arc, carried by its prior ---
@@ -1139,7 +1139,7 @@ function testADegenerateArcRejectsAWholeArcWorthOfRows(tc)
         wreckDayOne(scopedBuildDay(cfg, day, ot, info), day, 500);
     d.systems(1).priors = struct('L', e(colOf(1, 1)), 'x0', 0.25, 'sigma', 0.1, ...
                                  'from', 1, 'name', 'arcPin', 'estimate', "none");
-    R = lsqvce.fit(d, lsqvce.Options(Robust="bisquare", Verbose=false));
+    R = lsqvce.engine.fitDeclaration(d, lsqvce.Options(Robust="bisquare", Verbose=false));
     tc.verifyEqual(R.stopReason, "converged");
     tc.verifyGreaterThanOrEqual(R.history(end).nZero, cfg.mArc, ...
         'a whole arc of unfittable rows must be zeroed, not merely down-weighted');
@@ -1163,9 +1163,9 @@ function testADegenerateArcIsCarriedByItsLocalPrior(tc)
         wreckDayOne(scopedBuildDay(cfg, day, ot, info), day, 500);
     d.systems(1).priors = struct('L', e(c), 'x0', 0.25, 'sigma', 0.1, ...
                                  'from', 1, 'name', 'arcPin', 'estimate', "none");
-    yRob = lsqvce.fit(d, lsqvce.Options(Robust="bisquare", Verbose=false)) ...
+    yRob = lsqvce.engine.fitDeclaration(d, lsqvce.Options(Robust="bisquare", Verbose=false)) ...
                .residuals('Verbose', false).sys(1).y;
-    yGls = lsqvce.fit(d, Verbose=false).residuals('Verbose', false).sys(1).y;
+    yGls = lsqvce.engine.fitDeclaration(d, Verbose=false).residuals('Verbose', false).sys(1).y;
     % tol: 1e-6 absolute -- with its data rejected the column's ONLY equation
     % is the prior, so the solve returns x0 to rounding, not to sigma
     tc.verifyEqual(yRob(c), 0.25, 'AbsTol', 1e-6, ...
@@ -1189,7 +1189,7 @@ function [data, cfg, colOf, e] = arcScopedPriorFixture()
     s.localParams = [{'arc', 'ic'}; {'system', 'scale'}];
     s.arcs        = [1 2];                       % the SCHEDULE, not the count
     data.systems  = s;
-    lay   = lsqvce.layout(data);
+    lay   = lsqvce.engine.layoutDeclaration(data);
     nl    = lay.systems(1).nl;
     colOf = @(day, arc) lay.systems(1).col(1, day, arc);
     e     = @(c) double((1:nl) == c);
@@ -1213,7 +1213,7 @@ function testSignatureRejectsNonStructAndNonOptions(tc)
     % fit(A, l, ...) form is WP-56b, so a matrix is refused today.
     ok = false;
     try
-        lsqvce.fit(randn(5, 2));
+        lsqvce.engine.fitDeclaration(randn(5, 2));
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
@@ -1221,7 +1221,7 @@ function testSignatureRejectsNonStructAndNonOptions(tc)
     [data, ~] = declaration();
     ok = false;
     try
-        lsqvce.fit(data, struct('Model', 'gls'));
+        lsqvce.engine.fitDeclaration(data, struct('Model', 'gls'));
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
@@ -1237,8 +1237,8 @@ function testDeclarationIsOrderFree(tc)
     f  = fieldnames(s);
     s2 = orderfields(s, f(end:-1:1));
     d2 = data;  d2.systems = s2;
-    R1 = lsqvce.fit(data);
-    R2 = lsqvce.fit(d2);
+    R1 = lsqvce.engine.fitDeclaration(data);
+    R2 = lsqvce.engine.fitDeclaration(d2);
     % tol: 1e-12 -- identical code path (see the reference tests)
     tc.verifyEqual(R2.x, R1.x, 'RelTol', 1e-12);
     tc.verifyEqual(R2.sigma0, R1.sigma0, 'RelTol', 1e-12);
@@ -1253,7 +1253,7 @@ function testSystemWithoutLocalsThroughFit(tc)
     data.systems(1).buildDay = @(d, ot) setfield(buildDayImpl(cfg, d, ot), 'B', ...   %#ok<SFLD>
                                         {zeros(cfg.mArc, 0), zeros(cfg.mArc, 0)});   % v6: one cell per arc
     data.systems(1).localParams = [];                            % explicit 'not used'
-    R = lsqvce.fit(data);
+    R = lsqvce.engine.fitDeclaration(data);
     tc.verifyClass(R, 'lsqvce.Results');
     tc.verifyEqual(numel(R.x), cfg.nc);
     tc.verifyLessThan(max(abs(R.x - cfg.x_c)), 0.15);
@@ -1266,7 +1266,7 @@ function testDerivedQuantitiesDriveTheRun(tc)
     % the derived value is enforced), obsTypes = covariance fieldnames in
     % declaration order, id defaults to the index.
     [data, cfg] = declaration();
-    R = lsqvce.fit(data);
+    R = lsqvce.engine.fitDeclaration(data);
     tc.verifyEqual(numel(R.x), size(data.commonParams, 1), ...
         'nc must be the commonParams row count');
     tc.verifyEqual(R.systems(1).sysID, 1, 'id must default to the system index');
@@ -1274,7 +1274,7 @@ function testDerivedQuantitiesDriveTheRun(tc)
                                  num2cell((1:cfg.nc + 1).')];    % one row too many
     ok = false;
     try
-        lsqvce.fit(d);
+        lsqvce.engine.fitDeclaration(d);
     catch e
         ok = contains(e.identifier, 'arcBadNc') || contains(e.identifier, 'BadNc');
     end
@@ -1287,7 +1287,7 @@ function testCoefficientsTable(tc)
     % R4 WP-57: estimates + formal errors + confidence bounds as ONE table
     % (the fitlm Coefficients/coefCI pair folded together), z from erfcinv.
     [data, cfg] = declaration();
-    R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false));
     T = R.coefficients();
     tc.verifyClass(T, 'table');
     tc.verifyEqual(size(T), [cfg.nc 5]);
@@ -1331,7 +1331,7 @@ function testEllmerThroughFitReproducesDirect(tc)
     nLag = cfg.mArc;
     opts = lsqvce.Options(Estimate="noise", Noise=struct('Grid', nLag), MaxPasses=2, Probes=20, ...
                           Seed=7, Verbose=false);
-    R = lsqvce.fit(data, opts);
+    R = lsqvce.engine.fitDeclaration(data, opts);
 
     L = loaderOf(cfg, data.systems(1), data);
     streams = {'x1|pos', 'x1|kbr'};                       % makeValidName('1') = 'x1'
@@ -1393,7 +1393,7 @@ function R = fitWithArcLength(mArc)
     s.localParams = [repmat({'system'}, cfg.nl, 1), num2cell((1:cfg.nl).')];
     s.arcs = cfg.arcsPerDay;
     data.systems = s;
-    R = lsqvce.fit(data, Verbose=false);
+    R = lsqvce.engine.fitDeclaration(data, Verbose=false);
 end
 
 function b = heldBytes(R)
@@ -1411,7 +1411,7 @@ function testResultsCarryTheVerdictMethods(tc)
     % R (lsqvce.engine.verdict behind it) -- systematic, snoop, reliability,
     % ellipse. reliability's quadrants are the report's D.quad counts.
     [data, ~] = declaration();
-    R = lsqvce.fit(data, Verbose=false);
+    R = lsqvce.engine.fitDeclaration(data, Verbose=false);
     T = R.reliability();
     tc.verifyEqual(height(T), R.diag.n, 'one row per observation');
     tc.verifyEqual(T.r, R.diag.rNum(:));
@@ -1431,7 +1431,7 @@ end
 function testReliabilityNeedsThePerObservationDiagnostics(tc)
 % categories: contract | tags: diagnostics
     [data, ~] = declaration();
-    R = lsqvce.fit(data, lsqvce.Options(Verbose=false, Diagnostics=struct('Store', "none")));
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false, Diagnostics=struct('Store', "none")));
     tc.verifyError(@() R.reliability(), 'lsqvce:Results:noPerObservation');
 end
 
@@ -1444,11 +1444,11 @@ function testCompareCountsTheEliminatedLocals(tc)
     % alpha 0.05 (R7 mirror m5_irls_stats.py, 2000 trials). Reference: the
     % closed-form F with r = n - nc - nl, and r is the fit's own redundancy.
     [data, cfg] = declaration();
-    Rfull = lsqvce.fit(data, Verbose=false);
+    Rfull = lsqvce.engine.fitDeclaration(data, Verbose=false);
     red = data;
     red.commonParams = data.commonParams(1:end-1, :);
     red.systems(1).buildDay = @(d, ot) dropLastCommon(buildDayImpl(cfg, d, ot));
-    Rred = lsqvce.fit(red, Verbose=false);
+    Rred = lsqvce.engine.fitDeclaration(red, Verbose=false);
     F = Rfull.compare(Rred);
     n = Rfull.diag.n;
     tc.verifyEqual(F.df2, n - cfg.nc - cfg.nl, 'df2 counts the eliminated locals');
@@ -1475,10 +1475,10 @@ function testUnseededJointRunRecordsAReplayableSeed(tc)
     nLag = cfg.mArc;
     base = {'Estimate', "noise", 'Noise', struct('Grid', nLag), 'MaxPasses', 2, ...
             'Probes', 20, 'Verbose', false};
-    R1 = lsqvce.fit(data, lsqvce.Options(base{:}));
+    R1 = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}));
     s  = R1.meta.seeds.jointSeed;
     tc.assertTrue(isscalar(s) && isfinite(s), 'an unseeded run records the seed it used');
-    R2 = lsqvce.fit(data, lsqvce.Options(base{:}, 'Seed', s));
+    R2 = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}, 'Seed', s));
     % tol: exact -- the same seed fixes the same probes on the same code path
     tc.verifyEqual(R2.x, R1.x, 'replaying the recorded seed reproduces the run');
     tc.verifyEqual(R2.noise.C, R1.noise.C);
@@ -1516,8 +1516,8 @@ function testDistributeDaysThroughFitEqualsFused(tc)
         muteWarn(tc, 'lsqvce:mapreduce:serialFallback');   % no PCT: the fallback is the expected path
     end
     [data, ~] = declaration();
-    R1 = lsqvce.fit(data, lsqvce.Options(Verbose=false));
-    R2 = lsqvce.fit(data, lsqvce.Options(Verbose=false, Parallel=struct('Mode', "parfor", ...
+    R1 = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false));
+    R2 = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false, Parallel=struct('Mode', "parfor", ...
                                          'DistributeDays', true, 'Threshold', 2)));
     % tol: 1e-11 -- serial-vs-distributed reduction order (test_parallel
     % testDistributeDaysEqualsFusedSerial's measured bound); bitwise NOT promised
@@ -1582,7 +1582,7 @@ function testMatrixKindReproducesAdjust(tc)
     % so the declared law is diag(1)) -- pinned as that exact relation.
     [A, l, p] = matrixFixture();
     data = struct('A', A, 'l', l, 'p', p);
-    R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false));
     % R5 M5 5b': the reference is the DENSE closed form (O1), not a second
     % driver -- the flat one is retired
     P = diag(p);  N = A.'*P*A;  xd = N \ (A.'*P*l);  vd = A*xd - l;
@@ -1622,7 +1622,7 @@ function testMatrixKindRobustReproducesRobust(tc)
     l(7) = l(7) + 25;                                   % gross error
     data = struct('A', A, 'l', l, 'p', p);
     opts = lsqvce.Options(Robust="huber", RobustOpts=struct('MaxIter', 40, 'Tol', 1e-12), Verbose=false);
-    R = lsqvce.fit(data, opts);
+    R = lsqvce.engine.fitDeclaration(data, opts);
     fac = R.history(end).factor;
     tc.verifyEqual(numel(fac), numel(l));
     tc.verifyLessThan(fac(7), 0.2, 'the planted 25-sigma error is down-weighted');
@@ -1656,7 +1656,7 @@ function testRobustFactorsAreTheReturnedSolvesWeights(tc)
     data = struct('A', A, 'l', l, 'p', p);
     muteWarn(tc, 'lsqvce:adjustRobust:notConverged');   % both runs stop early by design
     for maxIter = [1 3]
-        R = lsqvce.fit(data, lsqvce.Options(Robust="huber", ...
+        R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Robust="huber", ...
                        RobustOpts=struct('MaxIter', maxIter), Verbose=false));
         fac = R.history(end).factor;
         Pw = diag(p(:) .* fac(:));  xd = (A.'*Pw*A) \ (A.'*Pw*l);
@@ -1682,7 +1682,7 @@ function testZeroWeightRowsAreRejectedNotObservations(tc)
     % refused by name: test_errorDoctrine.)
     [A, l, p] = matrixFixture();
     z = [4; 11; 23];  p(z) = 0;  l(z) = l(z) + 100;     % weight 0: their values must not matter
-    R = lsqvce.fit(struct('A', A, 'l', l, 'p', p), lsqvce.Options(Verbose=false));
+    R = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'p', p), lsqvce.Options(Verbose=false));
     k = true(numel(l), 1);  k(z) = false;
     P = diag(p(k));  xd = (A(k,:).'*P*A(k,:)) \ (A(k,:).'*P*l(k));  vd = A(k,:)*xd - l(k);
     dof = nnz(k) - size(A, 2);
@@ -1720,7 +1720,7 @@ function testRobustRejectionsLeaveTheDofAndAreLabelled(tc)
     data = struct('A', A, 'l', l, 'p', p);
     muteWarn(tc, 'lsqvce:adjustRobust:notConverged');   % MaxIter 2 stops early by design
     for maxIter = [2 30]
-        R = lsqvce.fit(data, lsqvce.Options(Robust="bisquare", ...
+        R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Robust="bisquare", ...
                        RobustOpts=struct('MaxIter', maxIter), Verbose=false));
         fac = R.history(end).factor;  z = find(fac == 0);
         tc.verifyTrue(ismember(7, z), sprintf('MaxIter %d: the blunder is rejected', maxIter));
@@ -1755,7 +1755,7 @@ function testBatchKindNonlinearReproducesSolveNonlinear(tc)
                       lobs(idx{k}) - (exp(x(1)*t(idx{k})) + x(2)), []);
     data = struct('batchFcn', bf, 'numBatches', 2, 'x0', [0.5; 0]);   % u = numel(x0), v3
     opts = lsqvce.Options(MaxPasses=15, Tolerance=1e-9, Verbose=false);
-    R = lsqvce.fit(data, opts);
+    R = lsqvce.engine.fitDeclaration(data, opts);
     % R5 M5 5b': the reference is the Gauss-Newton FIXED POINT itself (the
     % flat driver is retired): at x the normal equations of the linearised
     % problem have a zero right-hand side, J' (l - f(x)) = 0
@@ -1783,10 +1783,10 @@ function testGaussNewtonDampsAndKeepsTheBestPoint(tc)
     t = linspace(0, 4, 30).';  y = 3*exp(-1.3*t) + 0.05*sin(7*t);
     bf = @(k, x) deal([exp(x(2)*t), x(1)*t.*exp(x(2)*t)], y - x(1)*exp(x(2)*t), []);
     F  = @(x) sum((y - x(1)*exp(x(2)*t)).^2);
-    ref = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [1; 0.5]), ...
+    ref = lsqvce.engine.fitDeclaration(struct('batchFcn', bf, 'numBatches', 1, 'x0', [1; 0.5]), ...
                      lsqvce.Options(MaxPasses=30, Tolerance=1e-10, Verbose=false));
     for x0 = {[10; -5], [0.1; 1]}
-        R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', x0{1}), ...
+        R = lsqvce.engine.fitDeclaration(struct('batchFcn', bf, 'numBatches', 1, 'x0', x0{1}), ...
                        lsqvce.Options(MaxPasses=30, Tolerance=1e-10, Verbose=false));
         tc.verifyEqual(R.stopReason, "converged", sprintf('start [%g %g] converges', x0{1}));
         % tol: 1e-9 relative -- both runs stop at TolX 1e-10 formal sd on the same optimum
@@ -1796,7 +1796,7 @@ function testGaussNewtonDampsAndKeepsTheBestPoint(tc)
     end
     % a budget too small for the far start: maxPasses, and R.x is the best accepted point
     muteWarn(tc, 'lsqvce:adjustNonlinear:maxIter');
-    R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.1; 1]), ...
+    R = lsqvce.engine.fitDeclaration(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.1; 1]), ...
                    lsqvce.Options(MaxPasses=10, Tolerance=1e-10, Verbose=false));
     tc.verifyEqual(R.stopReason, "maxPasses");
     ok = [R.history.accepted];
@@ -1825,7 +1825,7 @@ function testGaussNewtonNeverReturnsAnUnevaluatedPoint(tc)
     F  = @(x) sum((y - x(1)*g(x)).^2);
     muteWarn(tc, 'lsqvce:adjustNonlinear:maxIter');
     for x0 = {[1; -2; 0.1], [1; -5; 0.1], [0.5; 15; 0.3]}
-        R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', x0{1}), ...
+        R = lsqvce.engine.fitDeclaration(struct('batchFcn', bf, 'numBatches', 1, 'x0', x0{1}), ...
                        lsqvce.Options(MaxPasses=30, Verbose=false));
         ok = [R.history.accepted];
         Fbest = min([F(x0{1}), R.history(ok).vPv]);
@@ -1854,7 +1854,7 @@ function testGaussNewtonResidualsAreThoseOfTheEstimate(tc)
     t  = linspace(0, 1, 40).';
     lobs = exp(0.7*t) - 0.2 + 1e-3*randn(rs, 40, 1);
     bf = @(k, x) deal([t.*exp(x(1)*t), ones(40, 1)], lobs - (exp(x(1)*t) + x(2)), []);
-    R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.5; 0]), ...
+    R = lsqvce.engine.fitDeclaration(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.5; 0]), ...
                    lsqvce.Options(MaxPasses=15, Tolerance=1e-9, Verbose=false));
     tc.verifyEqual(R.sol.xLin, R.x, 'the linearisation point is the estimate');
     res = tc.verifyWarningFree(@() R.residuals('Verbose', false));
@@ -1876,7 +1876,7 @@ function testGaussNewtonRejectsANonFiniteTrialPoint(tc)
     y  = 1 + [0.01; -0.02; 0.015; -0.005; 0.01];        % five looks at x^3, truth 1
     f  = @(x) x.^3 ./ (abs(x) <= 10);                   % Inf past |x| = 10
     bf = @(k, x) deal(3*x^2 ./ (abs(x) <= 10) * ones(5, 1), y - f(x), []);
-    R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', 0.1), ...
+    R = lsqvce.engine.fitDeclaration(struct('batchFcn', bf, 'numBatches', 1, 'x0', 0.1), ...
                    lsqvce.Options(MaxPasses=60, Tolerance=1e-10, Verbose=false));
     h = R.history;
     tc.verifyTrue(any(~[h.accepted] & isinf([h.vPv])), ...
@@ -1885,7 +1885,7 @@ function testGaussNewtonRejectsANonFiniteTrialPoint(tc)
     % tol: 1e-8 relative -- the least-squares optimum of x^3 against y is
     % mean(y)^(1/3); TolX 1e-10 formal sd and the final undamped step
     tc.verifyEqual(R.x, mean(y)^(1/3), 'RelTol', 1e-8);
-    tc.verifyError(@() lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', 20), ...
+    tc.verifyError(@() lsqvce.engine.fitDeclaration(struct('batchFcn', bf, 'numBatches', 1, 'x0', 20), ...
                    lsqvce.Options(Verbose=false)), 'lsqvce:adjustNonlinear:nonFinite');
 end
 
@@ -1904,7 +1904,7 @@ function testGaussNewtonPriorIsOnXNotOnTheStep(tc)
     for c = [0.30 1e-3; 0.30 1e-6; 0 1e-3].'
         data = struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.5; 0], ...
                       'priors', struct('L', [0 1], 'x0', c(1), 'sigma', c(2), 'name', 'b'));
-        R = lsqvce.fit(data, lsqvce.Options(MaxPasses=30, Tolerance=1e-10, Verbose=false));
+        R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(MaxPasses=30, Tolerance=1e-10, Verbose=false));
         tc.verifyEqual(R.stopReason, "converged");
         J  = [t.*exp(R.x(1)*t), ones(40, 1)];  w = lobs - (exp(R.x(1)*t) + R.x(2));
         gD = J.' * (p .* w);  gP = [0; 1] * (c(1) - R.x(2)) / c(2)^2;
@@ -1935,7 +1935,7 @@ function testDatumCovarianceIsTheMinimumConstraintOne(tc)
     Np = pinv(A.'*A);
     for sg = [1 1e3 1e6]
         data = struct('A', A, 'l', l, 'priors', struct('L', ones(1, u), 'sigma', sg, 'name', 'datum'));
-        R = lsqvce.fit(data, Verbose=false);
+        R = lsqvce.engine.fitDeclaration(data, Verbose=false);
         se = sqrt(diag(R.sol.Cxx));
         % tol: 1e-8 relative -- the minimum-constraint cofactor from the re-weighted
         % factor vs the dense pseudo-inverse (mirror: 3e-16 at every sigma)
@@ -1951,7 +1951,7 @@ function testDatumCovarianceIsTheMinimumConstraintOne(tc)
     % a REGULARISING prior is not a datum: its covariance stays the solve's
     rs = RandStream('mt19937ar', 'Seed', 6);
     A2 = randn(rs, 40, 6);  l2 = A2 * randn(rs, 6, 1) + randn(rs, 40, 1);
-    R = lsqvce.fit(struct('A', A2, 'l', l2, 'priors', struct('L', eye(6), 'sigma', 1, 'name', 'ridge')), Verbose=false);
+    R = lsqvce.engine.fitDeclaration(struct('A', A2, 'l', l2, 'priors', struct('L', eye(6), 'sigma', 1, 'name', 'ridge')), Verbose=false);
     % tol: 1e-8 relative -- s0^2 inv(A'A + I) from the factor vs the dense inverse
     tc.verifyEqual(diag(R.sol.Cxx), R.sol.s0sq * diag(inv(A2.'*A2 + eye(6))), 'RelTol', 1e-8);
     res = tc.verifyWarningFree(@() R.residuals('Verbose', false));
@@ -1984,7 +1984,7 @@ function testDatumGroupBesideARegulariser(tc)
     for bk = ["qr" "normal"]
         for sg = [1 1e3 1e6]
             P = struct('L', {datum, ridge}, 'sigma', {sg, sr}, 'name', {'datum', 'ridge'});
-            R = lsqvce.fit(struct('A', A, 'l', l, 'priors', P), Verbose=false, Backend=bk);
+            R = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'priors', P), Verbose=false, Backend=bk);
             msg = sprintf('%s, datum sigma %g', bk, sg);
             % tol: 1e-8 relative -- the minimum-constraint cofactor of the data plus
             % the ridge from the re-weighted factor vs the dense pseudo-inverse
@@ -2010,7 +2010,7 @@ function testDatumGroupBesideARegulariser(tc)
             struct('L', [datum; ridge], 'sigma', 1)};                 % ONE group, only partly in the null space
     for k = 1:numel(info)
         K = vertcat(info{k}.L);
-        R = lsqvce.fit(struct('A', A, 'l', l, 'priors', info{k}), Verbose=false);
+        R = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'priors', info{k}), Verbose=false);
         % tol: 1e-8 relative -- the solve's cofactor from the factor vs the dense inverse
         tc.verifyEqual(diag(R.sol.Cxx), R.sol.s0sq * diag(inv(A.'*A + K.'*K)), 'RelTol', 1e-8, ...
             sprintf('information case %d keeps the solve''s covariance', k));
@@ -2043,7 +2043,7 @@ function testDatumSplitOverGroupsIsOneDatum(tc)
     for bk = ["qr" "normal"]
         for sg = [1 1e3]
             pri = struct('L', {Kt, Kr}, 'sigma', {sg, sg}, 'name', {'trans', 'rot'});
-            R = lsqvce.fit(struct('A', A, 'l', l, 'priors', pri), Verbose=false, Backend=bk);
+            R = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'priors', pri), Verbose=false, Backend=bk);
             msg = sprintf('%s, datum sigma %g', bk, sg);
             % tol: 1e-8 relative -- the minimum-constraint cofactor from the
             % re-weighted factor vs the dense pseudo-inverse (mirror: 8e-11 abs)
@@ -2082,8 +2082,8 @@ function testDatumTestIsInvariantToParameterUnits(tc)
     l = A*[0; 1.5; -0.7; 2.2; 0.2; -0.1] + 0.01*randn(rs, size(A, 1), 1);
     c = 1e-9;  As = A;  As(:, 6) = c * A(:, 6);
     pri = @(s6) struct('L', {[1 1 1 1 0 0], [0 0 0 0 0 1]}, 'sigma', {1, s6}, 'name', {'datum', 'p6'});
-    R1 = lsqvce.fit(struct('A', A,  'l', l, 'priors', pri(0.5)),     Verbose=false);
-    R2 = lsqvce.fit(struct('A', As, 'l', l, 'priors', pri(0.5 / c)), Verbose=false);
+    R1 = lsqvce.engine.fitDeclaration(struct('A', A,  'l', l, 'priors', pri(0.5)),     Verbose=false);
+    R2 = lsqvce.engine.fitDeclaration(struct('A', As, 'l', l, 'priors', pri(0.5 / c)), Verbose=false);
     sd1 = sqrt(diag(R1.sol.Cxx));  sd2 = sqrt(diag(R2.sol.Cxx));
     % tol: 1e-6 relative -- one QR of a design whose column 6 is 1e-9 of the
     % others, against one of the unscaled design (eps * 1/c is not involved:
@@ -2111,7 +2111,7 @@ function testSnoopKeepsTheDatumAndTheOriginalIndex(tc)
     A(sub2ind(size(A), (1:m).', pairs(:, 2))) = 1;
     l = A*[0; 1.5; -0.7; 2.2] + 0.01*randn(rs, m, 1);  l(3) = l(3) + 0.2;   % a 20-sigma blunder
     Ar = A([1:2, 4:m], :);
-    R = lsqvce.fit(struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum')), ...
+    R = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum')), ...
                    Verbose=false);
     [D, REJ] = R.snoop('Verbose', false);
     tc.verifyEqual(REJ.idx, 3, 'the blunder, by its original index');
@@ -2140,7 +2140,7 @@ function testSnoopAfterRejectionWithoutTheReSolve(tc)
     A = zeros(m, 4);  A(sub2ind(size(A), (1:m).', pairs(:, 1))) = -1;
     A(sub2ind(size(A), (1:m).', pairs(:, 2))) = 1;
     l = A*[0; 1.5; -0.7; 2.2] + 0.01*randn(rs, m, 1);  l(3) = l(3) + 0.2;   % a 20-sigma blunder
-    R = lsqvce.fit(struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum')), ...
+    R = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum')), ...
                    Verbose=false);
     [Dt, REJt, solT] = R.snoop('Verbose', false);
     [Df, REJf, solF] = R.snoop('Verbose', false, 'Reaccumulate', false);
@@ -2172,7 +2172,7 @@ function testSnoopInheritsTheDiagnosticsTest(tc)
     A(sub2ind(size(A), (1:m).', pairs(:, 2))) = 1;
     l = A*[0; 1.5; -0.7; 2.2] + 0.01*randn(rs, m, 1);  l(3) = l(3) + 0.2;
     data = struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum'));
-    R = lsqvce.fit(data, lsqvce.Options(Diagnostics=struct('Alpha', 0.01), Verbose=false));
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Diagnostics=struct('Alpha', 0.01), Verbose=false));
     [~, REJ] = R.snoop('Verbose', false);
     % tol: 1e-12 relative -- the same tau of the same alpha / nTests and r
     tc.verifyEqual(REJ.history(1, 4), R.diag.kCrit, 'RelTol', 1e-12, 'snoop tests at R.diag''s Alpha');
@@ -2193,12 +2193,12 @@ function testSnoopReDiagnosisKeepsTheCallersStorage(tc)
     A(sub2ind(size(A), (1:m).', pairs(:, 2))) = 1;
     l = A*[0; 1.5; -0.7; 2.2] + 0.01*randn(rs, m, 1);  l(3) = l(3) + 0.2;
     data = struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum'));
-    R = lsqvce.fit(data, lsqvce.Options(Diagnostics=struct('Store', "flagged"), Verbose=false));
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Diagnostics=struct('Store', "flagged"), Verbose=false));
     tc.verifyEqual(R.diag.store, 'flagged');
     [D2, REJ] = R.snoop('Verbose', false);
     tc.verifyEqual(REJ.idx, 3, 'the blunder is rejected, so snoop re-diagnoses');
     tc.verifyEqual(D2.store, 'flagged', 'the re-diagnosis keeps R.diag''s Store');
-    Rm = lsqvce.fit(data, lsqvce.Options(Diagnostics=struct('Test', "mad"), Verbose=false));
+    Rm = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Diagnostics=struct('Test', "mad"), Verbose=false));
     V = Rm.report('Verbose', false);
     codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
     k = find(strcmp(codes, 'REL_HEAD'), 1);
@@ -2229,7 +2229,7 @@ function testMadScaleLeavesTheDatumRowsOut(tc)
     for bk = ["qr" "normal"]
         for sg = [1 1e3]
             pri = struct('L', {Kt, Kr}, 'sigma', {sg, sg}, 'name', {'trans', 'rot'});
-            R = lsqvce.fit(struct('A', A, 'l', l, 'priors', pri), Verbose=false, Backend=bk);
+            R = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'priors', pri), Verbose=false, Backend=bk);
             Dm = lsqvce.engine.verdict.diagnose(R.source, R.batchFcn, 'nBatch', R.nBatch, 'Test', "mad");
             msg = sprintf('%s, datum sigma %g', bk, sg);
             tc.verifyEqual(Dm.robustScale, R.diag.robustScale, ['the mad sweep is the fused one: ' msg]);
@@ -2242,7 +2242,7 @@ function testMadScaleLeavesTheDatumRowsOut(tc)
     A = zeros(m, 4);  A(sub2ind(size(A), (1:m).', pairs(:, 1))) = -1;
     A(sub2ind(size(A), (1:m).', pairs(:, 2))) = 1;
     l = A*[0; 1.5; -0.7; 2.2] + 0.01*randn(rs, m, 1);  l(3) = l(3) + 0.2;
-    R = lsqvce.fit(struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum')), ...
+    R = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum')), ...
                    Verbose=false);
     Dm = lsqvce.engine.verdict.diagnose(R.source, R.batchFcn, 'nBatch', R.nBatch, 'Test', "mad");
     [~, REJ] = R.snoop('Verbose', false, 'Test', "mad");
@@ -2268,7 +2268,7 @@ function testDatumIsADeclaredPrior(tc)
     l = A*hTrue + 0.01*randn(rs, size(A, 1), 1);
     B = ones(u, 1);                                       % the null space: a common level
     data = struct('A', A, 'l', l, 'priors', struct('L', B.', 'sigma', 1, 'name', 'datum'));
-    R = lsqvce.fit(data, Verbose=false);
+    R = lsqvce.engine.fitDeclaration(data, Verbose=false);
     % tol: 1e-12 absolute -- the constraint holds algebraically on O(1) numbers
     tc.verifyEqual(B.'*R.x, 0, 'AbsTol', 1e-12, 'the minimum constraint holds');
     tc.verifyNotEmpty(R.acc, 'the block path carries the accumulator');
@@ -2279,15 +2279,15 @@ function testDatumIsADeclaredPrior(tc)
     tc.verifyEqual(R.x, xd, 'RelTol', 1e-10, 'AbsTol', 1e-12);
     % the weight does not matter when B spans the null space
     data.priors.sigma = 1e3;
-    R2 = lsqvce.fit(data, Verbose=false);
+    R2 = lsqvce.engine.fitDeclaration(data, Verbose=false);
     % tol: 1e-8 relative -- a 1e6 weight change moves the solution only through rounding
     tc.verifyEqual(R2.x, R.x, 'RelTol', 1e-8, 'AbsTol', 1e-12);
     % no datum: refused on the block path, cleanly
     lastwarn('');
-    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l), Verbose=false)), 'lsqvce:qr:singularR');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), Verbose=false)), 'lsqvce:qr:singularR');
     [~, wid] = lastwarn;  tc.verifyEmpty(wid);
     % a malformed prior is refused by name
-    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l, 'priors', struct('L', ones(1, 3))), Verbose=false)), 'lsqvce:fit:badPrior');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'priors', struct('L', ones(1, 3))), Verbose=false)), 'lsqvce:fit:badPrior');
 end
 function testBatchKindLinearReproducesAdjust(tc)
 % categories: reference
@@ -2295,7 +2295,7 @@ function testBatchKindLinearReproducesAdjust(tc)
     idx = {1:15, 16:30};
     bf = @(k) deal(A(idx{k}, :), l(idx{k}), p(idx{k}));
     data = struct('batchFcn', bf, 'numUnknowns', size(A, 2), 'numBatches', 2);
-    R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false));
     P = diag(p);  xd = (A.'*P*A) \ (A.'*P*l);        % the dense closed form (O1)
     % tol: 1e-12 relative -- block path (batch k = day k) vs dense normal equations
     tc.verifyEqual(R.x, xd, 'RelTol', 1e-12);
@@ -2306,17 +2306,17 @@ end
 function testKindsBAndCRulesFireBeforeAnyRead(tc)
 % categories: contract
     [A, l, p] = matrixFixture();
-    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l(1:end-1)))), 'lsqvce:fit:badMatrix');
-    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l, 'p', p(1:3)))), 'lsqvce:fit:badMatrix');
-    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A))), 'lsqvce:fit:missingField');
-    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l, 'weights', p))), 'lsqvce:fit:unknownField');
-    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false))), 'lsqvce:fit:modelKind');
-    tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k) deal(A, l, p)))), 'lsqvce:fit:missingField');
-    tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k) deal(A, l, p), ...
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(struct('A', A, 'l', l(1:end-1)))), 'lsqvce:fit:badMatrix');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'p', p(1:3)))), 'lsqvce:fit:badMatrix');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(struct('A', A))), 'lsqvce:fit:missingField');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'weights', p))), 'lsqvce:fit:unknownField');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false))), 'lsqvce:fit:modelKind');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(struct('batchFcn', @(k) deal(A, l, p)))), 'lsqvce:fit:missingField');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(struct('batchFcn', @(k) deal(A, l, p), ...
         'numBatches', 1))), 'lsqvce:fit:missingField');          % linear form needs u
-    tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k, x) deal(A, l, p), ...
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(struct('batchFcn', @(k, x) deal(A, l, p), ...
         'numBatches', 1, 'x0', zeros(3, 1), 'numUnknowns', 3))), 'lsqvce:fit:uCount');
-    tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k) deal(A, l, p), 'numUnknowns', 3, ...
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(struct('batchFcn', @(k) deal(A, l, p), 'numUnknowns', 3, ...
         'numBatches', 1), lsqvce.Options(Estimate="noise", ArcFactors=false))), 'lsqvce:fit:modelKind');
 end
 
@@ -2355,7 +2355,7 @@ function testScopedExpansionReproducesHandNumbering(tc)
     s.localParams = [{'arc', 'ic'}; {'day', 'bias'}; {'system', 'scale'}];
     s.arcs = 2;
     data.systems = s;
-    Rf = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    Rf = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false));
     tc.verifyEqual(numel(Rf.x), 4, 'nc = commonCount + nDays*dayRows');
     tc.verifyEqual(Rf.systems(1).nl, 7, 'nl from the scope expansion');
 
@@ -2388,7 +2388,7 @@ function testDayWithoutArcsGetsNoBlocks(tc)
     s.localParams = [{'arc', 'ic'}; {'day', 'bias'}; {'system', 'scale'}];
     s.arcs = @(day, obsType) arcListWithGap(day);    % day 2: manoeuvre, no arcs
     data.systems = s;
-    R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false));
     tc.verifyEqual(numel(R.x), 2 + 2*1, 'day 2 must carry no common day block');
     tc.verifyEqual(R.systems(1).nl, 2*(2*1 + 1) + 1, ...
         'day 2 must carry no local blocks; days 1 and 3 unaffected');
@@ -2407,9 +2407,9 @@ function testScheduleIsOptionalOnTheFitSurface(tc)
     % data does not already state. 'system'-scoped locals: no plan depends
     % on the arc count.
     [data, ~] = declaration();
-    Rs = lsqvce.fit(data, lsqvce.Options(Verbose=false));           % arcs = 2 declared
+    Rs = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false));           % arcs = 2 declared
     d  = data;  d.systems = rmfield(d.systems, 'arcs');
-    Rd = lsqvce.fit(d, lsqvce.Options(Verbose=false));              % discovered
+    Rd = lsqvce.engine.fitDeclaration(d, lsqvce.Options(Verbose=false));              % discovered
     tc.verifyEqual(Rd.x, Rs.x, 'discovered == declared, bitwise');
     tc.verifyEqual(Rd.sigma0, Rs.sigma0);
     tc.verifyEqual(Rd.sol.Cxx, Rs.sol.Cxx);
@@ -2423,17 +2423,17 @@ function testEmptyCellIsTheGapOfAScheduledArc(tc)
     % every day returns empty must give BITWISE the two-arc run: a gap adds
     % nothing, and the redundancy count says so.
     [data, cfg] = declaration();
-    R2 = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    R2 = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false));
     d  = data;
     d.systems(1).arcs = [1 2 3];                                     % arc 3 is scheduled ...
     d.systems(1).buildDay = @(dd, ot) padGap(buildDayImpl(cfg, dd, ot), cfg);  % ... and empty
-    R3 = lsqvce.fit(d, lsqvce.Options(Verbose=false));
+    R3 = lsqvce.engine.fitDeclaration(d, lsqvce.Options(Verbose=false));
     tc.verifyEqual(R3.x, R2.x, 'a gap cell contributes nothing');
     tc.verifyEqual(R3.sigma0, R2.sigma0);
     tc.verifyEqual(R3.redundancy(), R2.redundancy());
     % the count is enforced: a schedule of 3 and two cells is refused by name
     d.systems(1).buildDay = @(dd, ot) buildDayImpl(cfg, dd, ot);
-    tc.verifyEqual(idOf(@() lsqvce.fit(d, lsqvce.Options(Verbose=false))), 'lsqvce:makeLoader:arcCount');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d, lsqvce.Options(Verbose=false))), 'lsqvce:makeLoader:arcCount');
 end
 
 function D = padGap(D, cfg)
@@ -2457,21 +2457,21 @@ function testDayRowsWithoutScheduleLiveOnEveryCalendarDay(tc)
     s.covariance = cfg.cov;
     s.localParams = [{'day', 'bias'}; {'system', 'scale'}];         % no 'arc' rows: no schedule needed
     data.systems = s;
-    R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false));
     tc.verifyEqual(numel(R.x), 2 + 3, 'every calendar day owns a common day block');
     tc.verifyEqual(R.systems(1).nl, 3 + 1, 'every calendar day owns its local day block');
     % day 2 returns no cells: refused by name, at the read
     d = data;
     d.systems(1).buildDay = @(dd, ot, common, local, po, info) emptyOnDay2(cfg, dd, ot, info);
-    tc.verifyEqual(idOf(@() lsqvce.fit(d, lsqvce.Options(Verbose=false))), 'lsqvce:makeLoader:emptyDay');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d, lsqvce.Options(Verbose=false))), 'lsqvce:makeLoader:emptyDay');
     % the same day taken off the calendar is the declared way to say so
     d.systems(1).days = [1 3];
-    R2 = lsqvce.fit(d, lsqvce.Options(Verbose=false));
+    R2 = lsqvce.engine.fitDeclaration(d, lsqvce.Options(Verbose=false));
     tc.verifyEqual(numel(R2.x), 2 + 2, 'day 2 off this system''s calendar: no common day block');
     tc.verifyEqual(R2.systems(1).nl, 2 + 1);
     % 'arc' rows without a schedule: refused at the declaration, relabelled
     d = data;  d.systems(1).localParams = [{'arc', 'ic'}; {'day', 'bias'}];
-    tc.verifyEqual(idOf(@() lsqvce.fit(d, lsqvce.Options(Verbose=false))), 'lsqvce:fit:localPlan');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(d, lsqvce.Options(Verbose=false))), 'lsqvce:fit:localPlan');
 end
 
 function D = emptyOnDay2(cfg, day, obsType, info)
@@ -2627,9 +2627,9 @@ function testLocalPriorsAreTheCounterpartOfDataPriors(tc)
     % coupling two days and a bad policy are refused by name; a loose group
     % leaves the solution alone; from gates a group out of a single solve.
     [data, ~] = declaration();
-    R0 = lsqvce.fit(data, Verbose=false);
+    R0 = lsqvce.engine.fitDeclaration(data, Verbose=false);
     y0 = R0.residuals('Verbose', false).sys(1).y;
-    lay = lsqvce.layout(data);
+    lay = lsqvce.engine.layoutDeclaration(data);
     nl = lay.systems(1).nl;
     tc.verifyEqual(nl, numel(y0), 'the layout announces B''s width');
     j = 2;  target = 0.123;
@@ -2638,7 +2638,7 @@ function testLocalPriorsAreTheCounterpartOfDataPriors(tc)
     e = @(c) double((1:nl) == c);
     data.systems(1).priors = [struct('L', e(cj), 'x0', target, 'sigma', 1e-6, 'from', 1, 'name', 'pin', 'estimate', "none"), ...
                               struct('L', e(lay.systems(1).col(1, [], [])), 'x0', 0, 'sigma', 1e3, 'from', 1, 'name', 'soft', 'estimate', "none")];
-    R1 = lsqvce.fit(data, Verbose=false);
+    R1 = lsqvce.engine.fitDeclaration(data, Verbose=false);
     y1 = R1.residuals('Verbose', false).sys(1).y;
     % tol: 1e-5 absolute -- the group's sigma (1e-6) against the data's O(1)
     % leverage on that parameter; the pin holds to a few sigma
@@ -2647,13 +2647,13 @@ function testLocalPriorsAreTheCounterpartOfDataPriors(tc)
     tc.verifyNotEqual(y1(j), y0(j));
     % a loose group alone leaves the solution where it was
     data.systems(1).priors = struct('L', e(lay.systems(1).col(1, [], [])), 'x0', 0, 'sigma', 1e6, 'name', 'loose');
-    Rl = lsqvce.fit(data, Verbose=false);
+    Rl = lsqvce.engine.fitDeclaration(data, Verbose=false);
     % tol: 1e-8 relative -- a 1e6-sigma prior on O(1) parameters perturbs at 1e-12
     tc.verifyEqual(Rl.x, R0.x, 'RelTol', 1e-8);
     % from gates the group out of a single solve
     data.systems(1).priors = struct('L', e(cj), 'x0', target, 'sigma', 1e-6, 'from', 2, 'name', 'late');
     muteWarn(tc, 'lsqvce:fit:priorNotActive');   % provoked on purpose (gate rule 7)
-    R2 = lsqvce.fit(data, Verbose=false);
+    R2 = lsqvce.engine.fitDeclaration(data, Verbose=false);
     tc.verifyEqual(R2.diag.n, R0.diag.n);
     % WP-128: and SAYS so -- only data.priors were counted, a late local
     % group vanished without a word
@@ -2666,7 +2666,7 @@ function testLocalPriorsAreTheCounterpartOfDataPriors(tc)
     data.systems(1).priors = struct('L', e(cj), 'x0', target, 'sigma', 1e-6, 'from', 2, ...
                                     'name', 'late', 'estimate', "none");
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
-    Rj = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+    Rj = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
                     MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     h = Rj.history;
     tc.verifyTrue(any(contains(h.streams, 'prior_late')), 'the late group is a stream of the record');
@@ -2677,16 +2677,16 @@ function testLocalPriorsAreTheCounterpartOfDataPriors(tc)
     if all(cellfun(@(v) ischar(v) || isstring(v), names))
         pat = ['^' regexptranslate('escape', char(string(names{j}))) '$'];
         data.systems(1).priors = struct('group', pat, 'x0', target, 'sigma', 1e-6);
-        Rp = lsqvce.fit(data, Verbose=false);
+        Rp = lsqvce.engine.fitDeclaration(data, Verbose=false);
         yp = Rp.residuals('Verbose', false).sys(1).y;
         % tol: 1e-5 absolute -- as above
         tc.verifyEqual(yp(j), target, 'AbsTol', 1e-5, 'the pattern form pins the same local');
     end
     % refusals by name (the loader's ids re-homed by fit at build time)
     data.systems(1).priors = struct('L', ones(1, nl + 3), 'sigma', 1);
-    tc.verifyEqual(idOf(@() lsqvce.fit(data, Verbose=false)), 'lsqvce:fit:badPrior');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(data, Verbose=false)), 'lsqvce:fit:badPrior');
     data.systems(1).priors = struct('L', e(cj), 'sigma', 1, 'estimate', "law");
-    tc.verifyEqual(idOf(@() lsqvce.fit(data, Verbose=false)), 'lsqvce:fit:badPrior');
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(data, Verbose=false)), 'lsqvce:fit:badPrior');
 end
 
 function testLawOnFixedStructureIsRefused(tc)
@@ -2697,7 +2697,7 @@ function testLawOnFixedStructureIsRefused(tc)
     [data, ~] = declaration();
     data.systems(1).covariance.kbr.sigma = [0.2; 0.2];
     data.systems(1).covariance.kbr.estimate = "law";
-    tc.verifyEqual(idOf(@() lsqvce.fit(data, lsqvce.Options(Estimate="noise", Verbose=false))), ...
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Verbose=false))), ...
                    'lsqvce:fit:lawOnFixedStructure');
 end
 
@@ -2708,7 +2708,7 @@ function testVarLawUnderNoiseIsRefused(tc)
     % applied the estimated level as a std to a covariance. Refused by name.
     [data, ~] = declaration();
     data.systems(1).covariance.kbr = struct('type', 'var', 'ar', 0.3, 'sigma', 0.04);
-    tc.verifyEqual(idOf(@() lsqvce.fit(data, lsqvce.Options(Estimate="noise", Verbose=false))), ...
+    tc.verifyEqual(idOf(@() lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Verbose=false))), ...
                    'lsqvce:fit:varUnderNoise');
 end
 
@@ -2723,13 +2723,13 @@ function testLocalPriorGroupIsEstimatedLikeACommonOne(tc)
     % on R.noise.model.
     root = fileparts(fileparts(fileparts(mfilename('fullpath'))));
     addpath(fullfile(root, 'examples'));
-    [~, data] = demo_grace_dataLoader();
-    lay = lsqvce.layout(data);
+    [~, data] = demo_grace_dataLoader();  data = data.declaration();   % WP-162: the compiled struct
+    lay = lsqvce.engine.layoutDeclaration(data);
     S = lay.systems(1);  nl = S.nl;
     L = eye(nl);                                   % all locals of system 1 (its system block)
     data.systems(1).priors = struct('L', L, 'x0', zeros(size(L, 1), 1), 'sigma', 1e-4, 'name', 'damp', 'estimate', "scale");
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=5, ...
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=5, ...
                      Noise=struct('Grid', 16), Seed=3, Verbose=false));
     k = find(strcmp(R.noise.stream, 'x1|prior_damp'), 1);
     tc.verifyNotEmpty(k, 'the group is a stream of its own');
@@ -2813,7 +2813,7 @@ function testRobustJointSweepLeavesThePriorArcsOut(tc)
     d.systems(1).priors = struct('L', e(cj), 'x0', 0, 'sigma', 1e6, ...
                                  'from', 1, 'name', 'loose', 'estimate', "none");
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % MaxPasses 2: a contract point
-    R = lsqvce.fit(d, lsqvce.Options(Robust="huber", Estimate="noise", Pool="stream", ...
+    R = lsqvce.engine.fitDeclaration(d, lsqvce.Options(Robust="huber", Estimate="noise", Pool="stream", ...
                                      ArcFactors=false, MaxPasses=2, Verbose=false));
     obsT = string(R.noise.robust.keys(:, 2));
     tc.verifyFalse(any(startsWith(obsT, "prior_")), 'no prior pseudo-arc in the robust sweep');
@@ -2831,12 +2831,12 @@ function testRobustStopRuleIsPerParameterSigma(tc)
     rng(1);  n = 1e4;  t = linspace(-1, 1, n).';  A = [ones(n, 1), t];
     l = A*[6.4e6; 2] + 1e-3*randn(n, 1);
     k = randperm(n, 1000);  l(k) = l(k) + 0.05 + 0.05*rand(1000, 1);
-    R1 = lsqvce.fit(struct('A', A, 'l', l), Robust="huber", Verbose=false);
+    R1 = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), Robust="huber", Verbose=false);
     % the reference asks for 1e-12 sigma, which this problem cannot resolve:
     % observations of 6.4e6 against noise of 1e-3 leave ~10 digits in the
     % residuals, so the Huber weights jitter at ~1e-5 sigma -- its budget runs out
     muteWarn(tc, 'lsqvce:adjustRobust:notConverged');
-    R2 = lsqvce.fit(struct('A', A, 'l', l), Robust="huber", ...
+    R2 = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), Robust="huber", ...
                     RobustOpts=struct('Tol', 1e-12, 'MaxIter', 200), Verbose=false);
     tc.verifyTrue(R1.converged);
     % tol: the default Tol is 1e-8 of a formal sigma per step; the distance
@@ -2854,8 +2854,8 @@ function testExcludedRowsStayOutOfTheRobustScale(tc)
     % the good rows (reproduced). The scale is the live rows' alone.
     rng(2);  n = 200;  A = [ones(n, 1), (1:n).'/n];  l = A*[1; 2] + randn(n, 1);
     p = ones(n, 1);  p(1:80) = 0;
-    R = lsqvce.fit(struct('A', A, 'l', l, 'p', p), Robust="igg3", Verbose=false);
-    Rl = lsqvce.fit(struct('A', A(81:end, :), 'l', l(81:end)), Robust="igg3", Verbose=false);
+    R = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'p', p), Robust="igg3", Verbose=false);
+    Rl = lsqvce.engine.fitDeclaration(struct('A', A(81:end, :), 'l', l(81:end)), Robust="igg3", Verbose=false);
     % tol: the same 120 live rows -- the scale and the estimate must not move
     % because 80 zero-weight rows ride along (measured 0.956 both ways)
     tc.verifyEqual(R.history(1).scale, Rl.history(1).scale, 'RelTol', 1e-10);
@@ -2869,9 +2869,9 @@ function testHeldScalePriorWarns(tc)
     % (a group at 1e-3 shrank x to ~1e-4 against a truth of 1). It warns.
     rng(4);  A = randn(100, 5);  l = A*ones(5, 1) + randn(100, 1);
     d = struct('A', A, 'l', l, 'priors', struct('L', eye(5), 'sigma', 1e-3, 'estimate', "scale"));
-    tc.verifyWarning(@() lsqvce.fit(d, Verbose=false), 'lsqvce:fit:priorScaleHeld');
+    tc.verifyWarning(@() lsqvce.engine.fitDeclaration(d, Verbose=false), 'lsqvce:fit:priorScaleHeld');
     d.priors.estimate = "none";
-    tc.verifyWarningFree(@() lsqvce.fit(d, Verbose=false), 'a declared "none" is no surprise');
+    tc.verifyWarningFree(@() lsqvce.engine.fitDeclaration(d, Verbose=false), 'a declared "none" is no surprise');
 end
 
 function testSnoopOnGaussNewtonReturnsEstimates(tc)
@@ -2883,7 +2883,7 @@ function testSnoopOnGaussNewtonReturnsEstimates(tc)
     rs = RandStream('mt19937ar', 'Seed', 5);
     t = (0:.1:5).';  y = 3*exp(-.7*t) + 1e-2*randn(rs, size(t));  y(20) = y(20) + 1;
     bf = @(k, x) deal([exp(-x(2)*t), -x(1)*t.*exp(-x(2)*t)], y - x(1)*exp(-x(2)*t));
-    R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [1; .5]), Verbose=false);
+    R = lsqvce.engine.fitDeclaration(struct('batchFcn', bf, 'numBatches', 1, 'x0', [1; .5]), Verbose=false);
     for re = [true false]
         [D, ~, sol] = R.snoop(Reaccumulate=re, Verbose=false);
         % tol: one blunder out of 51 rows moves the estimate by a few of its
@@ -2903,8 +2903,8 @@ function testRefusedVtPvIsDiagnosedWithItsOwnSigma0(tc)
     rs = RandStream('mt19937ar', 'Seed', 6);
     l = A * [1e5; -2e5; 3e5] + 3 * randn(rs, m, 1);  l(50) = l(50) + 25;
     muteWarn(tc, 'lsqvce:normalEq:cancellation');            % refused on purpose
-    Rn = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Backend="normal", Verbose=0));
-    Rq = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Backend="qr", Verbose=0));
+    Rn = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), lsqvce.Options(Backend="normal", Verbose=0));
+    Rq = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), lsqvce.Options(Backend="qr", Verbose=0));
     tc.verifyFalse(Rn.diag.s0Fallback, 'no fallback to the a-priori sigma0');
     tc.verifyEqual(Rn.diag.flagIdx, Rq.diag.flagIdx, 'the two backends flag the same rows');
     tc.verifyEqual(Rn.diag.flagIdx, 50);
@@ -2917,7 +2917,7 @@ function testContributionsReproduceTheFit(tc)
     % the days' contributions reproduces fit's x, Cxx and sigma0 -- the days'
     % reduced rows (each day's 'day' and 'arc' locals eliminated on the
     % factor) stacked where fit stacked the system's.
-    R = lsqvce.fit(bootFixture(1:3, 1:3, "known"), lsqvce.Options(Estimate="none", Verbose=false));
+    R = lsqvce.engine.fitDeclaration(bootFixture(1:3, 1:3, "known"), lsqvce.Options(Estimate="none", Verbose=false));
     C = R.contributions();
     tc.verifyEqual(C.days, 1:3, 'one entry per distinct day');
     tc.verifyEqual(numel(C.items), 3, 'one contribution per (system, day)');
@@ -2937,8 +2937,8 @@ function testContributionsEqualAFitOverTheExpandedDays(tc)
     % day 2 not drawn, day 3 once) under the same fixed weights. A real c (a
     % Bayesian bootstrap) is accepted; c times a constant moves no estimate.
     opts = lsqvce.Options(Estimate="none", Verbose=false);
-    C = lsqvce.fit(bootFixture(1:3, 1:3, "known"), opts).contributions();
-    Rx = lsqvce.fit(bootFixture([1 3 4], [1 3 1], "known"), opts);
+    C = lsqvce.engine.fitDeclaration(bootFixture(1:3, 1:3, "known"), opts).contributions();
+    Rx = lsqvce.engine.fitDeclaration(bootFixture([1 3 4], [1 3 1], "known"), opts);
     out = lsqvce.solveContributions(C, [2 0 1]);
     % tol: 1e-8 relative -- the issue's bound (measured 9e-10)
     tc.verifyEqual(out.x, Rx.x, 'RelTol', 1e-8);
@@ -2955,7 +2955,7 @@ function testContributionsReturnTheDrawnDaysLocals(tc)
 % categories: reference, precision
     % 'Locals', true back-substitutes the local parameters of every drawn day
     % with their covariance; with c = 1 they are fit's own.
-    R = lsqvce.fit(bootFixture(1:3, 1:3, "known"), lsqvce.Options(Estimate="none", Verbose=false));
+    R = lsqvce.engine.fitDeclaration(bootFixture(1:3, 1:3, "known"), lsqvce.Options(Estimate="none", Verbose=false));
     C = R.contributions();
     out = lsqvce.solveContributions(C, ones(1, 3), 'Locals', true);
     tc.verifyEqual(numel(out.locals), 3);
@@ -2982,7 +2982,7 @@ function testContributionsOfANoiseAndARobustRun(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % 4 passes on 3 short days: the weights are read, not judged
     data = bootFixture(1:3, 1:3, "law");
     for rb = ["none", "igg3"]
-        R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Robust=rb, MaxPasses=4, Verbose=false));
+        R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Robust=rb, MaxPasses=4, Verbose=false));
         C = R.contributions();
         tc.verifyEqual(C.weights.estimate, "noise");
         tc.verifyEqual(C.weights.robust, rb);
@@ -2998,7 +2998,7 @@ function testContributionsOnTheNormalBackend(tc)
 % categories: reference, precision
     % The normal backend reduces each day by an equilibrated Cholesky Schur
     % complement; on a well-conditioned problem the combination is fit's.
-    R = lsqvce.fit(bootFixture(1:3, 1:3, "known"), lsqvce.Options(Estimate="none", Backend="normal", Verbose=false));
+    R = lsqvce.engine.fitDeclaration(bootFixture(1:3, 1:3, "known"), lsqvce.Options(Estimate="none", Backend="normal", Verbose=false));
     out = lsqvce.solveContributions(R.contributions(), ones(1, 3), 'Locals', true);
     % tol: 1e-8 relative -- the normal equations' own precision at cond(N) ~ 1e3
     tc.verifyEqual(out.x, R.x, 'RelTol', 1e-8);
@@ -3022,16 +3022,16 @@ function testContributionsRefuseWhatTheyCannotRepresent(tc)
     s.localParams = [{'arc', 'ic'}; {'day', 'bias'}; {'system', 'scale'}];
     s.arcs = 2;
     data.systems = s;
-    Rs = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    Rs = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false));
     tc.verifyError(@() Rs.contributions(), 'lsqvce:accum:localsCoupleDays');
     rs = RandStream('mt19937ar', 'Seed', 5);
     t  = linspace(0, 1, 40).';
     lobs = exp(0.7*t) - 0.2 + 1e-3*randn(rs, 40, 1);
     bf = @(k, x) deal([t.*exp(x(1)*t), ones(40, 1)], lobs - (exp(x(1)*t) + x(2)), []);
-    Rg = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.5; 0]), ...
+    Rg = lsqvce.engine.fitDeclaration(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.5; 0]), ...
                     lsqvce.Options(MaxPasses=15, Tolerance=1e-9, Verbose=false));
     tc.verifyError(@() Rg.contributions(), 'lsqvce:Results:contributionsNonlinear');
-    R = lsqvce.fit(bootFixture(1:3, 1:3, "known"), lsqvce.Options(Estimate="none", Verbose=false));
+    R = lsqvce.engine.fitDeclaration(bootFixture(1:3, 1:3, "known"), lsqvce.Options(Estimate="none", Verbose=false));
     s2 = R.sol;  s2.dof = s2.dof + 5;
     R2 = lsqvce.Results(s2, R.diag, R.acc, [], R.batchFcn, R.nBatch, R.systems, R.meta);
     tc.verifyError(@() R2.contributions(), 'lsqvce:Results:contributionsInconsistent');
@@ -3048,8 +3048,8 @@ function testContributionsCostIsIndependentOfTheSamples(tc)
     % The issue's third acceptance: a replicate's cost does not depend on the
     % number of samples per day -- every contribution is (nc + 1) rows wide
     % and at most nc + 1 high, whatever the day held.
-    Ca = lsqvce.fit(bootFixture(1:3, 1:3, "known", 64), lsqvce.Options(Estimate="none", Verbose=false)).contributions();
-    Cb = lsqvce.fit(bootFixture(1:3, 1:3, "known", 512), lsqvce.Options(Estimate="none", Verbose=false)).contributions();
+    Ca = lsqvce.engine.fitDeclaration(bootFixture(1:3, 1:3, "known", 64), lsqvce.Options(Estimate="none", Verbose=false)).contributions();
+    Cb = lsqvce.engine.fitDeclaration(bootFixture(1:3, 1:3, "known", 512), lsqvce.Options(Estimate="none", Verbose=false)).contributions();
     sz = @(C) arrayfun(@(it) numel(it.red.Rows), C.items);
     tc.verifyLessThanOrEqual(max(sz(Cb)), (Cb.nc + 1)^2, 'a contribution is at most (nc+1)^2 numbers');
     tc.verifyEqual(sz(Cb), sz(Ca), 'the same size at 8 x the samples per day');

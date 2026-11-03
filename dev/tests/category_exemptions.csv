@@ -226,6 +226,7 @@ Results,vectorisation,the user surface loops over nothing data-sized
 Results,speed,the fit-level solve budget in test_speedBudget is the user-surface budget
 Results,metamorphic,the fit-level invariances in test_metamorphic are the user-surface ones (fit named there); Options/Results/report transport them
 fit,vectorisation,the user surface loops over nothing data-sized
+engine.fitDeclaration,vectorisation,no data-sized loop of its own -- it dispatches to the accumulators and drivers
 report,precision,argued in M7: precision does not apply to a user unit of this kind
 report,reference,argued in M7: reference does not apply to a user unit of this kind
 report,robustness,argued in M7: robustness does not apply to a user unit of this kind
@@ -239,6 +240,11 @@ engine.declaration,vectorisation,no data-sized loop -- one pass over the declara
 engine.declaration,metamorphic,the order-freedom of the declaration (test_fit testDeclarationIsOrderFree) is the invariance that applies; asserted through fit
 layout,speed,O(nc + nl) bookkeeping over the plans; no data-sized work
 layout,vectorisation,no data loop -- a table of (row, day, arc) per column
+layout,metamorphic,a wrapper of task.layout() over engine.layoutDeclaration -- the invariances of the columns are that unit's
+layout,precision,no arithmetic -- integers from the plans (engine.layoutDeclaration)
+layout,reference,the columns are pinned against hand-counted layouts on engine.layoutDeclaration (test_fit) and the names in test_taskDefinition
+engine.layoutDeclaration,speed,O(nc + nl) bookkeeping over the plans; no data-sized work
+engine.layoutDeclaration,vectorisation,no data loop -- a table of (row, day, arc) per column
 engine.localColumns,reference,no closed form -- bookkeeping
 engine.localColumns,robustness,its input is the loader's own plan; no external edge regime
 engine.localColumns,vectorisation,O(nl) bookkeeping, no data-sized loop

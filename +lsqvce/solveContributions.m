@@ -46,7 +46,7 @@ function out = solveContributions(C, c, opt)
 %                 local indices), .y, .Cyy; [] otherwise
 %
 %   EXAMPLE
-%     R = lsqvce.fit(data, opts);
+%     R = lsqvce.fit(task, opts);
 %     C = R.contributions();                       % one data pass
 %     D = numel(C.days);  B = 100;  X = zeros(numel(R.x), B);
 %     for b = 1:B
@@ -81,6 +81,9 @@ function out = solveContributions(C, c, opt)
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: the examples fit a
+%   lsqvce.TaskDefinition (lsqvce.fit takes no struct since 7.0.0). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-10-19 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5.5 -- WP-158 (issue #183).
 

@@ -128,6 +128,7 @@ uses. `row` is the position of a name in `addCommon` / `addLocal` order.
 | `lsqvce:TaskDefinition:badArcs` | `declaration` | some streams of a system have a schedule and others none |
 | `lsqvce:TaskDefinition:incomplete` | `declaration` | no common parameter, no system, a system without a stream, or no calendar |
 | `MATLAB:validators:*` | every call | a value of the wrong kind (a `Scope` that does not exist, a negative `Sigma`, …) |
+| `lsqvce:fit:structDeclaration`, `lsqvce:layout:structDeclaration`, `lsqvce:Results:structDeclaration` | `fit`, `layout`, `R.toTable` | a `data` struct where a task belongs (since 7.0.0; the struct is the engine tier's, chapter *The compiled declaration*) |
 
 The checks the engines make on the compiled struct (chapter *The compiled declaration*)
 still run when `fit` starts; they carry `lsqvce:fit:` identifiers.

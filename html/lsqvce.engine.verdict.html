@@ -76,12 +76,15 @@ METHODS (static)
       confidence ellipse of a parameter pair
 Each method&#x27;s own help: help lsqvce.engine.verdict.&lt;method&gt;.</pre>
 <h3>Example</h3>
-<pre class="example">    R = lsqvce.fit(data, Verbose=false);          % R.diag is the verdict
+<pre class="example">    R = lsqvce.fit(task, Verbose=false);          % R.diag is the verdict
     [D, dsol, src, nB] = lsqvce.engine.verdict.fromAccumulator(R.acc, R.sol, &#x27;Test&#x27;, &quot;mad&quot;);
     S = lsqvce.engine.verdict.systematic(D);      % what R.systematic() runs
 
 See also LSQVCE.RESULTS, LSQVCE.REPORT, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.KERNEL.STAT
 
+Updated 2026-11-03 (CET, UTC+01:00), WP-162: the examples fit a
+lsqvce.TaskDefinition (lsqvce.fit takes no struct since 7.0.0). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-17 (CEST, UTC+02:00), WP-149: supersede, the refused v&#x27;Pv
 replaced by the verdict&#x27;s residual pass. With assistance from Claude
 (Anthropic), model Claude Opus 5.5.

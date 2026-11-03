@@ -4,11 +4,11 @@ classdef Options
 %   opts = lsqvce.Options()                       every default
 %   opts = lsqvce.Options(Name, Value, ...)       override some
 %   opts.Name = Value                             change one later (validated)
-%   R = lsqvce.fit(data, Name, Value, ...)        the same names, straight on fit
+%   R = lsqvce.fit(task, Name, Value, ...)        the same names, straight on fit
 %
 %   WHAT TO ESTIMATE, HOW TO RUN. Everything ABOUT A STREAM (its law, whether
 %   its law / level / arc factors are estimated) is declared on the stream
-%   (data.systems(k).covariance.<type>: type, sigma, estimate, arcFactors);
+%   (sys.addStream(name, Noise=..., Estimate=..., ArcFactors=...));
 %   this object holds only RUN policy: 12 knobs plus five typed groups.
 %
 %   TOP LEVEL
@@ -79,9 +79,9 @@ classdef Options
 %                                   .keys .scale .dx; Gauss-Newton: .vPv .dxRel
 %                                   .lambda), .acc (the LIVE accumulator: call
 %                                   lsqvce.engine.residuals(ctx.acc, ...) or any
-%                                   engine function inside the hook), .data (your
-%                                   declaration as passed to fit) and
-%                                   .processingOptions (per system, as declared).
+%                                   engine function inside the hook), .data (the
+%                                   compiled declaration, task.declaration()) and
+%                                   .processingOptions (every system's Settings).
 %                                   Plot, drawnow, save wherever you like; return
 %                                   nothing to continue, false to stop after this
 %                                   pass (stopReason "userStop"). A throwing hook
@@ -127,10 +127,10 @@ classdef Options
 %     GaussNewton  TolF 1e-10, Lambda0 1e-6     (x0 problems; MaxPasses / Tolerance
 %                  are the budget and the step tolerance)
 %
-%   REGULARISATION is not an option: it is DECLARED on the data, as
-%   pseudo-observations in the user's own columns -- data.priors(k) on the
-%   common parameters (L in the columns of A) and data.systems(k).priors(l) on
-%   the local ones (L in the columns of B), each with x0, sigma, from, group.
+%   REGULARISATION is not an option: it is DECLARED on the task, as
+%   pseudo-observations on named parameters -- task.addPrior on the common
+%   parameters (L in the columns of A) and sys.addPrior on a system's locals
+%   (L in the columns of B), each with On or L, Value, Sigma, From, Estimate.
 %
 %   METHODS
 %     engineArgs(target)   the Name-Value list a driver takes (validated)
@@ -156,13 +156,16 @@ classdef Options
 %   EXAMPLE
 %     opts = lsqvce.Options(Estimate="noise", Pool="obsType");
 %     opts.Noise.Grid = 2160;  opts.Parallel.Mode = "parfor";
-%     R = lsqvce.fit(data, opts);
+%     R = lsqvce.fit(task, opts);
 %     % Robust ~= "none" together with Estimate = "noise" runs the robust pass
 %     % inside the joint loop:
 %     opts.Robust = "huber";
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the API reference, RELEASE_NOTES.md
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: the examples fit a
+%   lsqvce.TaskDefinition (lsqvce.fit takes no struct since 7.0.0). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-157: Pool defaults to "stream" (it
 %   was "all", which put streams of different physics in one law -- measured:
 %   no gain from pooling identical spectra, eff 37-132 for different ones).

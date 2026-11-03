@@ -1,8 +1,22 @@
 # lsqvce release notes
 
-## Unreleased — level v7 (WP-160, WP-161: `lsqvce.TaskDefinition`)
+## 7.0.0 — 2026-11-03 (level v7, WP-160..162: `lsqvce.TaskDefinition`) — BREAKING
 
-No estimate changes. A new way to declare a task, compiled to the declaration of 6.35.1:
+**BREAKING.** The declaration of the user tier is a `lsqvce.TaskDefinition`. `lsqvce.fit`,
+`lsqvce.layout` and `R.toTable` take a task and refuse a `data` struct by name
+(`lsqvce:fit:structDeclaration`, `lsqvce:layout:structDeclaration`,
+`lsqvce:Results:structDeclaration`); the table below maps every v6 field to its call. The
+struct is the engine tier's: `lsqvce.engine.fitDeclaration(data, opts)` (the body of v6's
+`fit`), `lsqvce.engine.layoutDeclaration(data)`, and the hidden `R.declarationTables(data)`
+(v6's `R.toTable(data)`). The example loaders return `[cfg, task]`, `template/gravfire_data`
+the task, `template/kbr_variational` `[task, kit]` (WP-162).
+
+`template/gravfire_data`: a position stream declares level 1, because `iSpp` is the absolute
+per-epoch accuracy and travels as `Sigma`; the bundle's `sqrt(variance)` on top counted the
+level twice in an `Estimate = "none"` solve (the relative weight of positions against KBR).
+Under `Estimate = "noise"` the levels are estimated and nothing changes.
+
+No other estimate changes. A new way to declare a task, compiled to the declaration of 6.35.1:
 
 - `lsqvce.TaskDefinition` with flat calls and name-value arguments: `addCommon`, `addSystem`,
   `addPrior`; a system's `addLocal`, `addStream`, `addPrior`. Every call is validated on the
@@ -14,8 +28,7 @@ No estimate changes. A new way to declare a task, compiled to the declaration of
 - `lsqvce.Noise.white / arma / psd / acf / var / custom` replace the covariance structs; what
   is estimated about a stream is set on `addStream` (`Estimate`, `ArcFactors`).
 - `TaskDefinition.fromMatrices` and `fromBatches` for in-memory tasks.
-- A fit of a task equals the fit of the equivalent struct bitwise. The struct stays accepted
-  until the level closes with 7.0.0.
+- A fit of a task equals the fit of the equivalent struct bitwise.
 - WP-161: the examples, templates, the Manual, the API reference, the README and the
   landing page declare tasks; `R.toTable(task)` returns one table of every parameter
   instance (`System`, `Name`, `Scope`, `Day`, `Arc`, `Estimate`, `Std`). The struct is the

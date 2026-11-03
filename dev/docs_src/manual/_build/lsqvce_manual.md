@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.35.1 — User Manual"
+title: "lsqvce 7.0.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -1988,8 +1988,8 @@ Not every file in `examples/` is a demonstration. Three of them are
 
 | Helper | Called by | Returns |
 |---|---|---|
-| `demo_grace_dataLoader` | `demo_grace`, `demo_messaging` | `[cfg, data, task]`: a GRACE-FO-shaped task with a random design (`data` is its compiled declaration, for the engine-tier tests) |
-| `demo_gravity_dataLoader` | `demo_gravity`, `demo_fit` | `[cfg, data, task]`: a gravity task with a physical design and planted truth (`data` as above) |
+| `demo_grace_dataLoader` | `demo_grace`, `demo_messaging` | `[cfg, task]`: a GRACE-FO-shaped task with a random design |
+| `demo_gravity_dataLoader` | `demo_gravity`, `demo_fit` | `[cfg, task]`: a gravity task with a physical design and planted truth |
 | `demo_gravity_design` | `demo_gravity_dataLoader` | `[A, meta]`: spherical-harmonic potential partials along an orbit |
 
 Each helper also runs on its own and returns a ready task that you can pass to
@@ -2427,7 +2427,7 @@ your own task and its `Build` functions.
 ```matlab
 R = demo_grace();                                  % maxPasses 10, verbose true
 R = demo_grace('maxPasses', 8, 'verbose', false);
-[cfg, ~, task] = demo_grace_dataLoader();          % the task alone
+[cfg, task] = demo_grace_dataLoader();             % the task alone
 ```
 
 **Outline.** `demo_grace` holds the run and the reading.
@@ -2518,7 +2518,7 @@ An `ExportDir` that does not exist is an error. The help states a cost of about 
 - `demo_gravity` runs the problem and reads it. Its local functions are
   `section`, `streamType`, `degreeVariances`, `plotDegreeVariances`,
   `plotCoefficientErrors` and `exportIf`.
-- `demo_gravity_dataLoader()` returns `[cfg, data, task]`. Its local functions
+- `demo_gravity_dataLoader()` returns `[cfg, task]`. Its local functions
   are `gravityTask`, `gravityCfg`, one `Build` per stream (`buildPotC`, `buildPotD`,
   `buildKbr`, all calling `gravityArcs`) and `arcOrbit`.
 - `demo_gravity_design(nmax, orbit)` returns `[A, meta]`. `A` has
@@ -2622,8 +2622,7 @@ name-value options are:
 - `'DryRun'`: deterministic random `A` and `B`, seeded per day and
   observation type.
 
-`[task, data] = gravfire_data(...)` returns the `lsqvce.TaskDefinition` and, second,
-its compiled declaration (`task.declaration()`) for engine-tier work. The task has the
+`task = gravfire_data(...)` returns the `lsqvce.TaskDefinition`. It has the
 calendar of `myOptions.days`, one common per Stokes row named `type_degree_order`
 (`c_2_0`, `s_2_1`, …) with the 14 GRAVFIRE columns as `Info`, and one system `"GRACE"`
 (`Id=1`, the bundle options as `Settings`) with one day's local templates as
@@ -2635,7 +2634,9 @@ The comments are numbered as steps (the steps of `dev/GRAVFIRE_INTERFACE.md`):
 1. Name the common rows uniquely and add them with their 14 columns as `Info`.
 2. Take the calendar from `myOptions.days`.
 3. Name the streams: `posA`/`posB` for `kinematicPosition`, `kbr`
-   for `range-rate`. Each gets `lsqvce.Noise.white(sqrt(variance(g)))`.
+   for `range-rate`. The positions get `lsqvce.Noise.white(1)`, because their absolute
+   per-epoch accuracy `iSpp` travels as `Sigma`; `kbr` gets
+   `lsqvce.Noise.white(sqrt(variance(g)))`.
 4. Take one day's rows of the expanded local table as `"day"`-scoped
    templates, with times in seconds of the day.
 5. (No arc schedule.)
@@ -2729,7 +2730,7 @@ The other fields default as follows:
 | `background` | no other forces |
 | `maxAccGap` | 10 s |
 
-**Outputs.** `[task, kit, data] = kbr_variational(cfg)`. The `task` has:
+**Outputs.** `[task, kit] = kbr_variational(cfg)`. The `task` has:
 
 - the commons `C_n_m` and `S_n_m`, each with its unit (1e-10) as `Info`;
 - the calendar `cfg.days`;
@@ -2741,8 +2742,7 @@ The other fields default as follows:
     and one stream per entry of `cfg.obsTypes`, each with the `Build` `buildKbrDay`.
 
 Every parameter carries a declared unit as `Info`, so the physical value is
-`unit .* estimate`. Position streams carry their sigmas in each arc's `Sigma`. `data` is
-the compiled declaration (`task.declaration()`), for engine-tier work.
+`unit .* estimate`. Position streams carry their sigmas in each arc's `Sigma`.
 
 `kit` exposes the physics as function handles:
 
@@ -2959,6 +2959,7 @@ last part (`localPlan`, say), with the original attached as the cause.
 | identifier | usual cause | fix |
 |---|---|---|
 | `MATLAB:validators:*` | a setting of the wrong kind: `Scope="arcs"`, `Estimate="all"`, a negative `Sigma` | the message names the setting and its allowed values |
+| `lsqvce:fit:structDeclaration`, `lsqvce:layout:structDeclaration`, `lsqvce:Results:structDeclaration` | a v6 `data` struct passed to `fit`, `layout` or `R.toTable` (since 7.0.0 they take a task) | declare a `lsqvce.TaskDefinition`: the migration table in `RELEASE_NOTES.md` maps every field to its call |
 | `lsqvce:TaskDefinition:duplicateName` | a name used twice: two commons, two locals of a system, a local named like a common, two systems, streams or priors | every name is unique where it lives |
 | `lsqvce:TaskDefinition:badName` | a stream name that is not a MATLAB identifier (`"pos C"`) | letters, digits and underscores, starting with a letter |
 | `lsqvce:TaskDefinition:badValid` | `Valid` not `[start end]` with start ≤ end | fractional MJD, or `[]` for always |

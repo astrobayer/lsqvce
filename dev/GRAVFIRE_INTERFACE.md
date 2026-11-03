@@ -2,9 +2,10 @@
 
 *WP-161, 2026-11-02: rewritten for `lsqvce.TaskDefinition` (level v7). The declaration is a
 task filled by add-calls; each stream's `Build` is `out = f(day, ctx)` and adds one arc per
-piece; the `DesignFcn` is `[A, B] = f(o, day, ctx)`; `gravfire_data` returns `[task, data]`.
-Updated 2026-11-02 (CET, UTC+01:00) with assistance from Claude (Anthropic), model Claude
-Opus 5.5.*
+piece; the `DesignFcn` is `[A, B] = f(o, day, ctx)`. Updated 2026-11-02 (CET, UTC+01:00)
+with assistance from Claude (Anthropic), model Claude Opus 5.5. WP-162, 2026-11-03:
+`gravfire_data` returns the task only, and a position stream declares level 1 because
+`iSpp` is absolute (user decision); same assistance and model.*
 
 *R5 M0 close-out, 2026-09-02. Companion of `template/gravfire_data.m`, which implements
 every step below. Read this guide with that file open; the STEP numbers match its comments.
@@ -40,13 +41,13 @@ and enforces them against every day it reads. You never type a count. `disp(task
 declaration; `task.layout()` names every column of A and B.
 
 ```matlab
-[task, data] = gravfire_data(commonData, myOptions, systemsData, 'DesignFcn', @gravfireDesign);
+task = gravfire_data(commonData, myOptions, systemsData, 'DesignFcn', @gravfireDesign);
 ```
 
 `data = task.declaration()` is the compiled engine-tier struct (`commonParams`, `days`,
 `priors`, `systems`), for engine-tier work and for inspecting the compiled tables;
-`fit(task)` and `fit(data)` are the same fit. That struct is documented in
-`dev/docs_src/api/07_engine_declaration.md`; nothing in this guide needs it.
+`lsqvce.fit(task)` and `lsqvce.engine.fitDeclaration(data)` are the same fit. That struct is
+documented in `dev/docs_src/api/07_engine_declaration.md`; nothing in this guide needs it.
 
 ---
 
@@ -98,10 +99,14 @@ template's `obsTypeOf` does:
 | 3 | GraceX / range-rate | `kbr` |
 
 (another quantity is `gravfire:unknownQuantity`), and declares the **starting** temporal law
-of each as white, with the level as a standard deviation (not the variance):
+of each as white, with the level as a standard deviation (not the variance). The positions
+carry their absolute accuracy per epoch in `iSpp` (STEP 9, as `Sigma`, which is RELATIVE to
+the law's level), so their level is 1; the range-rate has no per-epoch accuracy and takes its
+level from the bundle's variance:
 
 ```matlab
-Noise = lsqvce.Noise.white(sqrt(sd.variance(g)))    % posA, posB: 0.1 m; kbr: 1e-6 m/s
+Noise = lsqvce.Noise.white(1)                       % posA, posB: the accuracy is iSpp
+Noise = lsqvce.Noise.white(sqrt(sd.variance(g)))    % kbr: 1e-6 m/s
 ```
 
 The stream's `Estimate` is left at its default `"law"`: under `Options(Estimate="noise")` the
@@ -220,8 +225,11 @@ those become `sys.addPrior` in STEP 7 — the same mechanism and the same Koch-K
 sys = task.addSystem("GRACE", Settings=po, Id=1);
 sys.addLocal(string(T(:, 1)), Scope="day", Info=gravfireInfo(T));       % 72 templates
 for g = 1:G
-    sys.addStream(obsTypes{g}, Build=@buildGravfireDay, ...
-                  Noise=lsqvce.Noise.white(sqrt(sd.variance(g))));
+    level = sqrt(sd.variance(g));                                           % kbr
+    if strcmp(char(groups{g}.observationQuantity), 'kinematicPosition')
+        level = 1;                                                          % iSpp is absolute
+    end
+    sys.addStream(obsTypes{g}, Build=@buildGravfireDay, Noise=lsqvce.Noise.white(level));
 end
 ```
 
@@ -317,9 +325,11 @@ Cep = permute(reshape(iSpp.', 3, 3, []), [3 1 2]);       % nEpoch x 3 x 3, whole
 The toolbox composes C = D (R_t ⊗ I_3) D per arc: every epoch is de-scaled by its 3×3
 factor, then the temporal whitener runs down the epochs of each axis; under
 `Estimate="noise"` the estimator de-scales the residuals the same way before it forms the lag
-statistics. `Sigma` is relative to the law's `sigma`: the starting covariance of a position arc
-carries the declared level `sqrt(variance(g))` times the `iSpp` factor, and under
-`Estimate="noise"` the level is estimated. The KBR stream passes no `Sigma` when its epochs are
+statistics. `Sigma` is relative to the law's `sigma`: the position streams declare level 1, so
+the starting covariance of a position arc is `iSpp` itself (absolute, user decision
+2026-11-03; until WP-162 the template declared `sqrt(variance(g))` on top, which counted the
+level twice in an `Estimate="none"` solve), and under `Estimate="noise"` the level is
+estimated. The KBR stream passes no `Sigma` when its epochs are
 equally accurate — or `Sigma=sigmaPerEpoch` (nEpoch × 1, standard deviations, not variances)
 when they are not: a scalar stream's per-epoch accuracy travels the same way (this is also
 where a per-epoch weight from an earlier screening would go, instead of the `weights` of
@@ -423,7 +433,7 @@ S    = load('testdata.mat');
 task = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DryRun', true);
 R    = lsqvce.fit(task, lsqvce.Options(Verbose=1));        % pipeline check
 
-[task, data] = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DesignFcn', @gravfireDesign);
+task = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DesignFcn', @gravfireDesign);
 R    = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
            MaxPasses=7, Noise=struct('FreezeRedundancy', 100), ...
            OnPass=@(ctx) fprintf('pass %d: max|alpha2-1| = %.3g\n', ctx.pass, ctx.maxDev)));

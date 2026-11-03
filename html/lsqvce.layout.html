@@ -44,65 +44,64 @@ a { color: #0b5ea8; }
 <h1>lsqvce.layout</h1>
 <div class="purpose">The column layout fit will use -- so you can declare priors in it.</div>
 <h2>Description</h2>
-<pre class="example">lay = lsqvce.layout(data)
+<pre class="example">lay = lsqvce.layout(task)
 
-The toolbox derives from your parameter tables (scope tokens, calendar,
-arcs, validity) which column of A and of every system&#x27;s B belongs to
-which instantiated parameter. This function announces that layout BEFORE
-fit runs, so that data.priors(j).L (columns of A) and
-data.systems(k).priors(l).L (columns of B) can be written in it -- the
-only knowledge the user&#x27;s regularisation and the toolbox share.
+The toolbox derives from your task (scopes, calendar, arc schedules,
+validity) which column of A and of every system&#x27;s B belongs to which
+instantiated parameter. This function announces that layout BEFORE fit
+runs, so that a prior operator L (task.addPrior(..., L=...) in the columns
+of A, sys.addPrior(..., L=...) in the columns of B) can be written in it --
+the only knowledge your regularisation and the toolbox share. It is
+task.layout(), the method; both read the same plans fit builds.
 
-lay = lsqvce.layout(task)   a lsqvce.TaskDefinition: the same layout, plus
-                            .common(j).name, .systems(k).name and
-                            .systems(k).local(c).name (WP-160)
-
-INPUT   data  1x1 struct  a kind-A declaration (the API reference), or a
-                          1x1 lsqvce.TaskDefinition
+INPUT   task  1x1 lsqvce.TaskDefinition   a streaming task (the API
+                                           reference, chapter The task
+                                           definition)
 OUTPUT  lay   1x1 struct
   .nc            1x1        columns of A
-  .common        nc x 1 struct (.row .day)      the template row and (for &#x27;day&#x27; rows) the day of every column of A
-  .systems(k)    1x1 struct per system:
+  .common        nc x 1 struct (.name .row .day)   the name, the template
+                            row (its position in addCommon order) and (for
+                            &quot;day&quot; commons) the day of every column of A
+  .systems(k)    1x1 struct per system, in addSystem order:
+     .name       string     the system&#x27;s name
      .nl         1x1        columns of B
-     .local      nl x 1 struct (.row .day .arc) the template row / day / arc of every column of B
-     .col        @(row, day, arc) -&gt; column     lookup: the column of template row `row` on
-                                                `day` (and `arc` for &#x27;arc&#x27; rows; [] otherwise);
-                                                0 when that instance does not exist
-  .colCommon     @(row, day) -&gt; column          the same for A ([] day for &#x27;common&#x27; rows)
+     .local      nl x 1 struct (.name .row .day .arc)   the same for every
+                            column of B
+     .col        @(row, day, arc) -&gt; column     lookup: the column of
+                            template row `row` on `day` (and `arc` for
+                            &quot;arc&quot; locals; [] otherwise); 0 when that
+                            instance does not exist
+  .colCommon     @(row, day) -&gt; column          the same for A ([] day
+                            for &quot;common&quot; templates)
 
-EXAMPLE  (a Tikhonov prior on local row 7 of system 1, on every day)
-  lay = lsqvce.layout(data);
-  nl  = lay.systems(1).nl;  rows = zeros(0, nl);
-  for d = data.days
-      c = lay.systems(1).col(7, d, []);  r = zeros(1, nl);  r(c) = 1;  rows(end+1, :) = r;
-  end
-  data.systems(1).priors = struct(&#x27;L&#x27;, rows, &#x27;x0&#x27;, 0, &#x27;sigma&#x27;, 0.01, &#x27;name&#x27;, &#x27;xaccscale&#x27;, &#x27;estimate&#x27;, &quot;scale&quot;);</pre>
+EXAMPLE  (the mean of a &quot;day&quot; common over the calendar is zero)
+  lay = lsqvce.layout(task);
+  c   = find([lay.common.name] == &quot;offset&quot;);
+  L   = zeros(1, lay.nc);  L(c) = 1 / numel(c);
+  task.addPrior(&quot;offsetMean&quot;, L=L, Sigma=1e-3);</pre>
 <h3>Accuracy</h3>
-<pre class="example">  Not applicable: it counts and indexes columns -- integers from the
-  declaration&#x27;s plans, the very plans fit builds (declaration); no
-  floating-point result. test_fit pins the columns
-  (testLayoutOfASystemWithoutLocals,
-  testSystemWithoutDaysClaimsOnlyTheGlobalCalendar). WP-139.
+<pre class="example">Not applicable: it counts and indexes columns -- integers from the
+plans fit builds (LSQVCE.ENGINE.LAYOUTDECLARATION on the compiled
+declaration); no floating-point result. test_taskDefinition pins the
+names and columns.</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:layout:structDeclaration   a struct was passed: since 7.0.0 the
+                                    declaration is a lsqvce.TaskDefinition;
+                                    the struct&#x27;s layout is the engine tier&#x27;s,
+                                    LSQVCE.ENGINE.LAYOUTDECLARATION
+  MATLAB:validators:mustBeA         neither a struct nor a lsqvce.TaskDefinition
+  lsqvce:TaskDefinition:wrongKind   an in-memory task (fromMatrices,
+                                    fromBatches) has no layout to announce
+  lsqvce:TaskDefinition:incomplete  the task does not compile yet
 
-See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the API reference
+See also LSQVCE.TASKDEFINITION, LSQVCE.FIT, LSQVCE.RESULTS,
+         LSQVCE.ENGINE.LAYOUTDECLARATION
 
-Updated 2026-11-02 (CET, UTC+01:00), WP-160: a lsqvce.TaskDefinition
-is laid out with names. With assistance from Claude (Anthropic), model
-Claude Opus 5.5.
-Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
-accuracy, &quot;Not applicable&quot; with its reason. With assistance from Claude
-(Anthropic), model Claude Opus 5.5.
-Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 13): a
-system without localParams gets nl = 0 and an empty column table (it
-stopped on the loader&#x27;s empty plan). With assistance from Claude
-(Anthropic), model Claude Opus 5.5.
-Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
-(Anthropic), model Claude Fable 5.1 -- R5-D8 round 5.
-
-Updated 2026-10-12 (CEST, UTC+02:00), WP-124: development history taken
-out of the help text (it lives in RELEASE_NOTES.md and dev/HANDOVER.md);
-references point at the API reference. With assistance from Claude
-(Anthropic), model Claude Opus 5.5.</pre>
+Created 2026-11-03 (CET, UTC+01:00) with assistance from Claude (Anthropic),
+model Claude Opus 5.5 -- level v7, WP-162: the user tier of layout takes a
+lsqvce.TaskDefinition only; the layout of a struct is
+LSQVCE.ENGINE.LAYOUTDECLARATION, where the body of layout (2026-09-03,
+R5-D8 round 5, to 2026-11-02, WP-160) now lives.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

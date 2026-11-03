@@ -1,4 +1,4 @@
-# lsqvce v6.35.1 — least-squares adjustment with variance component estimation
+# lsqvce v7.0.0 — least-squares adjustment with variance component estimation
 
 Declare your problem as a `lsqvce.TaskDefinition`, `fit` it, and get a judged
 result: estimates with formal errors, per-observation diagnostics, and a

@@ -1,10 +1,9 @@
-function [task, kit, data] = kbr_variational(cfg)
+function [task, kit] = kbr_variational(cfg)
 %KBR_VARIATIONAL  GRACE-FO range-rates by the variational equations, declared as a lsqvce task.
 %
 %   SYNTAX
 %     task              = kbr_variational(cfg)
 %     [task, kit]       = kbr_variational(cfg)
-%     [task, kit, data] = kbr_variational(cfg)
 %
 %   DESCRIPTION
 %     A real-data template for a LSQVCE.TASKDEFINITION: the GRACE-FO Level-1B
@@ -112,10 +111,6 @@ function [task, kit, data] = kbr_variational(cfg)
 %           the system's Prepare and the streams' Build, f(day, ctx); the
 %           toolbox calls them with the LSQVCE.DAYCONTEXT it makes, so they are
 %           not called directly (WP-161; before, kit.buildDay took a procOpt)
-%     data  1x1 struct  task.declaration(), the engines' declaration struct the
-%           task compiles to (commonParams {scope, name} rows, days, systems(1))
-%           -- for engine-tier work and for inspecting the compiled tables;
-%           fit(task) and fit(data) are the same fit
 %
 %   ACCURACY (dev/validation/kbr_variational_mirror.py, the numerical twin)
 %     harmonics vs Legendre functions 7e-11; d/dx operators vs differences
@@ -172,6 +167,9 @@ function [task, kit, data] = kbr_variational(cfg)
 %            LSQVCE.DAYDATA, LSQVCE.NOISE, LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.LAYOUT,
 %            GRAVFIRE_DATA
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: returns [task, kit]; the compiled
+%   struct is task.declaration(). With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as a lsqvce.TaskDefinition
 %   (named commons and locals, units as Info, Prepare on the system, one Build per
 %   stream); the columns of B come from ctx.cols, no offset arithmetic; returns
@@ -277,9 +275,6 @@ end
                  'fieldEval', @fieldEval, 'propagate', @propagate, 'accModel', @accModel, ...
                  'eraRotation', @eraRotation, 'readGfc', @readGfc, 'readL1B', @readL1B, ...
                  'prepareDay', @prepareKbrDay, 'buildDay', @buildKbrDay, 'field', F);
-    if nargout > 2
-        data = task.declaration();
-    end
 end
 
 % ==========================================================================

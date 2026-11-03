@@ -77,7 +77,7 @@ function measureLevel(nSeed)
             opt = lsqvce.Options('Estimate', "noise", 'Pool', "stream", 'MaxPasses', 16, ...
                                  'Verbose', false, 'Robust', runs{r, 2});
             try
-                tic;  R = lsqvce.fit(data, opt);  secs(s, r) = toc;
+                tic;  R = lsqvce.engine.fitDeclaration(data, opt);  secs(s, r) = toc;
             catch err
                 fprintf('seed %d run %s/%s FAILED: %s (%s)\n', s, runs{r, 1}, runs{r, 2}, ...
                         err.message, err.identifier);

@@ -27,6 +27,8 @@
       <tocitem target="html/lsqvce.engine.adjustNonlinear.html">lsqvce.engine.adjustNonlinear</tocitem>
       <tocitem target="html/lsqvce.engine.batchSystem.html">lsqvce.engine.batchSystem</tocitem>
       <tocitem target="html/lsqvce.engine.declaration.html">lsqvce.engine.declaration</tocitem>
+      <tocitem target="html/lsqvce.engine.fitDeclaration.html">lsqvce.engine.fitDeclaration</tocitem>
+      <tocitem target="html/lsqvce.engine.layoutDeclaration.html">lsqvce.engine.layoutDeclaration</tocitem>
       <tocitem target="html/lsqvce.engine.localColumns.html">lsqvce.engine.localColumns</tocitem>
       <tocitem target="html/lsqvce.engine.makeLoader.html">lsqvce.engine.makeLoader</tocitem>
       <tocitem target="html/lsqvce.engine.synthLoader.html">lsqvce.engine.synthLoader</tocitem>

@@ -67,7 +67,7 @@ function measureLoop(phi, nArc, nSeed)
         % PART A: the shipped estimator
         try
             tic;
-            R = lsqvce.fit(fixture(A, l), lsqvce.Options('Estimate', "noise", 'Pool', "stream", ...
+            R = lsqvce.engine.fitDeclaration(fixture(A, l), lsqvce.Options('Estimate', "noise", 'Pool', "stream", ...
                                                          'MaxPasses', 10, 'Verbose', false));
             tA = toc;
             C = R.noise.Cgroups('x1|a');

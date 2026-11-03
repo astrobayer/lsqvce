@@ -110,7 +110,7 @@ function R = demo_grace(varargin)
     p.parse(varargin{:});
     o = p.Results;
 
-    [cfg, ~, task] = demo_grace_dataLoader();   % the declaration (this folder)
+    [cfg, task] = demo_grace_dataLoader();   % the declaration (this folder)
 
     fprintf(['\n=== VCE demo: GRACE-FO topology (+ independent sat E) ===\n' ...
              '    System 1: satellites C,D with a 3-D position stream each\n' ...
