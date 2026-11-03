@@ -2772,10 +2772,10 @@ function testDemoPriorsIsTheWorkedLayoutExample(tc)
     tc.verifyGreaterThan(s.priorLevel, 0, 'the prior group is a stream with a level');
 end
 
-function testDemoTutorialIsTheManualsTutorial(tc)
+function testDemoTutorialStreamingIsTheManualsTutorial(tc)
 % categories: contract, precision
-    % WP-159: examples/demo_tutorial.m is the Manual's chapter "Your first
-    % adjustment", line for line, and the ONE worked example of prepareDay
+    % WP-159: examples/demo_tutorialStreaming.m (demo_tutorial until WP-163) is
+    % the Manual's chapter "Tutorials", part 3, line for line, and the ONE worked example of prepareDay
     % outside template/kbr_variational. The chapter prints its figures, so
     % the claims of the demo's ACCURACY block are checked here: it must RUN,
     % the noise run must settle and pass, and the lesson must hold -- the
@@ -2784,7 +2784,7 @@ function testDemoTutorialIsTheManualsTutorial(tc)
     exDir = fullfile(here, '..', '..', 'examples');    % dev/tests -> root (L8)
     addpath(exDir);
     tc.addTeardown(@() rmpath(exDir));
-    out = evalc('[R, s] = demo_tutorial();');
+    out = evalc('[R, s] = demo_tutorialStreaming();');
     echoWarnings(out);   % WP-145: its warnings reach the gate
 
     tc.verifyClass(R, 'lsqvce.Results');
@@ -2800,6 +2800,72 @@ function testDemoTutorialIsTheManualsTutorial(tc)
     % (measured 1.6x; the bound is loose on purpose)
     tc.verifyGreaterThan(min(s.final.se ./ s.first.se), 1.3, ...
         'the estimated colour widens the formal errors of the declared run');
+end
+
+function testDemoTutorialMatrixIsTheManualsTutorial(tc)
+% categories: contract, precision, reference
+    % WP-163: examples/demo_tutorialMatrix.m is the Manual's chapter
+    % "Tutorials", part 1 (a levelling network, the matrix kind). The chapter
+    % prints its figures, so the claims of the demo's ACCURACY block are
+    % checked here against the planted heights and the network's own counts.
+    here  = fileparts(mfilename('fullpath'));
+    exDir = fullfile(here, '..', '..', 'examples');
+    addpath(exDir);
+    tc.addTeardown(@() rmpath(exDir));
+    out = evalc('[R, s] = demo_tutorialMatrix();');
+    echoWarnings(out);   % WP-145: its warnings reach the gate
+
+    tc.verifyClass(R, 'lsqvce.Results');
+    % tol: 3 formal sigma -- six heights against the planted truth
+    tc.verifyLessThan(max(abs((s.x - s.truth) ./ s.se)), 3, 'the heights within 3 sigma');
+    % tol: the 99 % chi-square band of 9 degrees of freedom, as sigma0 = sqrt(chi2/9)
+    tc.verifyGreaterThan(s.sigma0, sqrt(2.088 / 9));
+    tc.verifyLessThan(s.sigma0, sqrt(21.67 / 9));
+    tc.verifyEqual(s.verdict, "PASS", 'the clean network passes');
+    % tol: 1e-10 -- sum of the redundancy numbers is n - u exactly (an identity)
+    tc.verifyEqual(s.rSum, 9, 'AbsTol', 1e-10, 'sum(r) = n - u');
+    b = s.blunder;
+    tc.verifyTrue(ismember(b.row, b.popeFlagged), 'the default test flags the blunder');
+    tc.verifyTrue(ismember(b.row, b.flagged), 'Baarda''s test flags the blunder');
+    tc.verifyEqual(b.worst, b.row, 'the worst |w| is the planted line');
+    tc.verifyEmpty(b.flaggedRemoved, 'nothing is flagged once it is removed');
+    tc.verifyLessThan(abs(b.sigma0Removed - 1), 0.6, 'sigma0 is back near 1');
+    tc.verifyLessThan(b.factor, 0.5, 'the robust estimator down-weights the blunder');
+    % tol: 1e-10 m -- the height differences are estimable functions, the same
+    % under any datum (rounding at 1e-13 measured)
+    tc.verifyLessThan(s.free.dhGap, 1e-10, 'the free network has the same height differences');
+    tc.verifyLessThan(abs(s.free.datumSum), 1e-10, 'the datum prior holds');
+    tc.verifyEqual(s.free.refusal, "lsqvce:qr:singularR", 'without a datum fit refuses by name');
+end
+
+function testDemoTutorialBatchIsTheManualsTutorial(tc)
+% categories: contract, precision, reference
+    % WP-163: examples/demo_tutorialBatch.m is the Manual's chapter
+    % "Tutorials", part 2 (the batched kind, linear and nonlinear). Its claims:
+    % the batches change nothing (against the matrix kind), the declared AR(1)
+    % weights widen the formal errors by the factor theory gives, and
+    % Gauss-Newton converges to the planted relaxation.
+    here  = fileparts(mfilename('fullpath'));
+    exDir = fullfile(here, '..', '..', 'examples');
+    addpath(exDir);
+    tc.addTeardown(@() rmpath(exDir));
+    out = evalc('[R, s] = demo_tutorialBatch();');
+    echoWarnings(out);   % WP-145: its warnings reach the gate
+
+    tc.verifyClass(R, 'lsqvce.Results');
+    % tol: 1e-10 relative -- the same rows in 120 batches and in one matrix
+    % (measured 1.2e-15)
+    tc.verifyLessThan(s.matrixGap, 1e-10, 'batching changes nothing');
+    % tol: 4 sigma of the AR(1) run -- six parameters of an honest model
+    tc.verifyLessThan(max(abs((s.full.x - s.truth) ./ s.full.se)), 4, 'within 4 honest sigma');
+    % tol: 0.1 -- sigma0 at 87 594 degrees of freedom
+    tc.verifyLessThan(abs(s.full.sigma0 - 1), 0.1, 'the AR(1) weights fit the noise');
+    % tol: 25 % relative -- the reference for AR(1) noise and slowly varying
+    % parameters, sqrt((1 + phi) / (1 - phi)) = 2 at phi = 0.6 (measured 2.00)
+    tc.verifyEqual(s.seRatio(2), 2, 'RelTol', 0.25, 'the trend''s se doubles');
+    nl = s.nonlinear;
+    tc.verifyEqual(nl.stopReason, "converged", 'Gauss-Newton converges');
+    tc.verifyLessThan(max(abs((nl.x - nl.truth) ./ nl.se)), 4, 'the relaxation within 4 sigma');
 end
 
 function testRobustJointSweepLeavesThePriorArcsOut(tc)

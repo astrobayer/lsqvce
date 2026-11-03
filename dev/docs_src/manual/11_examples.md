@@ -17,7 +17,9 @@ path by itself.
 
 | Question | Example | Kind of data |
 |---|---|---|
-| I am new: what does a complete streaming run look like, and where do `Prepare` and `Build` go? | `demo_tutorial` | streaming, one system, two streams |
+| I am new and my design matrix fits in memory: how do I fit it and read the result? | `demo_tutorialMatrix` | in-memory (a levelling network) |
+| I am new and my rows are too many for memory, correlated in blocks, or nonlinear? | `demo_tutorialBatch` | batched, linear and nonlinear |
+| I am new: what does a complete streaming run look like, and where do `Prepare` and `Build` go? | `demo_tutorialStreaming` | streaming, one system, two streams |
 | How do I wire my own data into a task and read the verdict? | `demo_workflow` (script) | batched; streaming recipe |
 | What do the three data kinds look like in one call each? | `demo_fit` | in-memory, batched, streaming |
 | What does the report say when an adjustment is wrong in a specific way? | `demo_lsqvce` (script) | in-memory, one streaming case |
@@ -34,7 +36,8 @@ path by itself.
 
 ## Suggested reading order
 
-0. **`demo_tutorial`**: the Manual's chapter *Your first adjustment*, as a file.
+0. **`demo_tutorialMatrix`**, **`demo_tutorialBatch`**, **`demo_tutorialStreaming`**: the
+   Manual's chapter *Tutorials*, one file per kind of task.
 1. **`demo_workflow`**, then **`demo_fit`**: the three constructors of a task, `lsqvce.Options`, and how to read `R.diag` and `R.report()`.
 2. **`demo_lsqvce`**: what the diagnostics say when something is wrong.
 3. **`demo_noisePolicy`**: the per-stream noise policy (`Estimate`,
@@ -91,7 +94,9 @@ demo_messaging()
 demo_noisePolicy()
 demo_priors()
 demo_sensors()
-demo_tutorial()
+demo_tutorialBatch()
+demo_tutorialMatrix()
+demo_tutorialStreaming()
 demo_workflow                         % script
 ```
 
@@ -103,14 +108,56 @@ and is not part of the run.
 
 ---
 
-## `demo_tutorial`: your first streaming run, with `Prepare` and `Build`
+## `demo_tutorialMatrix`: tutorial 1, a levelling network
 
 ```matlab
-[R, s] = demo_tutorial();
-[R, s] = demo_tutorial('verbose', true, 'plot', true);   % defaults: false, false
+[R, s] = demo_tutorialMatrix();
+[R, s] = demo_tutorialMatrix('verbose', true);   % prints the reports too (default false)
 ```
 
-The file of the chapter *Your first adjustment*, line for line. One system watches a
+The file of the chapter *Tutorials*, tutorial 1, step for step. Six new points and a
+benchmark are joined by 15 levelled height differences of 1 mm/√km; the heights are the
+six unknowns. The design matrix, the observed-minus-computed vector and the weights
+`1/σ²` go into `lsqvce.TaskDefinition.fromMatrices`. The steps: one fit (σ₀ 0.991,
+`PASS`); the reliability table (`R.reliability()`: redundancy numbers, w, MDB in units
+of each line's σ); a planted 20 mm blunder, flagged by the report and by Baarda's w-test
+(with its smearing onto neighbouring lines), removed one line at a time or down-weighted
+by `Robust="huber"`; a free network refused without a datum (`lsqvce:qr:singularR`) and
+solved with a datum prior, with the same height differences to 1.7e-13 m.
+
+`s` returns the truth, the estimates and errors, σ₀, the verdict, the redundancy sums,
+the blunder's flags and solutions, and the free network's figures. The test suite checks
+these claims (`test_fit`, `testDemoTutorialMatrixIsTheManualsTutorial`).
+
+## `demo_tutorialBatch`: tutorial 2, a long record in batches and a nonlinear model
+
+```matlab
+[R, s] = demo_tutorialBatch();
+[R, s] = demo_tutorialBatch('verbose', true);    % prints the reports too (default false)
+```
+
+The file of the chapter *Tutorials*, tutorial 2, step for step. Ten years of hourly sea
+level (87 600 rows, six unknowns) reach the toolbox month by month through a batch
+function `[A, l, p] = batchFcn(k)`; the batched solve equals the matrix kind on the same
+rows to 1.2e-15. The noise is AR(1) (φ 0.6): a batch that returns its full m × m weight
+matrix instead of a weight vector leaves the estimates and σ₀ (0.999) where they were and
+doubles the formal errors, as √((1 + φ)/(1 − φ)) says. Then a post-seismic relaxation
+`a(1 − exp(−t/τ)) + c` from daily positions: the batch function `[J, w, p] = f(k, x)`
+returns the Jacobian and `l − f(x)`, `X0` starts Gauss–Newton, which converges in 5
+iterations.
+
+`s` returns both weightings' estimates and errors, the batched-against-matrix gap, the
+error ratio and the nonlinear fit. The test suite checks these claims (`test_fit`,
+`testDemoTutorialBatchIsTheManualsTutorial`).
+
+## `demo_tutorialStreaming`: tutorial 3, a streaming run with `Prepare` and `Build`
+
+```matlab
+[R, s] = demo_tutorialStreaming();
+[R, s] = demo_tutorialStreaming('verbose', true, 'plot', true);   % defaults: false, false
+```
+
+The file of the chapter *Tutorials*, tutorial 3, line for line. One system watches a
 periodic signal with two instruments (`"gauge"`, white; `"radar"`, AR(1) but declared
 white) on two arcs a day for five days; every arc has an unknown offset, the `"arc"` local
 `bias`. The system's `Prepare` (`prepareTutorialDay`) computes the epochs and the signal
@@ -125,7 +172,7 @@ and the report's verdict is `PASS`.
 
 `s` returns the truth, both runs' estimates, standard errors and σ₀, each stream's final
 level relative to the declared one, and the verdict. The test suite checks these claims
-(`test_fit`, `testDemoTutorialIsTheManualsTutorial`).
+(`test_fit`, `testDemoTutorialStreamingIsTheManualsTutorial`).
 
 ## `demo_workflow`: build your own case
 
@@ -167,7 +214,7 @@ section (Ctrl+Enter).
 - *Section 3* is a recipe only, with no runnable code. It shows a streaming task with
   `addCommon`, one `addSystem` with a `Prepare`, scoped `addLocal` calls and one
   `addStream` per observation type with its `Build` and `Noise`, and points to
-  `demo_tutorial`, `demo_combine`, `demo_sensors` and `demo_grace`.
+  `demo_tutorialStreaming`, `demo_combine`, `demo_sensors` and `demo_grace`.
 - *Section 4* plants a second instrument group that is three times noisier
   than claimed. It declares the two groups as two streams `g1`, `g2` of one system
   `"groups"` on one day, with commons `x1` … `x8`. Each stream's `Build` (the local

@@ -1,4 +1,4 @@
-# lsqvce v7.0.0 — least-squares adjustment with variance component estimation
+# lsqvce v7.0.1 — least-squares adjustment with variance component estimation
 
 Declare your problem as a `lsqvce.TaskDefinition`, `fit` it, and get a judged
 result: estimates with formal errors, per-observation diagnostics, and a
@@ -98,7 +98,8 @@ v6 → v7 migration table (`data` struct → `TaskDefinition`) is in `RELEASE_NO
 **New here?** `doc lsqvce` opens the landing page (`html/index.html`). Three documents, each with one job:
 
 1. **The Manual** (`html/lsqvce_manual.html`, `lsqvce_manual.pdf`) — how to use the toolbox:
-   installation, the key concepts, a tutorial you can run (`examples/demo_tutorial.m`), the
+   installation, the key concepts, three tutorials you can run (`examples/demo_tutorialMatrix.m`,
+   `demo_tutorialBatch.m`, `demo_tutorialStreaming.m` -- one per kind of task), the
    workflow step by step, declaring your problem (the task, its systems and streams, and
    where `Prepare` and `Build` go), choosing the stochastic model, priors, reading the report,
    every example explained, and troubleshooting.
@@ -107,7 +108,7 @@ v6 → v7 migration table (`data` struct → `TaskDefinition`) is in `RELEASE_NO
    `Results`, every error identifier, and the compiled declaration the engines read.
 3. **The theory** (`lsqvce_theory.pdf`) — the mathematical framework.
 
-Then run `demo_tutorial` and read the Manual's chapter *Your first adjustment* beside it;
+Then run the tutorial of your kind of task and read the Manual's chapter *Tutorials* beside it;
 `examples/demo_workflow.m` walks the general path section by section. Copy the example
 closest to your problem.
 

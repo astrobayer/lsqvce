@@ -60,9 +60,9 @@ has these user-facing names:
 
 | your situation | where to start |
 |---|---|
-| a design matrix `A`, observations `l` and weights that fit in memory | chapter *Your first adjustment*, part 1: three lines |
-| a problem too large for memory, or a nonlinear model | chapter *The workflow, step by step*, step 1 (the *batched* kind) |
-| data that arrive per day and per arc, from several instruments, with nuisance parameters and correlated noise | chapters *Key concepts* and *Your first adjustment*, part 2 (the *streaming* kind) |
+| a design matrix `A`, observations `l` and weights that fit in memory | chapter *Tutorials*, tutorial 1 (the *matrix* kind) |
+| a problem too large for memory, weights correlated in blocks, or a nonlinear model | chapter *Tutorials*, tutorial 2 (the *batched* kind) |
+| data that arrive per day and per arc, from several instruments, with nuisance parameters and correlated noise | chapters *Key concepts* and *Tutorials*, tutorial 3 (the *streaming* kind) |
 
 ## The three documents
 
@@ -82,8 +82,8 @@ Every function also has its own page: `doc lsqvce.<name>` or `help lsqvce.<name>
 2. *Key concepts* — the vocabulary every later chapter uses: common and local
    parameters, systems, days, arcs, streams, and the two functions you write
    (a stream's `Build` and, optionally, a system's `Prepare`).
-3. *Your first adjustment* — a complete, runnable example
-   (`examples/demo_tutorial.m`). Run it, then change it.
+3. *Tutorials* — one runnable example per kind of task (`examples/demo_tutorialMatrix.m`,
+   `demo_tutorialBatch.m`, `demo_tutorialStreaming.m`). Run one, then change it.
 4. *The workflow, step by step* — the same path for your own data, with every decision
    explained.
 

@@ -45,13 +45,20 @@ function [R, s] = demo_tutorialBatch(varargin)
 %       .nonlinear  1x1 struct   step 5: .truth .x0 .x .se .passes .stopReason
 %
 %   ACCURACY
-%     Measured values are printed and pinned in dev/tests/test_examples.m
-%     (testTutorialBatchIsTheManualsTutorial): step 2 and step 4 estimates
-%     within 4 formal sigma of the truth (step 4's sigma), the batched solve
+%     Measured values are printed and pinned in dev/tests/test_fit.m
+%     (testDemoTutorialBatchIsTheManualsTutorial): step 4's estimates within
+%     4 of its formal sigma of the truth, the batched solve
 %     equal to the matrix kind to 1e-10 relative, step 4's sigma0 within 10 %
 %     of 1, the trend's se ratio near sqrt((1 + phi) / (1 - phi)) = 2 (within
 %     25 %), the nonlinear fit converged with its parameters within 4 formal
 %     sigma of the truth.
+%
+%     MEASURED 2026-11-03 (R2026a, v7.0.0, MATLAB MCP bridge): batched against
+%     one matrix 1.2e-15; sigma0 0.999 under both weightings, the se ratio 2.00
+%     for all six parameters; the trend 0.00313 +- 0.00002 (white) and
+%     +- 0.00005 (AR(1)) against the planted 0.0032 -- 3.5 against 1.4 of its
+%     formal sigma; Gauss-Newton converged in 5 iterations, tau 0.3416 +-
+%     0.0059 (planted 0.35).
 %
 %   ERRORS  none of its own; a batch function that returns rows of the wrong
 %           size is refused by the engines (lsqvce:batchSystem:*).

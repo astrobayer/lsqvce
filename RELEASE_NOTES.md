@@ -1,5 +1,21 @@
 # lsqvce release notes
 
+## 7.0.1 — 2026-11-03 (WP-163: one tutorial per kind of task)
+
+No estimate changes.
+
+- Three tutorials, each a runnable example and a part of the Manual's new chapter
+  *Tutorials* (it replaces *Your first adjustment*), checked by the test suite:
+  `demo_tutorialMatrix` (a levelling network: `fromMatrices`, the reliability table, a
+  blunder found by the report and by Baarda's w-test, removed or down-weighted, a free
+  network with a datum prior), `demo_tutorialBatch` (ten years of hourly sea level in 120
+  batches, equal to the matrix kind; AR(1) noise declared as a full weight matrix per batch,
+  which doubles the formal errors as theory says; a nonlinear relaxation model by
+  Gauss–Newton) and `demo_tutorialStreaming` (the streaming tutorial, renamed from
+  `demo_tutorial`).
+- `R.reliability`'s help says that `mdb` is in the whitened frame of `v`, in units of the
+  observation's own sigma; it said the observation's units.
+
 ## 7.0.0 — 2026-11-03 (level v7, WP-160..162: `lsqvce.TaskDefinition`) — BREAKING
 
 **BREAKING.** The declaration of the user tier is a `lsqvce.TaskDefinition`. `lsqvce.fit`,
@@ -69,7 +85,7 @@ No estimate changes.
   fixes). *The workflow, step by step* gains a step for `prepareDay` and a table of
   `buildDay`'s arguments; *Declaring your problem* gains a section on `prepareDay` and
   declares the GRACE-FO pair as ONE system, as its own text demands.
-- New example `examples/demo_tutorial.m`: the tutorial line for line, with a `prepareDay`
+- New example demo_tutorial (since 7.0.1 `examples/demo_tutorialStreaming.m`): the tutorial line for line, with a `prepareDay`
   shared by two streams. The suite runs it and checks its printed claims.
 - Documentation drift fixed: the README (six user names, 12 knobs, `Noise.Grid`, the
   covariance types, `Parallel.DistributeDays`, the gate); the help of `report` (its

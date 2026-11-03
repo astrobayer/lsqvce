@@ -21,11 +21,11 @@ function [R, s] = demo_tutorialMatrix(varargin)
 %     2. fits it: the estimates with their formal errors, sigma0, the verdict;
 %     3. reads the reliability of every observation (redundancy number r, the
 %        test statistic w, the minimal detectable bias);
-%     4. plants a gross error of 20 mm in one line: the default test (Pope's,
-%        which scales by the s0 the blunder inflates) misses it in a network this
-%        small; Baarda's w-test, right for weights known in absolute terms,
-%        flags it; the worst observation is removed and the network refitted;
-%        as an alternative, a robust estimator (Robust="huber") down-weights it;
+%     4. plants a gross error of 20 mm in one line: the report's test flags it;
+%        Baarda's w-test, right for weights known in absolute terms, flags it and
+%        the lines that share its points (a blunder smears into its neighbours);
+%        the worst observation alone is removed and the network refitted; as an
+%        alternative, a robust estimator (Robust="huber") down-weights it;
 %     5. drops the benchmark: the free network has a datum defect, fit refuses it
 %        by name, and a declared datum prior (task.addPrior) gives the
 %        minimum-constraint solution -- with the SAME height differences.
@@ -56,14 +56,21 @@ function [R, s] = demo_tutorialMatrix(varargin)
 %                                free heights minus the prior's value, m)
 %
 %   ACCURACY
-%     Measured values are printed and pinned in dev/tests/test_examples.m
-%     (testTutorialMatrixIsTheManualsTutorial): the estimates within 3 formal
+%     Measured values are printed and pinned in dev/tests/test_fit.m
+%     (testDemoTutorialMatrixIsTheManualsTutorial): the estimates within 3 formal
 %     sigma of the planted heights, sigma0 within the chi-square band of 9
-%     degrees of freedom, sum(r) = 9 to 1e-10, the planted blunder missed by
-%     the default test and flagged by Baarda's, the worst |w| in the planted
-%     line, nothing flagged after its removal, the robust weight factor of its
+%     degrees of freedom, sum(r) = 9 to 1e-10, the planted blunder flagged by
+%     both tests, the worst |w| in the planted line, nothing flagged and sigma0
+%     back within the band after its removal, the robust weight factor of its
 %     row below 0.5, the
 %     free network's height differences equal to the fixed network's to 1e-10 m.
+%
+%     MEASURED 2026-11-03 (R2026a, v7.0.0, MATLAB MCP bridge): sigma0 0.991,
+%     PASS, se 0.84 .. 1.05 mm; the weakest line r = 0.37, MDB 8.0 sigma = 8.3 mm;
+%     the 20 mm blunder: default test sigma0 3.87, flags line 7; Baarda flags
+%     lines 7 .. 10, worst |w| 11.3 in line 7; line 7 removed: sigma0 0.99,
+%     nothing flagged; huber weight factor 0.127; the free network's height
+%     differences equal the fixed ones to 1.7e-13 m.
 %
 %   ERRORS  none of its own. Without a datum, fit refuses the free network with
 %           the engines' identifier; the tutorial catches and prints it.
@@ -125,8 +132,8 @@ function [R, s] = demo_tutorialMatrix(varargin)
     taskBad = lsqvce.TaskDefinition.fromMatrices(A, lb, Weights=w);
     Rp = lsqvce.fit(taskBad);                          % the default test (Pope)
     Vp = Rp.report(Verbose=o.verbose);
-    % The weights are ABSOLUTE (1 mm / sqrt(km) is known): test with sigma0 = 1,
-    % Baarda's w-test, instead of the s0 the blunder itself inflates
+    % The weights are ABSOLUTE (1 mm / sqrt(km) is known): Baarda's w-test scales
+    % by the a-priori sigma0 = 1, not by the s0 the blunder itself inflates
     baarda = lsqvce.Options(Diagnostics=struct('Test', "baarda"));
     Rb = lsqvce.fit(taskBad, baarda);
     flagged = Rb.diag.flagIdx(:).';
