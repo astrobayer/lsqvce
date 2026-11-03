@@ -51,16 +51,16 @@ function setupOnce(tc)
     addpath(root);  addpath(fullfile(root, 'examples'));
     w = warning('off', 'lsqvce:adjustVCEjoint:notConverged');
     tc.addTeardown(@() warning(w));
-    [~, data] = demo_grace_dataLoader();
+    [~, data] = demo_grace_dataLoader();  data = data.declaration();   % WP-162: the compiled struct
     tc.TestData.data = data;
     % ONE shared run per model (the rebuild-per-test lesson of the old suite)
-    tc.TestData.Rv = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    tc.TestData.Rv = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     % the POOLED run (Pool "all", the default until WP-157) puts the demo's four
     % streams of different physics in one group, which WP-154's check reports
     % -- off for this run only (a class-wide mute silenced
     % testPoolGroupOfDifferentSpectraWarns too)
     wp = warning('off', 'lsqvce:adjustVCEjoint:poolNotWhite');
-    tc.TestData.Rp = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="all", ArcFactors=false, MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    tc.TestData.Rp = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="all", ArcFactors=false, MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     warning(wp);
 end
 
@@ -86,7 +86,7 @@ function testConvergenceTableReadsTheConvergedFlag(tc)
             data.systems(k).covariance.(f{1}).estimate = "none";
         end
     end
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4, ...
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4, ...
                      Noise=struct('Grid', 16), Seed=3, Verbose=false));
     tc.assumeTrue(R.converged, 'a model with nothing to estimate settles');
     T = R.convergence();
@@ -106,7 +106,7 @@ function testPriorFromTheLastPassIsScaledInTheClosingSolve(tc)
     nc = numel(tc.TestData.Rv.x);
     data.priors = struct('L', eye(nc), 'x0', zeros(nc, 1), 'sigma', 0.01, 'from', 2, ...
                          'name', 'late', 'estimate', "scale");
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=2, ...
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=2, ...
                      Noise=struct('Grid', 16), Seed=3, Verbose=false));
     tc.verifyEqual(R.history.nIter, 2);
     tc.verifyNotEqual(R.noise.priors(1).sigma, 0.01, 'the late group is scaled in the closing solve');
@@ -123,7 +123,7 @@ function testConvergenceErrorsWithoutHistory(tc)
 % categories: contract, robustness | tags: diagnostics
     rs = RandStream('mt19937ar', 'Seed', 2);
     A = randn(rs, 20, 2);  l = A*[1; 2] + 0.01*randn(rs, 20, 1);
-    R = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Verbose=false));
+    R = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), lsqvce.Options(Verbose=false));
     tc.verifyError(@() R.convergence(), 'lsqvce:Results:noHistory');
     tc.verifyError(@() R.summary(),     'lsqvce:Results:noHistory');
 end
@@ -183,7 +183,7 @@ function testPoolByObsTypeCoarsens(tc)
     % the three position streams (posC, posD, posE) are three types on the
     % demo, so 4 groups collapse to... the number of distinct types
     data = tc.TestData.data;
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="obsType", MaxPasses=2, Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="obsType", MaxPasses=2, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     types = unique(cellfun(@(s) extractAfter(s, '|'), R.history.streams, 'UniformOutput', false));
     tc.verifyEqual(sort(keys(R.noise.Cgroups)), sort(types));
 end
@@ -203,7 +203,7 @@ function testStreamModelCarriesOnlyItsOwnEstimatedLaw(tc)
     ots = fieldnames(data.systems(1).covariance);
     demoted = ots{1};
     data.systems(1).covariance.(demoted).estimate = "scale";
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=2, ...
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=2, ...
                      Noise=struct('Grid', 16), Seed=3, Verbose=false));
     kDem = find(strcmp(extractAfter(string(R.noise.stream), '|'), demoted), 1);
     tc.verifyNotEmpty(kDem, 'the demoted stream is still reported');
@@ -230,14 +230,14 @@ function testReportSaysWhetherTheStochasticModelSettled(tc)
     % so the verdict has to carry it. Three cases, because the interesting part
     % is what it must NOT say: a single solve has no loop and must stay silent.
     A = randn(200, 5);  xt = (1:5).';
-    R0 = lsqvce.fit(struct('A', A, 'l', A*xt + 0.1*randn(200, 1)), ...
+    R0 = lsqvce.engine.fitDeclaration(struct('A', A, 'l', A*xt + 0.1*randn(200, 1)), ...
                     lsqvce.Options(Verbose=false));
     V0 = R0.report('Verbose', false);
     tc.verifyEmpty(codesOf(V0, 'NOISE_'), 'a single solve says nothing about a loop it never ran');
 
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     data = tc.TestData.data;
-    Ru = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=1, ...
+    Ru = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=1, ...
                      Noise=struct('Grid', 16), Seed=3, Verbose=false));
     tc.assumeFalse(Ru.converged, 'the one-pass run is the unsettled case');
     Vu = Ru.report('Verbose', false);
@@ -263,7 +263,7 @@ function testVerboseZeroIsSilent(tc)
 % categories: contract, robustness | tags: diagnostics
     data = tc.TestData.data;
     o = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=1, Noise=struct('Grid', 16), Seed=3, Verbose=0);
-    out = evalc('lsqvce.fit(data, o);');
+    out = evalc('lsqvce.engine.fitDeclaration(data, o);');
     echoWarnings(out);   % WP-145: its warnings reach the gate
     tc.verifyEmpty(strtrim(out), 'Verbose 0 prints nothing');
 end
@@ -272,7 +272,7 @@ function testVerboseOnePrintsThePassRecord(tc)
 % categories: contract | tags: diagnostics
     data = tc.TestData.data;
     o = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=1, Noise=struct('Grid', 16), Seed=3, Verbose=1);
-    out = evalc('lsqvce.fit(data, o);');
+    out = evalc('lsqvce.engine.fitDeclaration(data, o);');
     echoWarnings(out);   % WP-145: its warnings reach the gate
     tc.verifyNotEmpty(strtrim(out), 'Verbose 1 prints the run''s progress');
 end
@@ -285,8 +285,8 @@ function testRecoversPlantedRelativeWeights(tc)
     % RELATIVE weights (a common factor is sigma0's). This is the oracle
     % that found the missing level estimate and the ignored psd level in
     % round 4b -- promoted to a counted reference point (R5 M7 item, early).
-    [cfg, data] = demo_gravity_dataLoader();
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=6, Seed=1, Verbose=false));
+    [cfg, data] = demo_gravity_dataLoader();  data = data.declaration();   % WP-162: the compiled struct
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=6, Seed=1, Verbose=false));
     got = cellfun(@(m) m.sigma, R.noise.model);
     want = cellfun(@(s) cfg.trueSigma.(extractAfter(s, '|')), R.noise.stream);
     gotR = got / got(1);  wantR = want / want(1);
@@ -321,13 +321,13 @@ function testCacheDaysCountsTheBuilds(tc)
     end
     n = 2;
     cnts = cellfun(@(s) s.counter, {data.systems.processingOptions}, 'UniformOutput', false);
-    lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=n, Noise=struct('Grid', 16), Seed=3, Verbose=false, CacheDays=1));
+    lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=n, Noise=struct('Grid', 16), Seed=3, Verbose=false, CacheDays=1));
     v1 = cell2mat(cellfun(@(c) cell2mat(values(c)), cnts, 'UniformOutput', false));
     tc.verifyEqual(unique(v1), 2*n + 2, ['CacheDays 1: accumulate + sweep per pass, + the ' ...
                    'solve under the returned model (R7-11), + diagnose''s one re-reading ' ...
                    'sweep (WP-86 part 1, WP-121); the source reads no data itself (part 2)']);
     for c = cnts, remove(c{1}, keys(c{1})); end
-    lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=n, Noise=struct('Grid', 16), Seed=3, Verbose=false, CacheDays=Inf));
+    lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=n, Noise=struct('Grid', 16), Seed=3, Verbose=false, CacheDays=Inf));
     vInf = cell2mat(cellfun(@(c) cell2mat(values(c)), cnts, 'UniformOutput', false));
     tc.verifyEqual(unique(vInf), 1, 'CacheDays Inf: every day is built once per run');
 end
@@ -380,7 +380,7 @@ function testPlotRefusesWhatTheResultsLacks(tc)
 % categories: contract, robustness | tags: diagnostics
     rs = RandStream('mt19937ar', 'Seed', 2);
     A = randn(rs, 20, 2);  l = A*[1; 2] + 0.01*randn(rs, 20, 1);
-    R = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Verbose=false));
+    R = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), lsqvce.Options(Verbose=false));
     tc.verifyError(@() R.plot("psd", Visible=false), 'lsqvce:Results:noHistory');
     tc.verifyError(@() R.plot("convergence", Visible=false), 'lsqvce:Results:noHistory');
     fh = R.plot("residuals", Visible=false);            % a single solve has residuals
@@ -397,7 +397,7 @@ function testOnPassFiresEveryPassWithTheContext(tc)
     data = tc.TestData.data;
     seen = containers.Map('KeyType', 'double', 'ValueType', 'any');
     hook = @(ctx) recordPass(seen, ctx);
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
                      MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false, OnPass=hook));
     tc.verifyEqual(double(seen.Count), 3, 'one call per pass');
     c = seen(2);
@@ -420,7 +420,7 @@ function testOnPassCanStopTheLoop(tc)
 % categories: contract, robustness | tags: diagnostics
     data = tc.TestData.data;
     stopAt2 = @(ctx) ctx.pass < 2;                % false after the second pass
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
                      MaxPasses=6, Noise=struct('Grid', 16), Seed=3, Verbose=false, OnPass=stopAt2));
     tc.verifyEqual(R.history.nIter, 2);
     tc.verifyEqual(R.stopReason, "userStop");
@@ -430,7 +430,7 @@ function testOnPassCanStopTheLoop(tc)
     rs = RandStream('mt19937ar', 'Seed', 6);
     A = randn(rs, 40, 3);  l = A*[1; -2; 0.5] + 0.01*randn(rs, 40, 1);  l(5) = l(5) + 10;
     seen = containers.Map('KeyType', 'double', 'ValueType', 'any');
-    Rr = lsqvce.fit(struct('A', A, 'l', l), Robust="huber", Verbose=false, OnPass=@(ctx) recordPass(seen, ctx));
+    Rr = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), Robust="huber", Verbose=false, OnPass=@(ctx) recordPass(seen, ctx));
     tc.verifyEqual(double(seen.Count), numel(Rr.history), 'IRLS: one call per pass');
     tc.verifyEqual(seen(1).driver, 'adjustRobust');
     tc.verifyTrue(isfield(seen(1), 'factor') && isfield(seen(1), 'data'));
@@ -438,13 +438,13 @@ function testOnPassCanStopTheLoop(tc)
     seen2 = containers.Map('KeyType', 'double', 'ValueType', 'any');
     t = linspace(0, 1, 30).';  lobs = exp(0.7*t) - 0.2 + 1e-3*randn(rs, 30, 1);
     bf = @(k, x) deal([t.*exp(x(1)*t), ones(30, 1)], lobs - (exp(x(1)*t) + x(2)), []);
-    Rn = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.5; 0]), Verbose=false, ...
+    Rn = lsqvce.engine.fitDeclaration(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.5; 0]), Verbose=false, ...
                     OnPass=@(ctx) recordPass(seen2, ctx));
     tc.verifyEqual(double(seen2.Count), numel(Rn.history), 'Gauss-Newton: one call per pass');
     tc.verifyEqual(seen2(1).driver, 'adjustNonlinear');
     % a throwing hook is not swallowed: it arrives with the cause
     try
-        lsqvce.fit(data, lsqvce.Options(Estimate="noise", MaxPasses=2, Noise=struct('Grid', 16), ...
+        lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", MaxPasses=2, Noise=struct('Grid', 16), ...
                    Seed=3, Verbose=false, OnPass=@(ctx) error('mine:hook', 'plot failed')));
         tc.verifyFail('must throw');
     catch ME
@@ -468,10 +468,10 @@ function testPriorScaleReachesTheHelmertFixedPoint(tc)
     % redundancy, Omega_k = r_k. Fixture: the demo declaration with a plain
     % damping prior on all common parameters, started at a WRONG sigma.
     data = tc.TestData.data;
-    R0 = lsqvce.fit(data, Verbose=false);
+    R0 = lsqvce.engine.fitDeclaration(data, Verbose=false);
     nc = numel(R0.x);
     data.priors = struct('L', eye(nc), 'x0', zeros(nc, 1), 'sigma', 0.01, 'name', 'damping', 'estimate', "scale");
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
                      MaxPasses=8, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     tc.verifyTrue(isfield(R.noise, 'priors') && numel(R.noise.priors) == 1);
     g = R.noise.priors(1);
@@ -485,12 +485,12 @@ function testPriorScaleReachesTheHelmertFixedPoint(tc)
     tc.verifyTrue(last.updated);
     % estimate "none": the sigma stays where it was declared
     data.priors.estimate = "none";
-    Rn = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+    Rn = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
                       MaxPasses=2, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     tc.verifyEqual(Rn.noise.priors(1).sigma, 0.01);
     % the policy is validated by name
     data.priors.estimate = "law";
-    tc.verifyError(@() lsqvce.fit(data, Verbose=false), 'lsqvce:fit:badPrior');
+    tc.verifyError(@() lsqvce.engine.fitDeclaration(data, Verbose=false), 'lsqvce:fit:badPrior');
 end
 
 %% ------------------------------------------------ compare (M7 7c): ftest onto Results
@@ -511,14 +511,14 @@ function testCompareRefusesEstimatedWeights(tc)
                           'covariance', struct('s', struct('type', 'diag', 'sigma', 1, 'estimate', "scale")), ...
                           'arcs', 1, 'id', 1, 'name', 's'));
     o = lsqvce.Options(Estimate="noise", Verbose=0);
-    Rf = lsqvce.fit(mk(Af), o);  Rr = lsqvce.fit(mk(Ar), o);
+    Rf = lsqvce.engine.fitDeclaration(mk(Af), o);  Rr = lsqvce.engine.fitDeclaration(mk(Ar), o);
     tc.verifyError(@() Rf.compare(Rr), 'lsqvce:Results:compareEstimatedWeights');
-    Rh = lsqvce.fit(struct('A', Af, 'l', l), Robust="huber", Verbose=false);
-    Rd = lsqvce.fit(struct('A', Ar, 'l', l), Verbose=false);
+    Rh = lsqvce.engine.fitDeclaration(struct('A', Af, 'l', l), Robust="huber", Verbose=false);
+    Rd = lsqvce.engine.fitDeclaration(struct('A', Ar, 'l', l), Verbose=false);
     tc.verifyError(@() Rh.compare(Rd), 'lsqvce:Results:compareEstimatedWeights');
     tc.verifyError(@() Rd.compare(Rh), 'lsqvce:Results:compareEstimatedWeights');
     % the same data under the declared weights: the term is overwhelmingly needed
-    F = lsqvce.fit(struct('A', Af, 'l', l), Verbose=false).compare(Rd);
+    F = lsqvce.engine.fitDeclaration(struct('A', Af, 'l', l), Verbose=false).compare(Rd);
     tc.verifyTrue(F.significant && F.F > 100, sprintf('F = %.4g with declared weights', F.F));
 end
 
@@ -531,8 +531,8 @@ function testCompareIsTheNestedModelFTest(tc)
     n = 80;  t = linspace(0, 1, n).';
     A3 = [ones(n, 1), t, t.^2];  xt = [1; -2; 3];
     l = A3*xt + 0.05*randn(rs, n, 1);
-    Rfull = lsqvce.fit(struct('A', A3, 'l', l), Verbose=false);
-    Rred  = lsqvce.fit(struct('A', A3(:, 1:2), 'l', l), Verbose=false);   % drops the needed t^2
+    Rfull = lsqvce.engine.fitDeclaration(struct('A', A3, 'l', l), Verbose=false);
+    Rred  = lsqvce.engine.fitDeclaration(struct('A', A3(:, 1:2), 'l', l), Verbose=false);   % drops the needed t^2
     F = Rfull.compare(Rred);
     Fref = ((Rred.sol.vtv - Rfull.sol.vtv) / 1) / (Rfull.sol.vtv / (n - 3));
     % tol: 1e-10 relative -- the same two residual sums in a closed form
@@ -540,11 +540,11 @@ function testCompareIsTheNestedModelFTest(tc)
     tc.verifyTrue(F.significant, 'the quadratic term is needed');
     % an UNNEEDED extra parameter: full = cubic, reduced = the true quadratic
     A4 = [A3, t.^3];
-    Rfull4 = lsqvce.fit(struct('A', A4, 'l', l), Verbose=false);
+    Rfull4 = lsqvce.engine.fitDeclaration(struct('A', A4, 'l', l), Verbose=false);
     F4 = Rfull4.compare(Rfull, Alpha=0.01);
     tc.verifyFalse(F4.significant, 'the cubic term is not needed at alpha 0.01');
     % nesting is checked by the engine (not a subset: refused by name)
-    Rother = lsqvce.fit(struct('A', [ones(n, 1), sin(t)], 'l', l), Verbose=false);
+    Rother = lsqvce.engine.fitDeclaration(struct('A', [ones(n, 1), sin(t)], 'l', l), Verbose=false);
     tc.verifyError(@() Rred.compare(Rother), 'lsqvce:ftest:notNested');
 end
 
@@ -557,11 +557,11 @@ function testPriorActivationAndGroupPattern(tc)
     % activates the group at a pass; a single-pass run reports and skips a
     % from > 1 group.
     data = tc.TestData.data;
-    R0 = lsqvce.fit(data, Verbose=false);  nc = numel(R0.x);
+    R0 = lsqvce.engine.fitDeclaration(data, Verbose=false);  nc = numel(R0.x);
     names = data.commonParams(:, 2);
     tc.assumeTrue(all(cellfun(@(v) ischar(v) || isstring(v), names)), 'the fixture must carry names in column 2');
     pat = ['^' regexptranslate('escape', char(string(names{1}))) '$'];
-    lay = lsqvce.layout(data);
+    lay = lsqvce.engine.layoutDeclaration(data);
     % the columns of A whose template row carries that name (names need not
     % be unique: every matching row, every instance)
     hit = cellfun(@(v) ~isempty(regexp(char(string(v)), pat, 'once')), names);
@@ -573,7 +573,7 @@ function testPriorActivationAndGroupPattern(tc)
     % the unused one empty -- the toolbox reads "empty" as "not given")
     data.priors = [struct('group', pat, 'L', [], 'x0', 0, 'sigma', 0.5, 'name', '', 'estimate', "none", 'from', 1), ...
                    struct('group', '', 'L', e(3), 'x0', 0, 'sigma', 1.0, 'name', 'late', 'estimate', "none", 'from', 3)];
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
                      MaxPasses=4, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     g = R.noise.priors;
     tc.verifyEqual(numel(g), 2);
@@ -584,23 +584,23 @@ function testPriorActivationAndGroupPattern(tc)
     tc.verifyEqual(g(2).from, 3);
     % the same declaration with an explicit L gives the same group
     data.priors(1) = struct('group', '', 'L', Lwant, 'x0', 0, 'sigma', 0.5, 'name', pat, 'estimate', "none", 'from', 1);
-    R2 = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+    R2 = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
                      MaxPasses=4, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     % tol: exact -- identical declarations
     tc.verifyEqual(R2.x, R.x);
     % refusals by name: both forms, neither form, a pattern that matches nothing
     data.priors = struct('group', pat, 'L', Lwant, 'sigma', 1);
-    tc.verifyError(@() lsqvce.fit(data, Verbose=false), 'lsqvce:fit:badPrior');
+    tc.verifyError(@() lsqvce.engine.fitDeclaration(data, Verbose=false), 'lsqvce:fit:badPrior');
     data.priors = struct('sigma', 1);
-    tc.verifyError(@() lsqvce.fit(data, Verbose=false), 'lsqvce:fit:badPrior');
+    tc.verifyError(@() lsqvce.engine.fitDeclaration(data, Verbose=false), 'lsqvce:fit:badPrior');
     data.priors = struct('group', '^no_such_name$', 'sigma', 1);
-    tc.verifyError(@() lsqvce.fit(data, Verbose=false), 'lsqvce:fit:badPrior');
+    tc.verifyError(@() lsqvce.engine.fitDeclaration(data, Verbose=false), 'lsqvce:fit:badPrior');
     % a single solve with a from > 1 group reports and skips it (provoked on
     % purpose here: gate rule 7)
     muteWarn(tc, 'lsqvce:fit:priorNotActive');
     data.priors = struct('L', e(3), 'sigma', 1, 'from', 3);
     lastwarn('');
-    lsqvce.fit(data, Verbose=false);
+    lsqvce.engine.fitDeclaration(data, Verbose=false);
     [~, wid] = lastwarn;
     tc.verifyEqual(wid, 'lsqvce:fit:priorNotActive');
 end
@@ -616,15 +616,15 @@ function testLatePriorBeyondTheLastPassIsReported(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % two passes on purpose (gate rule 7)
     muteWarn(tc, 'lsqvce:fit:priorNotActive');            % provoked on purpose; read from the inventory
     data = tc.TestData.data;
-    nc = numel(lsqvce.fit(data, Verbose=false).x);
+    nc = numel(lsqvce.engine.fitDeclaration(data, Verbose=false).x);
     e3 = double((1:nc) == 3);
     data.priors = struct('L', e3, 'x0', 0, 'sigma', 1e-6, 'name', 'pin', 'from', 3);
     o = @(np) lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
                              MaxPasses=np, Noise=struct('Grid', 16), Seed=3, Verbose=false);
-    R2 = lsqvce.fit(data, o(2));
+    R2 = lsqvce.engine.fitDeclaration(data, o(2));
     tc.verifyTrue(any(strcmp(R2.meta.warnings, 'lsqvce:fit:priorNotActive')), ...
         'a group beyond the last pass is reported');
-    R5 = lsqvce.fit(data, o(5));
+    R5 = lsqvce.engine.fitDeclaration(data, o(5));
     if R5.history.nIter >= 3
         % tol: 1e-4 -- the pinning prior (sigma 1e-6) against an unpinned x(3) of O(1)
         tc.verifyLessThan(abs(R5.x(3)), 1e-4, 'a loop that reaches pass 3 applies the group');
@@ -639,13 +639,13 @@ end
 function testToTableWritesEstimatesIntoTheExpandedTables(tc)
 % categories: contract, precision
     seedFor(tc, 511);   % R7-45: drew from the global stream unseeded (suite-order dependent)
-    % R.toTable(data): the expanded n x W cells (one row per instantiated
+    % R.declarationTables(data): the expanded n x W cells (one row per instantiated
     % parameter) with the estimate and its standard deviation in the named
     % columns, every other column copied from the template row, and a map
     % naming the instance (row, day, arc) of every line.
     data = tc.TestData.data;
-    R = lsqvce.fit(data, Verbose=false);
-    [C, L, map] = R.toTable(data);
+    R = lsqvce.engine.fitDeclaration(data, Verbose=false);
+    [C, L, map] = R.declarationTables(data);
     nc = numel(R.x);
     tc.verifyEqual(size(C, 1), nc, 'one common row per column of A');
     tc.verifyEqual(size(C, 2), max(size(data.commonParams, 2), 10));
@@ -667,8 +667,8 @@ function testToTableWritesEstimatesIntoTheExpandedTables(tc)
     end
     % a Results from another problem: refused by name (the declaration must
     % be the one the Results came from)
-    Rb = lsqvce.fit(struct('A', randn(10, 2), 'l', randn(10, 1)), Verbose=false);
-    tc.verifyError(@() Rb.toTable(data), 'lsqvce:Results:tableMismatch');
+    Rb = lsqvce.engine.fitDeclaration(struct('A', randn(10, 2), 'l', randn(10, 1)), Verbose=false);
+    tc.verifyError(@() Rb.declarationTables(data), 'lsqvce:Results:tableMismatch');
 end
 
 %% ------------------------------ R6 WP-90: the per-epoch sigma reaches the estimator
@@ -692,7 +692,7 @@ function testPerEpochSigmaIsUndoneByTheEstimator(tc)
     data.systems = s;
     opts = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=3, ...
                           Noise=struct('Grid', 16), Seed=5, Verbose=false);
-    R = lsqvce.fit(data, opts);
+    R = lsqvce.engine.fitDeclaration(data, opts);
     tc.verifyEqual(R.noise.stream{1}, 'x1|rr');
     % (6 arcs x 300 epochs, r ~ 1790: the Helmert sigma scatter is ~ 1.7 %;
     % MEASURED 1.0047 on this fixture 2026-09-06, R2026a; without Cep 3.80)
@@ -702,7 +702,7 @@ function testPerEpochSigmaIsUndoneByTheEstimator(tc)
     tc.verifyLessThan(max(abs(z)), 5, 'the field is recovered within its formal errors');
     dataNo = data;
     dataNo.systems.buildDay = @(day, ot) perEpochDay(day, nc, nl, nE, nArc, xTrue, false);
-    R0 = lsqvce.fit(dataNo, opts);
+    R0 = lsqvce.engine.fitDeclaration(dataNo, opts);
     % the RMS of a log-uniform sigma on [0.1, 10] is ~ 3.3: without the
     % per-epoch information the level cannot be 1 (a bar, not a value)
     tc.verifyGreaterThan(R0.noise.model{1}.sigma, 2, 'without Cep the level is the RMS of the sigmas');
@@ -765,8 +765,17 @@ function testDemoNoisePolicyIsTheWorkedPolicyExample(tc)
     % near 1 (no split at all) -- a factor 2 band on a 9 is the honest bound
     tc.verifyGreaterThan(s.arcRatio(1), 4.5, 'the degraded arc is isolated');
     tc.verifyLessThan(s.arcRatio(1), 18, 'and not blown up');
-    tc.verifyEqual(s.badEstimate, "lsqvce:fit:badEstimate", ...
-                   'a policy that is not one of the three names is refused by name');
+    % WP-161: the demo declares a lsqvce.TaskDefinition, whose addStream
+    % validates Estimate on the spot; the engine's own check on the compiled
+    % struct stays pinned on the declaration of this suite's shared run
+    tc.verifyEqual(s.badEstimate, "MATLAB:validators:mustBeMember", ...
+                   'a policy that is not one of the three names is refused when declared');
+    d = tc.TestData.data;
+    if isa(d, 'lsqvce.TaskDefinition'), d = d.declaration(); end
+    ot = fieldnames(d.systems(1).covariance);
+    d.systems(1).covariance.(ot{1}).estimate = "lwa";
+    % (the policy is read where it acts: under Estimate="noise", before any pass)
+    tc.verifyError(@() lsqvce.engine.fitDeclaration(d, Estimate="noise", MaxPasses=1, Verbose=false), 'lsqvce:fit:badEstimate');
 end
 
 %% ------------------------------------------- arc factors (R6 WP-97, F-01)
@@ -778,7 +787,7 @@ function testArcFactorsRecoverThePlantedRatioInOnePass(tc)
     % planted truth, which is why finding F-01 survived every green run.
     % Planted here: arc 2 of every day is 3x worse in sigma, so the arc
     % VARIANCE factors are 1 / 9 / 1.
-    R = lsqvce.fit(arcFactorFixture(3), ...
+    R = lsqvce.engine.fitDeclaration(arcFactorFixture(3), ...
                    lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=1, ...
                                   Verbose=false));
     f2 = mean(reshape(R.noise.model{1}.sigma2, 3, []), 2).';
@@ -807,9 +816,9 @@ function testArcFactorsStaySettledAcrossPasses(tc)
     % fixed point -- MEASURED per-pass growth 8.48, 8.44, 8.38, 8.34. It now
     % multiplies by the factor the weighting DID use, and the ratio settles:
     %   passes 1 2 3 4 5  ->  9.37  8.56  8.56  8.56  8.56   (planted 9)
-    r1 = arcRatio(lsqvce.fit(arcFactorFixture(3), ...
+    r1 = arcRatio(lsqvce.engine.fitDeclaration(arcFactorFixture(3), ...
              lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=1, Verbose=false)));
-    r4 = arcRatio(lsqvce.fit(arcFactorFixture(3), ...
+    r4 = arcRatio(lsqvce.engine.fitDeclaration(arcFactorFixture(3), ...
              lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=4, Verbose=false)));
     % tol: the SAME band the one-pass oracle asserts. Four passes need not
     % improve the estimate, but they must not destroy it
@@ -834,10 +843,10 @@ function testArcFactorGuardIsSilentOnASettledRun(tc)
     % primary instrument against a regression is the settling test above.
     id = 'lsqvce:adjustVCEjoint:arcFactorsDiverging';
     opts = lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=4, Verbose=false);
-    lsqvce.fit(arcFactorFixture(3), opts);          % fit resets the inventory
+    lsqvce.engine.fitDeclaration(arcFactorFixture(3), opts);          % fit resets the inventory
     tc.verifyFalse(any(strcmp(lsqvce.util.log.inventory(), id)), ...
                    'a settled run does not warn');
-    lsqvce.fit(arcFactorFixture(1), opts);
+    lsqvce.engine.fitDeclaration(arcFactorFixture(1), opts);
     tc.verifyFalse(any(strcmp(lsqvce.util.log.inventory(), id)), ...
                    'nor does one with no degraded arc');
 end
@@ -861,7 +870,7 @@ function testArcFactorsReconstructThePlantedPerArcSigma(tc)
     % here on the same fixture before 6.1.6: 0.517 / 1.499 / 0.507 against the
     % planted 0.5 / 1.5 / 0.5. Since 6.1.6 (R7-13) the factors are absolute
     % and weight the solve, so sigma0 carries less of it; the band is unchanged.
-    R = lsqvce.fit(arcFactorFixture(3), ...
+    R = lsqvce.engine.fitDeclaration(arcFactorFixture(3), ...
                    lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=4, ...
                                   Verbose=false));
     f2 = mean(reshape(R.noise.model{1}.sigma2, 3, []), 2).';
@@ -887,7 +896,7 @@ function testPoolStreamGivesEachStreamItsOwnLaw(tc)
     % Weighting a group by its own freshly fitted law is self-referential; the
     % shared C is what breaks that loop. The shipped code recovers both
     % colours: 0.198 and 0.477 against 0.20 and 0.50, sigma0 0.997.
-    R = lsqvce.fit(colourFixture(0.20, 0.50), ...
+    R = lsqvce.engine.fitDeclaration(colourFixture(0.20, 0.50), ...
                    lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=16, ...
                                   Verbose=false));
     rho = @(k) localRho(R.noise.Cgroups(k));
@@ -910,7 +919,7 @@ function testScaleOnlyRunIteratesAndRecoversTheLevels(tc)
     % sigma0 2.31 printed under "variance ratio back at ~1"). The stop rule
     % now needs the levels to settle too, and the returned solution is the
     % one under the returned model. Stream b is truly 3x its declared sigma.
-    R = lsqvce.fit(scaleOnlyFixture(1, 3, false), lsqvce.Options(Estimate="noise", Pool="stream", ...
+    R = lsqvce.engine.fitDeclaration(scaleOnlyFixture(1, 3, false), lsqvce.Options(Estimate="noise", Pool="stream", ...
                    MaxPasses=8, Verbose=false));
     tc.verifyGreaterThan(R.history.nIter, 1, 'a level-only run does not stop on pass 1');
     tc.verifyTrue(R.converged);
@@ -931,8 +940,8 @@ function testArcFactorStreamIgnoresOtherStreamsLevels(tc)
     % gamma-bar times the stream's Helmert level recovers 3.02 for any b.
     opts = lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=8, Verbose=false);
     implied = @(R, s) sqrt(mean(R.noise.model{find(strcmp(R.noise.stream, s), 1)}.sigma2)) * R.sigma0;
-    R1 = lsqvce.fit(scaleOnlyFixture(3, 1, true), opts);
-    R4 = lsqvce.fit(scaleOnlyFixture(3, 4, true), opts);
+    R1 = lsqvce.engine.fitDeclaration(scaleOnlyFixture(3, 1, true), opts);
+    R4 = lsqvce.engine.fitDeclaration(scaleOnlyFixture(3, 4, true), opts);
     % tol: 10 % relative -- stream a's level from 9 arcs of 256 white epochs
     % (sampling ~3 %); the shipped normalisation was off by 20-35 % here
     tc.verifyEqual(implied(R1, 'x1|a'), 3, 'RelTol', 0.10, 'a recovers its own level (b = 1)');
@@ -958,7 +967,7 @@ function testArcFactorsWeightTheSolve(tc)
     store = containers.Map('KeyType', 'double', 'ValueType', 'any');
     opts = lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=2, Verbose=false, ...
                           OnPass=@(ctx) stashPass(store, ctx));
-    lsqvce.fit(arcFactorFixture(3), opts);
+    lsqvce.engine.fitDeclaration(arcFactorFixture(3), opts);
     tc.assertTrue(isKey(store, 1) && isKey(store, 2), 'both passes reached the hook');
     p1 = store(1);  acc = store(2).acc;
     ids = acc.systemIDs();
@@ -994,7 +1003,7 @@ function testArcFactorsAreAbsoluteOnAHeterogeneousStream(tc)
     % stream's level pushed off too (2.8 against 4). Since 6.1.6 a factor is
     % the arc's absolute gamma2_m. Planted here: stream a's arc 2 of every day
     % 10x in sigma, stream b 2x its declared sigma.
-    R = lsqvce.fit(scaleOnlyFixture(1, 2, true, 10), lsqvce.Options(Estimate="noise", ...
+    R = lsqvce.engine.fitDeclaration(scaleOnlyFixture(1, 2, true, 10), lsqvce.Options(Estimate="noise", ...
                    Pool="stream", MaxPasses=8, Verbose=false));
     ka = find(strcmp(R.noise.stream, 'x1|a'), 1);
     f = reshape(R.noise.model{ka}.sigma2, 3, []) * R.sigma0^2;    % declared sigma 1
@@ -1022,7 +1031,7 @@ function testLjungBoxIsSizedOnShortArcs(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % one pass on purpose: the test reads pass 1
     p = zeros(1, 16);
     for sd = 1:16
-        R = lsqvce.fit(shortArcFixture(sd), lsqvce.Options(Estimate="noise", Pool="stream", ...
+        R = lsqvce.engine.fitDeclaration(shortArcFixture(sd), lsqvce.Options(Estimate="noise", Pool="stream", ...
                        ArcFactors=false, MaxPasses=1, Verbose=false));
         p(sd) = R.history.whitePval(end, 1);
     end
@@ -1044,7 +1053,7 @@ function testPriorScaleSurvivesARefusedVtPv(tc)
     % found 4.9e4). N^-1 now comes from the cofactor, which is finite.
     muteWarn(tc, 'lsqvce:accum:cancellation');      % it fires on every solve here, by design
     data = tightPriorFixture();
-    fitWith = @(backend) lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ...
+    fitWith = @(backend) lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ...
         ArcFactors=false, Backend=backend, MaxPasses=6, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     Rn = fitWith("normal");  Rq = fitWith("qr");
     upd = cellfun(@(r) r(1).updated, Rn.noise.priorHistory);
@@ -1076,8 +1085,8 @@ function testRefusedVtPvIsSupersededInResults(tc)
     for est = ["noise", "none"]
         nv = {'Estimate', est, 'Verbose', false};
         if est == "noise", nv = [nv, noiseNV]; end %#ok<AGROW>
-        Rn = lsqvce.fit(data, lsqvce.Options(nv{:}, 'Backend', "normal"));
-        Rq = lsqvce.fit(data, lsqvce.Options(nv{:}, 'Backend', "qr"));
+        Rn = lsqvce.engine.fitDeclaration(data, lsqvce.Options(nv{:}, 'Backend', "normal"));
+        Rq = lsqvce.engine.fitDeclaration(data, lsqvce.Options(nv{:}, 'Backend', "qr"));
         tc.verifyTrue(isfinite(Rn.sigma0) && all(isfinite(Rn.sol.Cxx(:))), ...
             sprintf('%s: sigma0 and Cxx are finite (%g)', est, Rn.sigma0));
         % tol: 1e-9 relative -- the direct residual sums of two backends at
@@ -1109,7 +1118,7 @@ function testRefusedVtPvKeepsTheRobustTruncation(tc)
     muteWarn(tc, 'lsqvce:normalEq:cancellation');
     muteWarn(tc, 'lsqvce:residuals:supersedesSol');  % the robust sweeps inside the loop
     data = tightPriorFixture();
-    fitWith = @(backend) lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ...
+    fitWith = @(backend) lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ...
         ArcFactors=false, Backend=backend, Robust="igg3", MaxPasses=6, Noise=struct('Grid', 16), ...
         Seed=3, Verbose=false));
     Rn = fitWith("normal");  Rq = fitWith("qr");
@@ -1165,7 +1174,7 @@ function testLowInformationBinsDoNotBlockTheStop(tc)
     % that is larger. On this fixture (30-epoch arcs, white, the default 60
     % bins) the loop settles in 8 passes, measured, and the history shows the
     % plain rule could not have stopped there.
-    R = lsqvce.fit(lawShortArcFixture(), lsqvce.Options(Estimate="noise", Pool="stream", ...
+    R = lsqvce.engine.fitDeclaration(lawShortArcFixture(), lsqvce.Options(Estimate="noise", Pool="stream", ...
                    ArcFactors=false, MaxPasses=20, Verbose=false, Seed=5));
     h = R.history;
     tc.verifyTrue(R.converged, sprintf('settles within the budget (binRatio %s)', mat2str(h.binRatio.', 3)));
@@ -1189,7 +1198,7 @@ function testATighterToleranceTightensEveryBin(tc)
     % Measured on the fixture: maxDev at the stop 0.0276 at 1e-2, 0.0035 at
     % 1e-3 (49 passes) -- every bin about ten times tighter.
     data = lawShortArcFixture();
-    run = @(tol) lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ...
+    run = @(tol) lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ...
                    ArcFactors=false, MaxPasses=80, Tolerance=tol, Verbose=false, Seed=5));
     R2 = run(1e-2);  R3 = run(1e-3);
     tc.verifyTrue(R2.converged && R3.converged);
@@ -1210,7 +1219,7 @@ function testNotConvergedWarningSaysWhatStillMoves(tc)
     w = warning('on', 'lsqvce:adjustVCEjoint:notConverged');
     tc.addTeardown(@() warning(w));
     lastwarn('');
-    tc.verifyWarning(@() lsqvce.fit(lawShortArcFixture(), lsqvce.Options(Estimate="noise", ...
+    tc.verifyWarning(@() lsqvce.engine.fitDeclaration(lawShortArcFixture(), lsqvce.Options(Estimate="noise", ...
         Pool="stream", ArcFactors=false, MaxPasses=2, Verbose=false, Seed=5)), ...
         'lsqvce:adjustVCEjoint:notConverged');
     msg = lastwarn;
@@ -1333,10 +1342,10 @@ function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
     data.systems.buildDay = @(day, ot) blunders(inner(day, ot), day, ot, 0.02, 25);   % 2 %, 25 sigma
     base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 16, 'Verbose', false};
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % the PLAIN run under blunders may not settle -- that is its point
-    Rp = lsqvce.fit(data, lsqvce.Options(base{:}));                      % plain
+    Rp = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}));                      % plain
     trail = containers.Map('KeyType', 'double', 'ValueType', 'any');    % round 6: the pass trajectory
     watch = @(ctx) trailOf(trail, ctx);
-    Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', "igg3", 'OnPass', watch));    % robust pass inside
+    Rr = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}, 'Robust', "igg3", 'OnPass', watch));    % robust pass inside
     % THE CONTROL (round 7, the user's "measure"): the same blunders declared
     % as data of huge variance through Cep -- the toolbox composes Cep BEFORE
     % the temporal filter, i.e. the KOCH convention (weight, then filter) --
@@ -1346,7 +1355,7 @@ function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
     dk = data;
     dk.systems.buildDay = @(day, ot) declareBlunders(blunders(inner(day, ot), day, ot, 0.02, 25), day, ot, 0.02);
     trailK = containers.Map('KeyType', 'double', 'ValueType', 'any');
-    Rk = lsqvce.fit(dk, lsqvce.Options(base{:}, 'OnPass', @(ctx) trailOf(trailK, ctx)));
+    Rk = lsqvce.engine.fitDeclaration(dk, lsqvce.Options(base{:}, 'OnPass', @(ctx) trailOf(trailK, ctx)));
     rho = @(R, k) R.noise.Cgroups(k);
     rhoK = rho(Rk, 'x1|a');  rhoK = rhoK(2) / rhoK(1);
     rhoP = rho(Rp, 'x1|a');  rhoR = rho(Rr, 'x1|a');
@@ -1427,8 +1436,8 @@ function testRobustLevelOfACleanStreamIsUnbiased(tc)
     % stream is testRobustLevelOfARedStreamMatchesThePlainRun.
     data = levelFixture(struct('a', 0.2, 'b', 0.5), 3);
     base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 16, 'Verbose', false};
-    Rp = lsqvce.fit(data, lsqvce.Options(base{:}));
-    Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', "igg3"));
+    Rp = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}));
+    Rr = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}, 'Robust', "igg3"));
     for st = {'x1|a', 'x1|b'}
         lv = @(R) R.noise.model{find(strcmp(R.noise.stream, st{1}), 1)}.sigma * R.sigma0;
         % tol: 6 % -- the per-seed sd of the robust/plain ratio is 0.012-0.016
@@ -1455,8 +1464,8 @@ function testRobustJointLoopConvergesOnCleanData(tc)
     % law.
     data = colourFixture(0.2, 0.5);
     base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 30, 'Verbose', false};
-    Rp = lsqvce.fit(data, lsqvce.Options(base{:}));
-    Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', "igg3"));
+    Rp = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}));
+    Rr = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}, 'Robust', "igg3"));
     tc.verifyTrue(Rp.converged, 'the plain loop converges');
     tc.verifyTrue(Rr.converged, sprintf(['the robust loop converges on clean data (%d passes, ' ...
         'bins %.2f of their bound at the end)'], Rr.history.nIter, Rr.history.binRatio(end)));
@@ -1486,8 +1495,8 @@ function testRobustLevelOfARedStreamMatchesThePlainRun(tc)
         r = nan(nSeed, 2);
         for sd = 1:nSeed
             data = levelFixture(struct('a', 0.9, 'b', 0.98), sd);
-            Rp = lsqvce.fit(data, lsqvce.Options(base{:}));
-            Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', infl));
+            Rp = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}));
+            Rr = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}, 'Robust', infl));
             r(sd, :) = [lv(Rr, 'x1|a') / lv(Rp, 'x1|a'), lv(Rr, 'x1|b') / lv(Rp, 'x1|b')] - 1;
         end
         % tol: 0.5 % on the mean variance ratio (the bar); its standard error
@@ -1512,8 +1521,8 @@ function testRobustKeepsTheVarianceOfARedStreamUnderTruncation(tc)
     nSeed = 6;  rb = nan(nSeed, 1);  rs = rb;
     for sd = 1:nSeed
         data = redFixture(0.9, sd, [0 0]);
-        Rp = lsqvce.fit(data, lsqvce.Options(base{:}));
-        Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', "igg3"));
+        Rp = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}));
+        Rr = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}, 'Robust', "igg3"));
         tc.verifyTrue(Rr.converged, sprintf('seed %d: the robust loop converges', sd));
         rb(sd) = lv(Rr, 'x1|b') / lv(Rp, 'x1|b') - 1;
         rs(sd) = (Rr.sigma0 / Rp.sigma0)^2 - 1;
@@ -1537,8 +1546,8 @@ function testRobustCatchesSmallBlundersOnARedStream(tc)
     % no rule sees it -- 14 % in the controlled study -- and it is not
     % counted.) The reference is the plain run on the same data without them.
     base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 30, 'Verbose', false};
-    Rc = lsqvce.fit(redFixture(0.9, 1, [0 0]), lsqvce.Options(base{:}));
-    Rr = lsqvce.fit(redFixture(0.9, 1, [0.02 2]), lsqvce.Options(base{:}, 'Robust', "igg3"));
+    Rc = lsqvce.engine.fitDeclaration(redFixture(0.9, 1, [0 0]), lsqvce.Options(base{:}));
+    Rr = lsqvce.engine.fitDeclaration(redFixture(0.9, 1, [0.02 2]), lsqvce.Options(base{:}, 'Robust', "igg3"));
     tc.verifyTrue(Rr.converged, 'the robust loop converges');
     f = Rr.noise.robust.factor;  k = Rr.noise.robust.keys;
     planted = false(size(f));  off = 0;
@@ -1568,7 +1577,7 @@ function testRobustFreezesARejectedSetThatCycles(tc)
     % union of the two and the loop settles the law under it; the pass is
     % reported. redFixture seed 1 cycles.
     base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 30, 'Verbose', false};
-    R = lsqvce.fit(redFixture(0.9, 1, [0 0]), lsqvce.Options(base{:}, 'Robust', "igg3"));
+    R = lsqvce.engine.fitDeclaration(redFixture(0.9, 1, [0 0]), lsqvce.Options(base{:}, 'Robust', "igg3"));
     tc.verifyGreaterThan(R.noise.robust.frozen, 0, 'the cycle is detected and frozen');
     tc.verifyEqual(R.history.robustFrozen, R.noise.robust.frozen, 'the history records the same pass');
     tc.verifyTrue(R.converged, sprintf('the loop converges after the freeze (%d passes, frozen at %d)', ...
@@ -1592,7 +1601,7 @@ function testHeldArcKeepsItsFactorUnderRobust(tc)
     data = heldArcFixture();
     for rb = ["none", "igg3"]
         trail = containers.Map('KeyType', 'double', 'ValueType', 'any');
-        R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=true, ...
+        R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=true, ...
                 MaxPasses=12, Robust=rb, Verbose=false, OnPass=@(ctx) keepSigma2(trail, ctx)));
         tc.verifyTrue(R.converged, sprintf('Robust %s converges', rb));
         k = find(strcmp(R.noise.arcKeys, 's1_a_d5_a1'), 1);
@@ -1615,7 +1624,7 @@ function testExcludedRowsAreDeletedFromTheSweep(tc)
     % levels, x and dof agree to rounding.
     R = cell(1, 2);
     for mode = 1:2
-        R{mode} = lsqvce.fit(excludedFixture(mode == 1), lsqvce.Options(Estimate="noise", ...
+        R{mode} = lsqvce.engine.fitDeclaration(excludedFixture(mode == 1), lsqvce.Options(Estimate="noise", ...
                     Pool="stream", ArcFactors=false, MaxPasses=20, Seed=1, Verbose=false));
     end
     Tx = R{1}.summary();  Tr = R{2}.summary();
@@ -1710,8 +1719,8 @@ function testNoiseSmoothDefaultsToOne(tc)
     tc.verifyEqual(a.nv{2*k}, 1, 'the default reaches the joint estimator');
     data = colourFixture(0.2, 0.5);
     base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 30, 'Verbose', false};
-    R1 = lsqvce.fit(data, lsqvce.Options(base{:}));
-    R0 = lsqvce.fit(data, lsqvce.Options(base{:}, 'Noise', struct('Smooth', 0)));
+    R1 = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}));
+    R0 = lsqvce.engine.fitDeclaration(data, lsqvce.Options(base{:}, 'Noise', struct('Smooth', 0)));
     tc.verifyTrue(R1.converged && R0.converged);
     tc.verifyLessThan(R1.history.nIter, R0.history.nIter, sprintf( ...
         'Smooth 1 settles sooner (%d passes, Smooth 0: %d)', R1.history.nIter, R0.history.nIter));
@@ -1738,7 +1747,7 @@ function testPoolDefaultsToStream(tc)
     a = o.engineArgs('adjustVCEjoint');
     k = find(strcmp(a.nv(1:2:end), 'Pool'));
     tc.verifyEqual(string(a.nv{2*k}), "stream", 'the default reaches the joint estimator');
-    R = lsqvce.fit(colourFixture(0.2, 0.5), lsqvce.Options(Estimate="noise", MaxPasses=30, Verbose=false));
+    R = lsqvce.engine.fitDeclaration(colourFixture(0.2, 0.5), lsqvce.Options(Estimate="noise", MaxPasses=30, Verbose=false));
     tc.verifyEqual(sort(keys(R.noise.Cgroups)), {'x1|a', 'x1|b'}, 'one law per stream by default');
 end
 
@@ -1749,10 +1758,10 @@ function testPoolGroupOfDifferentSpectraWarns(tc)
     % eff 36, levels 1.96 / 0.78, formal errors 4.85 x too large) -- silently.
     % A member not white under the group's law (Ljung-Box p < 1e-3, the last
     % pass; measured p ~ 1e-60 against >= 0.88 for one shared spectrum) warns.
-    R = verifyWarning(tc, @() lsqvce.fit(colourFixture(0, 0.9), lsqvce.Options(Estimate="noise", ...
+    R = verifyWarning(tc, @() lsqvce.engine.fitDeclaration(colourFixture(0, 0.9), lsqvce.Options(Estimate="noise", ...
             Pool="all", MaxPasses=30, Verbose=false)), 'lsqvce:adjustVCEjoint:poolNotWhite');
     tc.verifyLessThan(min(R.noise.checks.whitePval), 1e-3, 'the checks carry the evidence');
-    R = lsqvce.fit(colourFixture(0.5, 0.5), lsqvce.Options(Estimate="noise", Pool="all", ...
+    R = lsqvce.engine.fitDeclaration(colourFixture(0.5, 0.5), lsqvce.Options(Estimate="noise", Pool="all", ...
             MaxPasses=30, Verbose=false));
     tc.verifyFalse(any(strcmp(R.meta.warnings, 'lsqvce:adjustVCEjoint:poolNotWhite')), ...
         'one spectrum shared by the group does not warn');
@@ -1768,12 +1777,12 @@ function testDriftingLevelWarnsWithoutArcFactors(tc)
     % homogeneous stream reaches 1.4): it warns and names arc factors.
     data = arcFactorFixture(3);                        % arc 2 of every day 3 x in sigma
     data.systems.covariance.a.arcFactors = false;
-    R = verifyWarning(tc, @() lsqvce.fit(data, lsqvce.Options(Estimate="noise", MaxPasses=30, ...
+    R = verifyWarning(tc, @() lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", MaxPasses=30, ...
             Verbose=false)), 'lsqvce:adjustVCEjoint:levelVaries');
     tc.verifyGreaterThan(R.noise.checks.dispersion(1), R.noise.checks.dispersionBound(1));
     data = arcFactorFixture(1);
     data.systems.covariance.a.arcFactors = false;
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", MaxPasses=30, Verbose=false));
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", MaxPasses=30, Verbose=false));
     tc.verifyFalse(any(strcmp(R.meta.warnings, 'lsqvce:adjustVCEjoint:levelVaries')), ...
         'one level for homogeneous arcs does not warn');
     tc.verifyLessThan(R.noise.checks.dispersion(1), R.noise.checks.dispersionBound(1));
@@ -1786,7 +1795,7 @@ function testLongMemoryAgainstShortArcsWarns(tc)
     % 256-epoch arcs, phi 0.995 (correlation time 200 epochs) read the level
     % 0.88 x the truth, phi 0.999 0.76 -- silently. A correlation time above
     % half the median arc warns.
-    R = verifyWarning(tc, @() lsqvce.fit(colourFixture(0.998, 0.5), lsqvce.Options(Estimate="noise", ...
+    R = verifyWarning(tc, @() lsqvce.engine.fitDeclaration(colourFixture(0.998, 0.5), lsqvce.Options(Estimate="noise", ...
             Pool="stream", MaxPasses=30, Verbose=false)), 'lsqvce:adjustVCEjoint:memoryVsArc');
     c = R.noise.checks;
     k = strcmp(c.lawGroup, 'x1|a');
@@ -2013,7 +2022,7 @@ function testCommonPriorIsInTheStopRule(tc)
     end
     nc = numel(tc.TestData.Rv.x);
     data.priors = struct('L', eye(nc), 'x0', zeros(nc, 1), 'sigma', 0.01, 'name', 'damping', 'estimate', "scale");
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=6, ...
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=6, ...
                      Noise=struct('Grid', 16), Seed=3, Verbose=false));
     tc.verifyGreaterThanOrEqual(R.history.nIter, 2, 'no convergence before the prior was updated');
     tc.verifyNotEmpty(R.noise.priorHistory, 'the prior was updated');

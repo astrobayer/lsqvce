@@ -59,8 +59,8 @@ function V = report(D, opt)
 %               they shape D, through lsqvce.Options' Diagnostics group.
 %
 %   EXAMPLE
-%       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
-%       R = lsqvce.fit(data, Verbose=false);
+%       task = lsqvce.TaskDefinition.fromBatches(src, NumBatches=4, NumUnknowns=u);
+%       R = lsqvce.fit(task, Verbose=false);
 %       V = lsqvce.report(R.diag);         % prints the five levels (= R.report)
 %
 %       % V.verdict    'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
@@ -86,6 +86,9 @@ function V = report(D, opt)
 %
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: the examples fit a
+%   lsqvce.TaskDefinition (lsqvce.fit takes no struct since 7.0.0). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-29 (CET, UTC+01:00), WP-159: the Name-Value list is the
 %   arguments block's (alpha / rWeak were never report options), OUTPUT
 %   lists .message and .integrityOK. With assistance from Claude

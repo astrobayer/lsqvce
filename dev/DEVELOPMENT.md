@@ -7,7 +7,7 @@ the module census, correctness history, design decisions, validation, and the
 measured chapters. `dev/HANDOVER.md` remains the single status-and-plans
 document; this file is the technical companion the README used to be.*
 
-> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **27 suite files, 813 test
+> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **28 suite files, 824 test
 > points, 0 fail** — verified locally in MATLAB R2026a (including the
 > pool suites with real `parfor`/`spmd` workers and the machine-local
 > speed budgets) and on every push by GitHub Actions CI (a static `audit`
@@ -316,7 +316,7 @@ on any imperfection however harmless. **Read the ratio, not the verdict.**
 ## Options
 
 ```matlab
-lsqvce.fit(struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nb), ...
+lsqvce.fit(lsqvce.TaskDefinition.fromBatches(src, NumBatches=nb, NumUnknowns=u), ...
     'method',     'qr', ...      % 'qr' (default) | 'normal'
     'sparse',     false, ...     % keep N sparse (normal method only)
     'datumB',     B, ...         % free-network / minimum constraint
@@ -339,7 +339,7 @@ lsqvce.fit(struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nb), ...
 
 
 ```matlab
-R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=false));
+R = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=false));
 % the engine underneath is lsqvce.engine.adjustVCEjoint; adjustVCE was deleted in M4 4c
 ```
 
@@ -392,7 +392,7 @@ batch instead of a vector:
 
 ```matlab
 src = @(k) deal(A(idx{k},:), l(idx{k}), Pk{k});   % Pk{k} is nk x nk SPD
-R = lsqvce.fit(struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nBatch));
+R = lsqvce.fit(lsqvce.TaskDefinition.fromBatches(src, NumBatches=nBatch, NumUnknowns=u));
 ```
 
 P is block-diagonal with the **batches as its blocks** — correlation within a

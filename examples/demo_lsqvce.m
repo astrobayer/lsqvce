@@ -2,15 +2,31 @@
 %
 %   Six scenarios, each isolating one failure mode, so you can see what the
 %   report says when a specific thing is wrong -- and, just as importantly,
-%   what it says when things are fine. Every run is the USER path:
+%   what it says when things are fine. Every run is the USER path, an in-memory
+%   lsqvce.TaskDefinition and the one verb:
 %
-%       R = lsqvce.fit(struct('A', A, 'l', l, 'p', p));
+%       R = lsqvce.fit(lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p));
 %
 %   with the diagnostics on R.diag and the verdict from R.report(). Case 5 also
-%   shows the CURE: a streaming declaration with one covariance field per
-%   instrument group and Estimate="noise", Pool="stream", ArcFactors=false, so
-%   fit estimates the weights it needs.
+%   shows the CURE: a streaming TaskDefinition with one stream per instrument
+%   group, each with its own Build, and Estimate="noise", Pool="stream",
+%   ArcFactors=false, so fit estimates the weights it needs.
 %
+%   A script: no input; run it whole or section by section. It leaves its
+%   Results (R, R2, ..., R6, R5v) in the workspace and draws one figure (case 3).
+%
+%   ACCURACY  Not pinned: six illustrations. Their numbers come from seeded
+%             draws (mt19937ar, seed 2026) and are printed, not asserted; the
+%             gate runs it as a smoke test (test_examples).
+%   ERRORS    none of its own; a declaration error is raised by the add-call
+%             that makes it (lsqvce:TaskDefinition:*), a mistake inside a Build
+%             while the day is read (lsqvce:DayContext:*).
+%
+%   See also LSQVCE.TASKDEFINITION, LSQVCE.FIT, LSQVCE.RESULTS, LSQVCE.REPORT,
+%   DEMO_WORKFLOW, DEMO_TUTORIAL
+%
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as lsqvce.TaskDefinition, one Build per group. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the verdict is R.report()'s,
 %   not R.source's, and the per-lag redundancies are Hutchinson-probed -- the
 %   joint estimator has no exact route.
@@ -46,7 +62,7 @@ p  = 1 ./ sg.^2;
 % can move a parameter by more than a fraction of its sigma.
 fprintf('\n\n#################### 1. CLEAN ADJUSTMENT ####################\n');
 l = A * xt + sg .* randn(rs, n, 1);
-R = lsqvce.fit(struct('A', A, 'l', l, 'p', p));
+R = lsqvce.fit(lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p));
 D = R.diag;
 
 
@@ -57,7 +73,7 @@ D = R.diag;
 fprintf('\n\n#################### 2. OUTLIERS ####################\n');
 l2 = l;
 l2([137 892 1455]) = l2([137 892 1455]) + [12; -15; 9] .* sg([137 892 1455]);
-R2 = lsqvce.fit(struct('A', A, 'l', l2, 'p', p));
+R2 = lsqvce.fit(lsqvce.TaskDefinition.fromMatrices(A, l2, Weights=p));
 D2 = R2.diag;
 
 fprintf('Planted at 137, 892, 1455.  Flagged: %s\n', mat2str(D2.flagIdx(:).'));
@@ -74,7 +90,7 @@ fprintf(['\nNOTE the procedure: reject the LARGEST |w| only, re-solve, ' ...
 fprintf('\n\n#################### 3. SYSTEMATIC ERROR ####################\n');
 t  = linspace(0, 1, n).';
 l3 = A * xt + sg .* randn(rs, n, 1) + 1.2 * sin(2*pi*t);   % unmodelled signal
-R3 = lsqvce.fit(struct('A', A, 'l', l3, 'p', p));
+R3 = lsqvce.fit(lsqvce.TaskDefinition.fromMatrices(A, l3, Weights=p));
 D3 = R3.diag;
 
 fprintf('\nOutliers flagged: %d\n', D3.nFlag);
@@ -108,7 +124,7 @@ fprintf('\n\n#################### 4. UNCONTROLLED OBSERVATION ##################
 A4 = A;
 A4(:, 8) = 0;  A4(500, 8) = 1;        % parameter 8 <- observation 500 alone
 l4 = A4 * xt + sg .* randn(rs, n, 1);
-R4 = lsqvce.fit(struct('A', A4, 'l', l4, 'p', p));
+R4 = lsqvce.fit(lsqvce.TaskDefinition.fromMatrices(A4, l4, Weights=p));
 D4 = R4.diag;
 
 fprintf(['\nData snooping reports %d outliers -- a "clean" result.\n' ...
@@ -127,26 +143,30 @@ g = [ones(n/2,1); 2*ones(n/2,1)];
 sgTrue = sg;  sgTrue(g==2) = sgTrue(g==2) * 3;       % group 2 is 3x noisier
 l5 = A * xt + sgTrue .* randn(rs, n, 1);
 % ...but we still claim the ORIGINAL weights p:
-R5 = lsqvce.fit(struct('A', A, 'l', l5, 'p', p), lsqvce.Options(Verbose=false));
+R5 = lsqvce.fit(lsqvce.TaskDefinition.fromMatrices(A, l5, Weights=p), lsqvce.Options(Verbose=false));
 D5 = R5.diag;
 
 fprintf('Global variance ratio: %.3f  (should be ~1)\n', D5.varRatio);
 fprintf('Outliers flagged     : %d\n', D5.nFlag);
 fprintf(['\nInflated variance factor + clean residuals + no structure\n' ...
          '   ==> the weights are wrong. Estimate them: declare the two\n' ...
-         '   instrument groups as two OBSERVATION TYPES of one streaming\n' ...
-         '   system (nl = 0, one arc) and let Estimate="noise", Pool="stream", ArcFactors=false find the weights.\n']);
+         '   instrument groups as two STREAMS of one system of a task\n' ...
+         '   (nl = 0, one arc) and let Estimate="noise", Pool="stream", ArcFactors=false find the weights.\n']);
 
-vdata.commonParams = [repmat({'common'}, u, 1), num2cell((1:u).')];   % scoped, nc = u
-vdata.days = 1;                                      % the whole set is one "day"
-vs = struct();
-vs.buildDay = @(day, ot) groupDay(A, l5, t, g, ot);  % rows of ONE group
-vs.covariance.g1 = struct('type', 'diag', 'sigma', sg(g==1));   % the CLAIMED
-vs.covariance.g2 = struct('type', 'diag', 'sigma', sg(g==2));   % (mis-stated) noise
-vdata.systems = vs;
-R5v = lsqvce.fit(vdata, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+vtask = lsqvce.TaskDefinition(Days=1);                % the whole set is one "day"
+vtask.addCommon(compose("x%d", 1:u));                 % the same u unknowns, one name each
+vsys = vtask.addSystem("groups");                     % one system, no locals (nl = 0)
+% one stream per group, each with its own Build (groupDay, below): the rows of
+% ONE group as ONE arc, and the CLAIMED (mis-stated) noise as a per-row sigma
+vsys.addStream("g1", Build=@(day, ctx) groupDay(ctx, A, l5, t, g == 1), ...
+               Noise=lsqvce.Noise.white(sg(g==1)));
+vsys.addStream("g2", Build=@(day, ctx) groupDay(ctx, A, l5, t, g == 2), ...
+               Noise=lsqvce.Noise.white(sg(g==2)));
+R5v = lsqvce.fit(vtask, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
           Verbose=false));
 
+% a stream's key is 'system key|stream'; the system has no Id, so its key is
+% 'x1' (the index 1 made a field name, LSQVCE.UTIL.STREAMKEY)
 sigEnd = R5v.history.sigma(end, :);                  % converged group sigmas
 ratio  = sigEnd(strcmp(R5v.history.streams, 'x1|g2')) / ...
          sigEnd(strcmp(R5v.history.streams, 'x1|g1'));
@@ -159,9 +179,10 @@ fprintf(['Recovered sigma ratio: %.3f   (truth: 3.000)\n' ...
 % exact route and no size-based switch, so u = 8 is probed like a gravity field.
 % The estimate is stochastic: pin Options.Seed to replay the same probes.
 %
-% v5: a FREE network needs a datum, and a datum is a DECLARED prior on the
+% A FREE network needs a datum, and a datum is a DECLARED prior on the
 % null space -- the exact minimum-constraint solution, whatever its weight:
-%     data.priors = struct('L', B.', 'sigma', 1, 'name', 'datum');
+%     task = lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p);
+%     task.addPrior("datum", L=B.', Sigma=1);
 % (B spans the null space of A'PA). Without it the one accumulator refuses
 % the rank-deficient system by name (lsqvce:qr:singularR); it never guesses.
 
@@ -173,7 +194,7 @@ fprintf('\n\n#################### 6. COLLINEAR PARAMETERS ####################\n
 A6 = A;
 A6(:, 2) = A6(:, 1) + 1e-4 * randn(rs, n, 1);     % col 2 ~ col 1
 l6 = A6 * xt + sg .* randn(rs, n, 1);
-R6 = lsqvce.fit(struct('A', A6, 'l', l6, 'p', p));
+R6 = lsqvce.fit(lsqvce.TaskDefinition.fromMatrices(A6, l6, Weights=p));
 D6 = R6.diag;
 
 fprintf(['\nParameters 1 and 2 are correlated at %.5f. Only their SUM is\n' ...
@@ -200,11 +221,10 @@ fprintf(['\nThe one to fear is #3 and #4: the adjustment can look healthy on\n' 
          'residual PLOTS are what catch them.\n\n']);
 
 %% ------------------------------------------------------------------ local
-function D = groupDay(A, l, t, g, obsType)
-% The buildDay of case 5: one instrument group as one observation type.
-    rows = find(g == 1 + strcmp(obsType, 'g2'));
-    D.A = {A(rows, :)};                 % v6: one cell = one arc; the group is one arc
-    D.B = {zeros(numel(rows), 0)};      % no local unknowns (nl = 0, the default)
-    D.l = {l(rows)};
-    D.t = {t(rows) * 86400};            % seconds
+function out = groupDay(ctx, A, l, t, inGroup)
+%GROUPDAY  The Build of case 5: the rows of one instrument group as one arc,
+%   no local unknowns (nl = 0), the epochs in seconds.
+    rows = find(inGroup);
+    out = ctx.newDay();
+    out.addArc(A(rows, :), l(rows), t(rows) * 86400);
 end

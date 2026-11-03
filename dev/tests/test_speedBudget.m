@@ -86,8 +86,8 @@ function testOneSolveOnTheDemoIsBounded(tc)
     % (lsqvce.engine.adjustBlock through lsqvce.fit) on the GRACE demo
     % (3 days, 2 systems, 32 arcs) takes ~1 s on the user's machine; 20 s
     % would mean something quadratic came back
-    [~, data] = demo_grace_dataLoader();
-    t0 = tic;  R = lsqvce.fit(data, Verbose=false);  dt = toc(t0);
+    [~, data] = demo_grace_dataLoader();  data = data.declaration();   % WP-162: the compiled struct
+    t0 = tic;  R = lsqvce.engine.fitDeclaration(data, Verbose=false);  dt = toc(t0);
     tc.verifyTrue(all(isfinite(R.x)));
     tc.verifyLessThan(dt, 20, sprintf('one solve took %.1f s', dt));
 end
@@ -199,9 +199,9 @@ function testFitAddsLittleToTheBlockDriver(tc)
     % mapping + lsqvce.engine.adjustBlock. Both sides build the loaders, so the
     % ratio is fit's own dispatch. tol: < 1.25 (timePair's example: expected
     % 1.00, measured 2026-08-31 L4 postflight, budget 1.25)
-    [~, data] = demo_grace_dataLoader();
+    [~, data] = demo_grace_dataLoader();  data = data.declaration();   % WP-162: the compiled struct
     opts = lsqvce.Options(Verbose=false);
-    rec = timePair(@() lsqvce.fit(data, opts), @() directBlock(data), 'Repeats', 9, ...
+    rec = timePair(@() lsqvce.engine.fitDeclaration(data, opts), @() directBlock(data), 'Repeats', 9, ...
                    'Label', 'fit/adjustBlock dispatch');
     tc.verifyLessThan(rec.ratio, 1.25, sprintf('fit/adjustBlock = %.3f [%.3f %.3f]', rec.ratio, rec.band));
 end

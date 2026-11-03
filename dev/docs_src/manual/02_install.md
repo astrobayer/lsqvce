@@ -45,7 +45,7 @@ lsqvce_setup('uninstall')  % removes the two path entries and the Help browser i
 |---|---|
 | `+lsqvce/` | the package: the user tier (`fit`, `Options`, `Results`, `report`, `layout`, `solveContributions`) and the `engine`, `kernel` and `util` tiers below it |
 | `examples/` | runnable examples (chapter *The examples*); start with `demo_tutorial` |
-| `template/` | starting points for your own case: `kbr_variational.m` (GRACE-FO Level-1B range-rates and orbits), `gravfire_data.m` (a GRAVFIRE bundle to the `data` struct), `lsqvce_template.m` |
+| `template/` | starting points for your own case: `kbr_variational.m` (GRACE-FO Level-1B range-rates and orbits), `gravfire_data.m` (a GRAVFIRE bundle to a task definition), `lsqvce_template.m` |
 | `html/` | this Manual, the API reference and one page per public unit |
 | `lsqvce_manual.pdf`, `lsqvce_api.pdf`, `lsqvce_theory.pdf` | the three documents as PDF |
 | `RELEASE_NOTES.md` | what changed in each version |

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.DayContext</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.DayContext</div>
+<h1>lsqvce.DayContext</h1>
+<div class="purpose">What Prepare and Build know about the day they serve (read-only).</div>
+<h2>Description</h2>
+<pre class="example">P   = prepare(day, ctx)                 a system&#x27;s Prepare (addSystem)
+out = build(day, ctx)                   a stream&#x27;s Build (addStream)
+out  = ctx.newDay()                     an empty LSQVCE.DAYDATA for this stream
+cols = ctx.cols(names)                  columns of named parameters on this day
+cols = ctx.cols(names, Arc=id)          the same for Scope=&quot;arc&quot; locals of arc id
+
+The toolbox makes one DayContext per call of your Prepare and Build. It
+carries the day, the names of the system and stream, your Settings, the
+result of Prepare, the parameter templates by name, and the arc schedule
+of the day. Build fills ctx.newDay() with arcs (LSQVCE.DAYDATA/ADDARC) and
+returns it.
+
+COLUMNS BY NAME. Local partials are normally given BY NAME
+(out.addArc(A, l, t, Local={names, P})): the toolbox places them. When the
+partials already form one matrix B (m x ctx.NumLocal), take every column
+from ctx.cols and never compute an offset:
+    B = sparse(m, ctx.NumLocal);
+    B(:, ctx.cols([&quot;x0&quot; &quot;y0&quot; &quot;z0&quot;], Arc=id)) = Pxyz;
+    B(:, ctx.cols(&quot;accScale&quot;)) = Pacc;
+    out.addArc(A, l, t, B=B);
+ctx.cols of common parameters gives columns of A (a Scope=&quot;day&quot; common
+moves with the day); of local parameters, columns of B. One call names
+commons or locals, not both.
+
+PROPERTIES (read-only)
+  Day        1x1 double     the day being built (an entry of the calendar)
+  System     1x1 string     the system&#x27;s name
+  Stream     1x1 string     the stream&#x27;s name (&quot;&quot; in Prepare)
+  Settings   1x1 struct     the system&#x27;s Settings
+  Prepared   any            what Prepare returned for this day ([] in Prepare,
+                            or without Prepare)
+  NumCommon  1x1 double     nc, the columns of A
+  NumLocal   1x1 double     nl, the columns of B of this system (0 without locals)
+  ArcIds     1 x A double   the stream&#x27;s scheduled arc ids of this day; in
+                            Prepare, the system&#x27;s scheduled arcs of the day ([]
+                            when the system declares no schedule: the arcs are
+                            what Build adds)
+  Common     table          Name, Scope, OnDay, Info of every common template
+  Local      table          Name, Scope, OnDay, Info of every local template
+METHODS
+  newDay(ctx)                  -&gt; LSQVCE.DAYDATA
+  cols(ctx, names, Arc=id)     names 1 x n string -&gt; 1 x n double columns;
+                               Arc (a scheduled arc id) is needed by Scope=&quot;arc&quot;
+                               locals and ignored by the others
+
+INPUT   (made by the toolbox; you never construct one)
+OUTPUT  ctx  1x1 lsqvce.DayContext</pre>
+<h3>Accuracy</h3>
+<pre class="example">  Not applicable: integer bookkeeping over the engines&#x27; column plans; the
+  columns equal the engines&#x27; layout (test_taskDefinition).
+
+ERRORS  (raised while the day is read; fit passes them unchanged)
+  lsqvce:DayContext:unknownName   a name that is not a parameter of this task
+                                  and system, or not instantiated on this day
+  lsqvce:DayContext:arcRequired   a Scope=&quot;arc&quot; local asked for without Arc=id,
+                                  or with an id the day does not schedule
+  lsqvce:DayContext:mixedTables   one cols call names commons and locals
+  lsqvce:DayContext:badReturn     Build returned something other than the
+                                  LSQVCE.DAYDATA of ctx.newDay()</pre>
+<h3>Example</h3>
+<pre class="example">  function out = buildKbr(day, ctx)
+      P = ctx.Prepared;                         % what Prepare returned today
+      out = ctx.newDay();
+      for a = 1:numel(P.arc)
+          out.addArc(P.arc(a).A, P.arc(a).omc, P.arc(a).t, ...
+                     Local={&quot;kbrBias&quot;, ones(numel(P.arc(a).t), 1)});
+      end
+  end
+
+See also LSQVCE.DAYDATA, LSQVCE.SYSTEMDEFINITION, LSQVCE.TASKDEFINITION
+
+Updated 2026-11-02 (CET, UTC+01:00), WP-161: ArcIds in Prepare are the
+system&#x27;s scheduled arcs of the day (they were empty). With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
+Created 2026-11-02 (CET, UTC+01:00) with assistance from Claude
+(Anthropic), model Claude Opus 5.5 -- level v7, WP-160.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

@@ -669,7 +669,7 @@ function test_mad_replay_mismatch_is_named(tc)
     n = 60;  u = 3;
     A = randn(rs, n, u);  l = A * randn(rs, u, 1) + randn(rs, n, 1);
     B = chop(A, l, ones(n, 1), 2);
-    R = lsqvce.fit(struct('batchFcn', srcOf(B), 'numUnknowns', u, 'numBatches', 2), Verbose=false);
+    R = lsqvce.engine.fitDeclaration(struct('batchFcn', srcOf(B), 'numUnknowns', u, 'numBatches', 2), Verbose=false);
     short = @(k) shortBatch(R.batchFcn, k);
     verifyError(tc, @() lsqvce.engine.verdict.diagnose(R.source, short, 'nBatch', R.nBatch, ...
                 'test', 'mad'), 'lsqvce:diagnose:batchMismatch');

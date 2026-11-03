@@ -150,7 +150,7 @@ function testFitStoresTheInventoryInMeta(tc)
     rs = RandStream('mt19937ar', 'Seed', 3);
     A  = randn(rs, 60, 4);  x = [1; -2; 0.5; 3];
     l  = A*x + 0.01*randn(rs, 60, 1);
-    R  = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Verbose=0));
+    R  = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), lsqvce.Options(Verbose=0));
     verifyTrue(tc, isfield(R.meta, 'warnings'));
     verifyTrue(tc, iscell(R.meta.warnings));
     verifyEmpty(tc, R.meta.warnings, 'a clean solve fires no lsqvce warning');
@@ -167,11 +167,11 @@ function testKindBWarningReachesTheInventory(tc)
     rs = RandStream('mt19937ar', 'Seed', 4);
     A  = randn(rs, 40, 3);  l = A*[1; 2; 3] + 0.01*randn(rs, 40, 1);
     data = struct('A', A, 'l', l, 'priors', struct('L', [0 0 1], 'sigma', 1, 'from', 3));
-    R1 = lsqvce.fit(data, Verbose=false);
+    R1 = lsqvce.engine.fitDeclaration(data, Verbose=false);
     verifyTrue(tc, any(strcmp(R1.meta.warnings, 'lsqvce:fit:priorNotActive')), ...
         'the kind-B warning is in its own run''s inventory');
     lastwarn('');
-    R2 = lsqvce.fit(data, Verbose=false);         % the id fired in the previous run
+    R2 = lsqvce.engine.fitDeclaration(data, Verbose=false);         % the id fired in the previous run
     [~, wid] = lastwarn;
     verifyEqual(tc, wid, 'lsqvce:fit:priorNotActive', 'and the next run warns again, once');
     verifyTrue(tc, any(strcmp(R2.meta.warnings, 'lsqvce:fit:priorNotActive')));
@@ -182,7 +182,7 @@ function testStopReasonIsDerived(tc)
 % categories: contract
     rs = RandStream('mt19937ar', 'Seed', 4);
     A  = randn(rs, 50, 3);  l = A*[1; 2; 3] + 0.01*randn(rs, 50, 1);
-    R  = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Verbose=0));
+    R  = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), lsqvce.Options(Verbose=0));
     verifyEqual(tc, R.stopReason, "single");
     R.setIterative(struct('pass', 1), struct(), true);
     verifyEqual(tc, R.stopReason, "converged");
@@ -243,14 +243,14 @@ function testEllmerRunsOnMultiAxisStreams(tc)
     % parity against the single-axis reference is test_ellmer's job.
     muteWarn(tc, 'lsqvce:decorrFactor:notPD');
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
-    [~, data] = demo_grace_dataLoader();
+    [~, data] = demo_grace_dataLoader();  data = data.declaration();   % WP-162: the compiled struct
     % R5 M3 3b (H-17): the joint law now leaves jointModelOpt in the PSD
     % domain and covModel resamples it to every arc's length, so the KBR arcs
     % longer than NumLags = 16 are no longer non-PD: NO arc is skipped at the
     % DEFAULT threshold (before 3b: 8 of 32, all 's1_rr_*'). The 24 position
     % arcs -- the H-15 case -- are processed per axis.
     opts = lsqvce.Options(Estimate="noise", Noise=struct('Grid', 16), MaxPasses=1, Verbose=0);
-    R = lsqvce.fit(data, opts);
+    R = lsqvce.engine.fitDeclaration(data, opts);
     tc.verifyClass(R, 'lsqvce.Results');
     tc.verifyEqual(R.history.kind, 'ellmer');
     tc.verifyTrue(all(isfinite(R.x)), 'a finite estimate');
@@ -279,8 +279,8 @@ function testJointRobustPassKeepsCleanMultiAxisEpochs(tc)
     % is zeroed about as often as a clean scalar residual (~0.3 %).
     muteWarn(tc, 'lsqvce:decorrFactor:notPD');
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
-    [~, data] = demo_grace_dataLoader();
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Robust="igg3", ...
+    [~, data] = demo_grace_dataLoader();  data = data.declaration();   % WP-162: the compiled struct
+    R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Estimate="noise", Robust="igg3", ...
                    Noise=struct('Grid', 16), MaxPasses=2, Verbose=0));
     fac = R.noise.robust.factor;
     % tol: 5 % -- the calibrated statistic zeroes ~0.3 % of clean epochs

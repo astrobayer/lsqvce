@@ -226,6 +226,7 @@ Results,vectorisation,the user surface loops over nothing data-sized
 Results,speed,the fit-level solve budget in test_speedBudget is the user-surface budget
 Results,metamorphic,the fit-level invariances in test_metamorphic are the user-surface ones (fit named there); Options/Results/report transport them
 fit,vectorisation,the user surface loops over nothing data-sized
+engine.fitDeclaration,vectorisation,no data-sized loop of its own -- it dispatches to the accumulators and drivers
 report,precision,argued in M7: precision does not apply to a user unit of this kind
 report,reference,argued in M7: reference does not apply to a user unit of this kind
 report,robustness,argued in M7: robustness does not apply to a user unit of this kind
@@ -239,6 +240,11 @@ engine.declaration,vectorisation,no data-sized loop -- one pass over the declara
 engine.declaration,metamorphic,the order-freedom of the declaration (test_fit testDeclarationIsOrderFree) is the invariance that applies; asserted through fit
 layout,speed,O(nc + nl) bookkeeping over the plans; no data-sized work
 layout,vectorisation,no data loop -- a table of (row, day, arc) per column
+layout,metamorphic,a wrapper of task.layout() over engine.layoutDeclaration -- the invariances of the columns are that unit's
+layout,precision,no arithmetic -- integers from the plans (engine.layoutDeclaration)
+layout,reference,the columns are pinned against hand-counted layouts on engine.layoutDeclaration (test_fit) and the names in test_taskDefinition
+engine.layoutDeclaration,speed,O(nc + nl) bookkeeping over the plans; no data-sized work
+engine.layoutDeclaration,vectorisation,no data loop -- a table of (row, day, arc) per column
 engine.localColumns,reference,no closed form -- bookkeeping
 engine.localColumns,robustness,its input is the loader's own plan; no external edge regime
 engine.localColumns,vectorisation,O(nl) bookkeeping, no data-sized loop
@@ -261,3 +267,14 @@ kernel.wSnoop,speed,its cost is inside its caller's budget (the noise sweep, O(m
 kernel.truncationDeficit,vectorisation,already the vectorised form (FFT lag sums in column blocks, the private columnLagSums the speed budget pins through redundancyLags); a loop reference would be the slower twin
 kernel.truncationDeficit,speed,its cost is inside its caller's budget (the noise sweep, O(m^2 log m) against the sweep's O(m^3) factor; measured 0.12 s at m = 4000, HANDOVER 12.91); a standalone budget would pin FFTW, not the toolbox
 solveContributions,vectorisation,already the vectorised form (one merge of stacked square-root rows per day and one solve); a loop reference would be the slower twin
+TaskDefinition,metamorphic,the fit-level invariances in test_metamorphic carry over: a task compiles to the declaration those tests transport, pinned bitwise in test_taskDefinition testCompiledTaskFitsBitwiseLikeTheStruct
+SystemDefinition,metamorphic,as TaskDefinition: compiled to the declaration test_metamorphic transports, pinned bitwise in test_taskDefinition
+SystemDefinition,speed,its compiled Build/Prepare wrappers are the per-build cost timed by test_taskDefinition testTaskOverheadIsSmall (named there through TaskDefinition)
+Noise,metamorphic,a specification without arithmetic; the law-level invariances are covModels (test_metamorphic through fit)
+Noise,speed,a constructor of a struct; the laws whitening cost is covModels, budgeted in test_speedBudget
+DayContext,metamorphic,integer bookkeeping over the engines column plans; the fit it feeds is pinned bitwise in test_taskDefinition
+DayContext,speed,its per-build cost is the ratio budget test_taskDefinition testTaskOverheadIsSmall (named there through TaskDefinition)
+DayContext,vectorisation,Local rows of several names against one row per name are pinned bitwise through fit in test_taskDefinition testLocalByNameEqualsLocalAsMatrix
+DayData,metamorphic,it places given numbers into the engines cells without arithmetic; the fit it feeds is pinned bitwise in test_taskDefinition
+DayData,speed,its per-build cost is the ratio budget test_taskDefinition testTaskOverheadIsSmall (named there through TaskDefinition)
+DayData,vectorisation,Local rows of several names against one row per name are pinned bitwise through fit in test_taskDefinition testLocalByNameEqualsLocalAsMatrix

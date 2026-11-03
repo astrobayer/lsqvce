@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.SystemDefinition</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.SystemDefinition</div>
+<h1>lsqvce.SystemDefinition</h1>
+<div class="purpose">One observing system of a task: local parameters, streams, priors.</div>
+<h2>Description</h2>
+<pre class="example">sys = task.addSystem(name, Name=Value)        made by LSQVCE.TASKDEFINITION only
+sys.addLocal(names, Name=Value)
+sys.addStream(name, Build=@build, Noise=noise, Name=Value)
+sys.addPrior(name, Name=Value)
+
+A system is one satellite, one receiver, or a pair whose observation
+depends on the local parameters of both (a range-rate between two
+spacecraft is ONE system). Systems share only the common parameters;
+each has its own locals, streams, calendar and priors.
+
+WHERE THE DAILY WORK GOES. The system&#x27;s Prepare (given to addSystem) runs
+once per day, before the first stream of the day; each stream&#x27;s Build
+(given to addStream) runs once per day and returns the stream&#x27;s arcs:
+    P   = prepare(day, ctx)       % its result reaches every Build as ctx.Prepared
+    out = build(day, ctx)         % out = ctx.newDay(); out.addArc(...)
+(LSQVCE.DAYCONTEXT, LSQVCE.DAYDATA). With Options.CacheDays = 1 a day is
+built twice per pass (accumulation, residual sweep); CacheDays = Inf builds
+it once per run. Both functions must return the same result for the same day.
+
+METHODS
+  addLocal(sys, names, Name=Value)      local parameters, eliminated arc by arc
+    Scope  &quot;arc&quot; (default) | &quot;day&quot; | &quot;system&quot;   constant over one arc, one day of
+                                        the system, or the whole run; &quot;arc&quot; needs
+                                        an Arcs schedule on the system or stream
+    Valid  [start end] fractional MJD | [] (default: always)   when the row exists
+    Info   table, one row per name      your own columns, readable in ctx.Local
+  addStream(sys, name, Name=Value)      an observation stream (one observation type)
+    Build      @(day, ctx) -&gt; LSQVCE.DAYDATA   required; once per stream and day
+    Noise      LSQVCE.NOISE              required; the temporal law and its level
+    Estimate   &quot;law&quot; | &quot;scale&quot; | &quot;none&quot;  what Options.Estimate=&quot;noise&quot; may change: the
+                                        shape and level (default &quot;law&quot;; &quot;scale&quot;
+                                        for a per-row sigma), the level only, or
+                                        nothing
+    ArcFactors logical                   one variance factor per arc (default:
+                                        Options.ArcFactors)
+    Axes       integer &gt;= 1              axes per epoch, rows epoch-major (default 1)
+    Arcs       as addSystem&#x27;s Arcs       this stream&#x27;s own schedule (default: the
+                                        system&#x27;s)
+  addPrior(sys, name, Name=Value)       a prior group on this system&#x27;s locals
+    On, L, Value, Sigma, Estimate, From  as LSQVCE.TASKDEFINITION/ADDPRIOR, with L
+                                        q x nl in the columns task.layout() announces
+
+INPUT   (addSystem&#x27;s, stored read-only)
+  Name      1x1 string     the system&#x27;s name, unique in the task
+  Prepare   function_handle | []   @(day, ctx)
+  Settings  1x1 struct     your values; ctx.Settings in Prepare and Build
+  Days      1 x D double   the system&#x27;s calendar ([] = the task&#x27;s)
+  Arcs      [] | double | function_handle   the arc schedule
+  Id        [] | number | char   the system&#x27;s identifier</pre>
+<h3>Output</h3>
+<pre class="example">sys       1x1 lsqvce.SystemDefinition   a handle: add-calls change the task</pre>
+<h3>Accuracy</h3>
+<pre class="example">Not applicable: bookkeeping (names, scopes, handles); no floating-point
+result. Its compiled system is pinned bitwise against the hand-written
+one in test_taskDefinition.</pre>
+<h3>Errors</h3>
+<pre class="example">lsqvce:TaskDefinition:duplicateName    a local, stream or prior name used twice
+lsqvce:TaskDefinition:badName          a stream name that is not a MATLAB identifier
+lsqvce:TaskDefinition:badValid         Valid is not [] or [start end], start &lt;= end
+lsqvce:TaskDefinition:infoRows         Info has not one row per name
+lsqvce:TaskDefinition:badHandle        Build is not a function handle of (day, ctx)
+lsqvce:TaskDefinition:missingArgument  addStream without Build or Noise; a prior
+                                       without Sigma
+lsqvce:TaskDefinition:priorTarget      a prior gives both On and L, or neither
+lsqvce:TaskDefinition:badArcs          (at declaration) some streams have a
+                                       schedule and others none
+lsqvce:TaskDefinition:incomplete       (at declaration) a system without a stream,
+                                       or without a calendar
+MATLAB:validators:*                    Scope, Estimate, Axes of the wrong kind</pre>
+<h3>Example</h3>
+<pre class="example">  task = lsqvce.TaskDefinition(Days=59396:59426);
+  task.addCommon(compose(&quot;C%d_%d&quot;, [2 2 2].&#x27;, [0 1 2].&#x27;));
+  grace = task.addSystem(&quot;GRACE-FO&quot;, Prepare=@prepareGrace, Arcs=4);
+  grace.addLocal([&quot;x0&quot; &quot;y0&quot; &quot;z0&quot; &quot;vx0&quot; &quot;vy0&quot; &quot;vz0&quot;], Scope=&quot;arc&quot;);
+  grace.addLocal(&quot;accScale&quot;, Scope=&quot;day&quot;);
+  grace.addPrior(&quot;accScale&quot;, On=&quot;^accScale&quot;, Value=1, Sigma=0.02, Estimate=&quot;scale&quot;);
+  grace.addStream(&quot;kbr&quot;, Build=@buildKbr, Noise=lsqvce.Noise.white(1e-7));
+
+See also LSQVCE.TASKDEFINITION, LSQVCE.NOISE, LSQVCE.DAYCONTEXT, LSQVCE.DAYDATA
+
+Created 2026-11-02 (CET, UTC+01:00) with assistance from Claude
+(Anthropic), model Claude Opus 5.5 -- level v7, WP-160.
+Updated 2026-11-02 (CET, UTC+01:00), WP-161: Estimate names the per-row-sigma
+default &quot;scale&quot;. With assistance from Claude (Anthropic), model Claude Opus 5.5.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

@@ -1,15 +1,16 @@
-function [data, kit] = kbr_variational(cfg)
-%KBR_VARIATIONAL  GRACE-FO range-rate day builder by the variational equations.
+function [task, kit] = kbr_variational(cfg)
+%KBR_VARIATIONAL  GRACE-FO range-rates by the variational equations, declared as a lsqvce task.
 %
 %   SYNTAX
-%     data        = kbr_variational(cfg)
-%     [data, kit] = kbr_variational(cfg)
+%     task              = kbr_variational(cfg)
+%     [task, kit]       = kbr_variational(cfg)
 %
 %   DESCRIPTION
-%     A real-data template for the lsqvce `data` declaration (the API reference): the GRACE-FO Level-1B range-rates (KBR1B) of the C/D pair,
-%     and their reduced-dynamic positions (GNV1B) that make the initial
-%     states observable, as observation equations of a gravity field in
-%     fully normalized spherical harmonics -- by the VARIATIONAL EQUATIONS.
+%     A real-data template for a LSQVCE.TASKDEFINITION: the GRACE-FO Level-1B
+%     range-rates (KBR1B) of the C/D pair, and their reduced-dynamic positions
+%     (GNV1B) that make the initial states observable, as observation
+%     equations of a gravity field in fully normalized spherical harmonics --
+%     by the VARIATIONAL EQUATIONS.
 %     Per arc and satellite the reference orbit and
 %         Psi(t) = d[r; v](t) / d[r0; v0 | C_nm, S_nm | ACC bias | ACC scale]
 %     are integrated together,
@@ -28,16 +29,30 @@ function [data, kit] = kbr_variational(cfg)
 %     formed on the fly while the pair is integrated (Psi is never stored --
 %     at degree 60 one satellite-day of Psi would be 3 GB).
 %
-%     The parameters (scoped tables, the API reference, chapter The data struct):
-%       common   C_nm, S_nm for n = cfg.degree(1) .. cfg.degree(2)
-%       'arc'    per satellite r0, v0 (6 + 6); KBR bias, drift, cos u, sin u (4)
-%       'day'    per satellite ACC bias (3) and scale (3)            (6 + 6)
-%     Every column carries a declared UNIT (column 5 of commonParams, column 3
-%     of localParams): the column is the partial times the unit, so the
-%     estimate is in that unit -- physical value = unit .* estimate
-%     (kit.unitCommon .* R.x for the field). The units bring every column to
-%     O(1): unscaled, the columns span ~10 decades and the QR rank decision
-%     (1e3 eps on the pivots) would see the ACC scale as rank-deficient.
+%     The parameters (addCommon / addLocal; every name is unique):
+%       common   C_nm, S_nm for n = cfg.degree(1) .. cfg.degree(2), named 'C_2_0',
+%                'S_2_1', ... in coeffIndex order -- the columns of A
+%       "arc"    per satellite r0, v0 (6 + 6: 'C_x0' .. 'C_vz0', 'D_x0' .. 'D_vz0');
+%                KBR bias, drift, cos u, sin u (4: 'kbr_bias', 'kbr_drift',
+%                'kbr_cos1cpr', 'kbr_sin1cpr')
+%       "day"    per satellite ACC bias (3) and scale (3)            (6 + 6:
+%                'C_accBias_x' .. 'C_accScale_z', 'D_accBias_x' .. 'D_accScale_z')
+%     Every parameter carries a declared UNIT (Info.unit, readable as
+%     ctx.Common.Info / ctx.Local.Info): the column is the partial times the
+%     unit, so the estimate is in that unit -- physical value = unit .*
+%     estimate (kit.unitCommon .* R.x for the field). The units bring every
+%     column to O(1): unscaled, the columns span ~10 decades and the QR rank
+%     decision (1e3 eps on the pivots) would see the ACC scale as
+%     rank-deficient.
+%
+%     WHERE THE DAILY WORK GOES. The system's Prepare (prepareKbrDay) runs once
+%     per build of a day: it reads the day's L1B files, integrates every arc
+%     of ctx.ArcIds for the pair ONCE and forms the rows of every stream, the
+%     columns of B taken by NAME from ctx.cols(names, Arc=id) -- never an
+%     offset. Each stream's Build (buildKbrDay) picks its arcs out of
+%     ctx.Prepared and adds them with out.addArc(A, l, t, B=B, Sigma=..., Arc=id).
+%     Prepare and Build must be deterministic: the toolbox builds a day again
+%     for the residual pass unless Options.CacheDays keeps it.
 %
 %   INPUT (cfg, 1x1 struct; [] = default)
 %     days          1xD  double  MJD of the days to process            REQUIRED
@@ -52,8 +67,8 @@ function [data, kit] = kbr_variational(cfg)
 %     degree        1x2  [nmin nmax] estimated degrees           ([2 60])
 %     fieldDegree   1x1  degree of the reference field     (degree(2), >= it)
 %     arcsPerDay    1x1  arcs per day; arc length 86400/arcsPerDay       (1)
-%     arcs          fh   @(day, obsType) arc ids (a resolver, the API
-%                        reference, buildDay) instead of 1:arcsPerDay ([])
+%     arcs          fh   @(day, obsType) arc ids (the system's Arcs schedule,
+%                        LSQVCE.TASKDEFINITION/ADDSYSTEM) instead of 1:arcsPerDay ([])
 %     step          1x1  integration and KBR step, s                    (5)
 %     posSampling   1x1  GNV1B position sampling used, s (multiple of step) (30)
 %     sigma         struct .kbr (m/s, 2e-7), .pos (m, 0.02): the starting
@@ -71,9 +86,9 @@ function [data, kit] = kbr_variational(cfg)
 %                                                             ('srf2crf')
 %     accToSrf      3x3  rotation of the ACC product's axes into the SRF (eye(3))
 %     accBias0, accScale0  struct .C .D (3x1): the a-priori ACC calibration
-%                        (0 and 1) -- the linearization point of the 'day' rows
+%                        (0 and 1) -- the linearization point of the "day" locals
 %     fieldUpdate   np x 1  a-priori correction of the estimated C_nm, S_nm
-%                        (physical, commonParams order) -- a second Gauss-Newton
+%                        (physical, addCommon order) -- a second Gauss-Newton
 %                        iteration passes kit.unitCommon .* R.x here      (0)
 %     background    function_handle  a_bg = f(tGps, r_crf, sat): every other
 %                        force (tides, third bodies, AOD1B, relativity),
@@ -81,19 +96,21 @@ function [data, kit] = kbr_variational(cfg)
 %     maxAccGap     1x1  longest ACC/SCA gap bridged by interpolation, s (10)
 %
 %   OUTPUT
-%     data  1x1 struct  the lsqvce declaration: commonParams, days, systems(1)
-%           (id 1, name 'GRACE-FO', prepareDay, buildDay, covariance, arcs,
-%           localParams, processingOptions) -- R = lsqvce.fit(data, opts).
-%           prepareDay integrates every arc of the pair ONCE per build of
-%           the day and forms the rows of every stream; buildDay picks its
-%           stream out of procOpt.prepared (WP-141 -- the template kept its
-%           own day cache before the toolbox had the hook)
+%     task  1x1 lsqvce.TaskDefinition   the declaration -- R = lsqvce.fit(task, opts):
+%           Days cfg.days; the commons C_nm, S_nm; ONE system "GRACE-FO" (Id 1,
+%           Prepare=@prepareKbrDay, Arcs cfg.arcsPerDay or cfg.arcs, Settings =
+%           cfg + the reference field and the parameter names) with 16 "arc"
+%           locals (12 without the KBR stream) and 12 "day" locals, and one
+%           stream per cfg.obsTypes entry (Build=@buildKbrDay; Noise white,
+%           level cfg.sigma.kbr for 'kbr', 1 for the positions, whose sigmas
+%           come with every arc as Sigma=)
 %     kit   1x1 struct  the physics as function handles, for tests and for a
 %           second iteration: unitCommon, unitLocal, coeffIndex, harmonics,
 %           makeField, fieldEval, propagate, accModel, eraRotation, readGfc,
-%           readL1B, prepareDay, buildDay. Called directly (since 6.25.0),
-%           kit.buildDay(day, obsType, [], [], po) needs po.prepared =
-%           kit.prepareDay(day, [], [], po, info)
+%           readL1B, field (the reference field), and prepareDay / buildDay --
+%           the system's Prepare and the streams' Build, f(day, ctx); the
+%           toolbox calls them with the LSQVCE.DAYCONTEXT it makes, so they are
+%           not called directly (WP-161; before, kit.buildDay took a procOpt)
 %
 %   ACCURACY (dev/validation/kbr_variational_mirror.py, the numerical twin)
 %     harmonics vs Legendre functions 7e-11; d/dx operators vs differences
@@ -114,16 +131,19 @@ function [data, kit] = kbr_variational(cfg)
 %     kbrvar:offGrid         a KBR1B epoch is not on the integration grid
 %     kbrvar:shortArc        an arc holds fewer than 8 integration steps
 %     kbrvar:emptyArc        a scheduled arc carries no data (declare cfg.arcs)
-%     (+ every declaration check of lsqvce.fit, the API reference, chapter buildDay)
+%     The kbrvar errors of a day's read are raised in Prepare and reach fit's
+%     caller as lsqvce:makeLoader:prepareDay, with the kbrvar error as the cause.
+%     (+ the declaration checks of the add-calls, lsqvce:TaskDefinition:*, and the
+%     checks of a day while it is read, lsqvce:DayContext:*)
 %
 %   EXAMPLE
 %     cfg = struct('days', 60000:60029, 'dataDir', '/data/gracefo/L1B', ...
 %                  'gravityField', '/data/models/GOCO06s.gfc', ...
 %                  'trf2crf', @myIers2010, 'degree', [2 60], 'arcsPerDay', 4);
-%     [data, kit] = kbr_variational(cfg);
-%     R  = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Noise=struct('Grid', 1080)));
+%     [task, kit] = kbr_variational(cfg);
+%     R  = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Noise=struct('Grid', 1080)));
 %     dC = kit.unitCommon .* R.x;                  % physical corrections
-%     cfg.fieldUpdate = dC;  data = kbr_variational(cfg);   % iteration 2
+%     cfg.fieldUpdate = dC;  task = kbr_variational(cfg);   % iteration 2
 %
 %   LIMITATIONS
 %     - The Earth-rotation stand-in kit.eraRotation omits precession-nutation
@@ -143,8 +163,18 @@ function [data, kit] = kbr_variational(cfg)
 %     - One linearization per call: iterate with cfg.fieldUpdate and the ACC
 %       a-priori; the initial states always start from GNV1B.
 %
-%   See also LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.LAYOUT, GRAVFIRE_DATA
+%   See also LSQVCE.TASKDEFINITION, LSQVCE.SYSTEMDEFINITION, LSQVCE.DAYCONTEXT,
+%            LSQVCE.DAYDATA, LSQVCE.NOISE, LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.LAYOUT,
+%            GRAVFIRE_DATA
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: returns [task, kit]; the compiled
+%   struct is task.declaration(). With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as a lsqvce.TaskDefinition
+%   (named commons and locals, units as Info, Prepare on the system, one Build per
+%   stream); the columns of B come from ctx.cols, no offset arithmetic; returns
+%   [task, kit, data] with data = task.declaration(). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-142: the hook runs once per
 %   build of the day; kit.buildDay called directly needs po.prepared (since
 %   6.25.0). With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -171,15 +201,20 @@ end
               size(gf.C, 1) - 1, N);
     end
 
-    % ---- the common table: C_nm, S_nm of the estimated degrees, coeffIndex order
+    % ---- the task and its common parameters: C_nm, S_nm of the estimated
+    %      degrees in coeffIndex order (the columns of A), one unique name each,
+    %      the ONE unit of the SH columns as Info
     [nn, mm, cs] = coeffIndex(N);
     est = find(nn >= cfg.degree(1) & nn <= cfg.degree(2));
     np  = numel(est);
-    csName = {'C', 'S'};
+    csName = string({'C', 'S'});
     unitSh = 1e-10;                                       % the ONE unit of the SH columns
-    data.commonParams = [repmat({'common'}, np, 1), csName(cs(est) + 1).', ...
-                         num2cell(nn(est)), num2cell(mm(est)), num2cell(unitSh * ones(np, 1))];
-    data.days = cfg.days(:).';
+    task = lsqvce.TaskDefinition(Days=cfg.days);
+    shType = reshape(csName(cs(est) + 1), [], 1);         % np x 1 "C" | "S"
+    shName = shType + "_" + nn(est) + "_" + mm(est);      % np x 1 "C_2_0", "S_2_1", ...
+    task.addCommon(shName, ...
+                   Info=table(shType, nn(est), mm(est), unitSh * ones(np, 1), ...
+                              'VariableNames', {'type', 'degree', 'order', 'unit'}));
 
     % ---- the field: reference coefficients + the a-priori correction
     c = fieldVector(gf, N);
@@ -192,50 +227,50 @@ end
     end
     F = makeField(c, N, est, gf.GM, gf.R);
 
-    % ---- the local table: 16 'arc' rows, 12 'day' rows, unit in column 3
+    % ---- the local parameters by name: 16 "arc" (12 without the KBR stream),
+    %      12 "day"; their units as Info. The same name lists reach Prepare
+    %      through the Settings, where ctx.cols turns them into columns of B.
     sat = {'C', 'D'};
     icName = {'x0', 'y0', 'z0', 'vx0', 'vy0', 'vz0'};
     icUnit = [1 1 1 1e-3 1e-3 1e-3];
     accName = {'accBias_x', 'accBias_y', 'accBias_z', 'accScale_x', 'accScale_y', 'accScale_z'};
     accUnit = [1e-9 1e-9 1e-9 1e-3 1e-3 1e-3];
-    arcRows = {};  dayRows = {};
+    kbrNames = ["kbr_bias" "kbr_drift" "kbr_cos1cpr" "kbr_sin1cpr"];
+    icNames = cell(1, 2);  accNames = cell(1, 2);
     for k = 1:2
-        arcRows = [arcRows; strcat(sat{k}, '_', icName(:)), num2cell(icUnit(:))]; %#ok<AGROW>
-        dayRows = [dayRows; strcat(sat{k}, '_', accName(:)), num2cell(accUnit(:))]; %#ok<AGROW>
+        icNames{k}  = string(strcat(sat{k}, '_', icName));             % 1 x 6
+        accNames{k} = string(strcat(sat{k}, '_', accName));            % 1 x 6
     end
+    arcNames = [icNames{:}];  arcUnit = [icUnit, icUnit];
     if any(strcmp(cfg.obsTypes, 'kbr'))                   % the KBR empiricals need the KBR stream
-        arcRows = [arcRows; {'kbr_bias'; 'kbr_drift'; 'kbr_cos1cpr'; 'kbr_sin1cpr'}, num2cell(1e-7 * ones(4, 1))];
+        arcNames = [arcNames, kbrNames];  arcUnit = [arcUnit, 1e-7 * ones(1, 4)];
     end
-    localParams = [[repmat({'arc'}, size(arcRows, 1), 1), arcRows]; ...
-                   [repmat({'day'}, size(dayRows, 1), 1), dayRows]];
+    dayNames = [accNames{:}];  dayUnit = [accUnit, accUnit];
 
-    % ---- covariance: the temporal law per stream (white to start); positions
-    %      carry their sigmas with the day (Cep), so their level is 1
-    cov = struct();
-    for k = 1:numel(cfg.obsTypes)
-        switch cfg.obsTypes{k}
-            case 'kbr',  cov.kbr = struct('type', 'diag', 'sigma', cfg.sigma.kbr);
-            otherwise,   cov.(cfg.obsTypes{k}) = struct('type', 'diag', 'sigma', 1);
-        end
-    end
-
-    % ---- what prepareDay needs, bound once (WP-141: the toolbox keeps the day)
+    % ---- what Prepare needs, bound once: the system's Settings (ctx.Settings)
     po = cfg;
     po.field = F;  po.np = np;  po.unitSh = unitSh;
     po.unitIc = icUnit;  po.unitAcc = accUnit;
+    po.icNames = icNames;  po.accNames = accNames;  po.kbrNames = kbrNames;
 
-    s = struct();
-    s.id = 1;
-    s.name = 'GRACE-FO';
-    s.prepareDay = @prepareKbrDay;
-    s.buildDay = @buildKbrDay;
-    s.covariance = cov;
-    if isempty(cfg.arcs), s.arcs = cfg.arcsPerDay; else, s.arcs = cfg.arcs; end
-    s.localParams = localParams;
-    s.processingOptions = po;
-    data.systems = s;
+    % ---- the system: Prepare integrates the day once, the arc schedule makes
+    %      the "arc" locals countable before any file is read
+    if isempty(cfg.arcs), arcs = cfg.arcsPerDay; else, arcs = cfg.arcs; end
+    sys = task.addSystem("GRACE-FO", Prepare=@prepareKbrDay, Settings=po, Arcs=arcs, Id=1);
+    sys.addLocal(arcNames, Scope="arc", Info=table(arcUnit(:), 'VariableNames', {'unit'}));
+    sys.addLocal(dayNames, Scope="day", Info=table(dayUnit(:), 'VariableNames', {'unit'}));
 
-    kit = struct('unitCommon', unitSh * ones(np, 1), 'unitLocal', [cell2mat(arcRows(:, 2)); cell2mat(dayRows(:, 2))], ...
+    % ---- the streams: the temporal law per stream (white to start); the
+    %      positions carry their sigmas with every arc (Sigma=), so their level is 1
+    for k = 1:numel(cfg.obsTypes)
+        switch cfg.obsTypes{k}
+            case 'kbr',  noise = lsqvce.Noise.white(cfg.sigma.kbr);
+            otherwise,   noise = lsqvce.Noise.white(1);
+        end
+        sys.addStream(cfg.obsTypes{k}, Build=@buildKbrDay, Noise=noise);
+    end
+
+    kit = struct('unitCommon', unitSh * ones(np, 1), 'unitLocal', [arcUnit(:); dayUnit(:)], ...
                  'coeffIndex', @coeffIndex, 'harmonics', @harmonics, 'makeField', @makeField, ...
                  'fieldEval', @fieldEval, 'propagate', @propagate, 'accModel', @accModel, ...
                  'eraRotation', @eraRotation, 'readGfc', @readGfc, 'readL1B', @readL1B, ...
@@ -311,23 +346,41 @@ end
 % ==========================================================================
 %  THE DAY BUILDER
 % ==========================================================================
-function P = prepareKbrDay(day, ~, ~, po, info)
-%PREPAREKBRDAY  The day's prepareDay (WP-141): ONE integration of every arc of
-%   the pair, the rows of every stream -- called once per build of the day by
-%   the toolbox, which hands the result to every buildDay of the day as
-%   procOpt.prepared.
-    P = computeDay(day, po, info);
+function P = prepareKbrDay(day, ctx)
+%PREPAREKBRDAY  The system's Prepare: ONE integration of every arc of the pair,
+%   the rows of every stream -- called by the toolbox once per build of the
+%   day, before the first stream; its result reaches every Build of the day as
+%   ctx.Prepared (WP-141 hook, WP-161 TaskDefinition form).
+%   INPUT   day  1x1 double             the MJD of the day
+%           ctx  1x1 lsqvce.DayContext  ctx.Settings (cfg + field + names),
+%                                       ctx.ArcIds (the arcs of the day), ctx.cols
+%   OUTPUT  P    1x1 struct  .arcIds (1 x nArc) and per stream .A .B .l .t
+%                (+ .Cep for a position stream), each a 1 x nArc cell
+    P = computeDay(day, ctx);
 end
 
-function D = buildKbrDay(~, obsType, ~, ~, po, ~)
-%BUILDKBRDAY  One (day, stream): A, B, l, t (+ Cep) -- one cell per arc, picked
-%   out of what prepareKbrDay built for the day (procOpt.prepared, WP-141).
-    D = po.prepared.(obsType);
+function out = buildKbrDay(~, ctx)
+%BUILDKBRDAY  One stream's Build: its arcs A, B, l, t (+ Sigma), picked out of
+%   what prepareKbrDay built for the day (ctx.Prepared), one addArc per
+%   scheduled arc of the stream (ctx.ArcIds).
+%   INPUT   ctx  1x1 lsqvce.DayContext   (the day itself is not needed)
+%   OUTPUT  out  1x1 lsqvce.DayData      the stream's arcs of the day
+    P = ctx.Prepared;
+    S = P.(char(ctx.Stream));
+    out = ctx.newDay();
+    for a = 1:numel(ctx.ArcIds)
+        id = ctx.ArcIds(a);
+        k = find(P.arcIds == id, 1);
+        sigma = [];
+        if isfield(S, 'Cep'), sigma = S.Cep{k}; end
+        out.addArc(S.A{k}, S.l{k}, S.t{k}, B=S.B{k}, Sigma=sigma, Arc=id);
+    end
 end
 
-function out = computeDay(day, po, info)
+function out = computeDay(day, ctx)
 %COMPUTEDAY  Read the day's L1B files, integrate every arc of the pair with
 %   its variational equations, and form the rows of every stream.
+    po = ctx.Settings;
     dateStr = char(datetime(day, 'ConvertFrom', 'modifiedjuliandate', 'Format', 'yyyy-MM-dd'));
     t0day = (day - 51544.5) * 86400;                      % GPS seconds of the day start
     sats = {'C', 'D'};
@@ -341,9 +394,10 @@ function out = computeDay(day, po, info)
     if any(strcmp(po.obsTypes, 'kbr'))
         kb = readL1B(fullfile(po.dataDir, sprintf(po.files.kbr, dateStr, 'Y')), po.formats.kbr);
     end
-    ids = info.arcId;
+    ids = ctx.ArcIds;                                     % the system's arcs of the day
     nArc = numel(ids);
     arcLen = 86400 / po.arcsPerDay;
+    out = struct('arcIds', ids);
     for s = po.obsTypes(:).'
         out.(s{1}) = struct('A', {cell(1, nArc)}, 'B', {cell(1, nArc)}, 'l', {cell(1, nArc)}, ...
                             't', {cell(1, nArc)});
@@ -351,7 +405,7 @@ function out = computeDay(day, po, info)
     end
     for a = 1:nArc
         span = t0day + (ids(a) - 1) * arcLen + [0 arcLen];
-        arc = computeArc(span, S, kb, po, info, ids(a));
+        arc = computeArc(span, S, kb, po, arcColumns(ctx, po, ids(a)));
         for s = po.obsTypes(:).'
             o = arc.(s{1});
             out.(s{1}).A{a} = o.A;  out.(s{1}).B{a} = o.B;
@@ -365,11 +419,32 @@ function out = computeDay(day, po, info)
     end
 end
 
-function arc = computeArc(span, S, kb, po, info, arcId)
+function c = arcColumns(ctx, po, arcId)
+%ARCCOLUMNS  The columns of one arc's parameters, BY NAME: ctx.cols of the
+%   "arc" locals of arcId and of the day's "day" locals -- never an offset.
+%   INPUT   ctx    1x1 lsqvce.DayContext   the Prepare context of the day
+%           po     1x1 struct              ctx.Settings (the name lists)
+%           arcId  1x1 double              a scheduled arc of the day
+%   OUTPUT  c      1x1 struct  .nc .nl (columns of A and B), .ic {1x2} (r0, v0 of
+%                  C and D, 1x6 each), .kbr (1x4, 1x0 without the KBR stream),
+%                  .acc {1x2} (ACC bias and scale of C and D, 1x6 each)
+    c = struct('nc', ctx.NumCommon, 'nl', ctx.NumLocal, 'ic', {cell(1, 2)}, ...
+               'kbr', zeros(1, 0), 'acc', {cell(1, 2)});
+    for k = 1:2
+        c.ic{k}  = ctx.cols(po.icNames{k}, Arc=arcId);
+        c.acc{k} = ctx.cols(po.accNames{k});
+    end
+    if any(strcmp(po.obsTypes, 'kbr'))
+        c.kbr = ctx.cols(po.kbrNames, Arc=arcId);
+    end
+end
+
+function arc = computeArc(span, S, kb, po, cols)
 %COMPUTEARC  One arc of the pair: the common start t0 on the grid, the two
 %   initial states from GNV1B, the integration of [r v Psi] for C and D
-%   together, and the rows of every stream, formed at each grid epoch.
-    h = po.step;  np = po.np;  nc = info.nc;  nl = info.nl;
+%   together, and the rows of every stream, formed at each grid epoch. COLS
+%   (arcColumns) names the columns of A and B the rows fill.
+    h = po.step;  np = po.np;  nc = cols.nc;  nl = cols.nl;
     sats = {'C', 'D'};
     % ---- start: the first grid epoch of the arc where BOTH satellites have a GNV1B state
     onGrid = @(t) abs(t - span(1) - h * round((t - span(1)) / h)) < 1e-3;
@@ -380,12 +455,14 @@ function arc = computeArc(span, S, kb, po, info, arcId)
     end
     tBoth = intersect(round(tc{1} * 1e3), round(tc{2} * 1e3)) / 1e3;
     if isempty(tBoth)
-        error('kbrvar:noInitialState', 'arc [%.0f %.0f] (GPS s): no GNV1B epoch on the grid for both satellites.', span);
+        error('kbrvar:noInitialState', ...
+              'arc [%.0f %.0f] (GPS s): no GNV1B epoch on the grid for both satellites.', span);
     end
     t0 = tBoth(1);
     nstep = round((span(2) - h - t0) / h);
     if nstep < 8
-        error('kbrvar:shortArc', 'arc [%.0f %.0f] (GPS s) holds %d steps from its first state; 8 are needed.', span, nstep);
+        error('kbrvar:shortArc', ...
+              'arc [%.0f %.0f] (GPS s) holds %d steps from its first state; 8 are needed.', span, nstep);
     end
     tEnd = t0 + nstep * h;
     ncol = 6 + np + 6;  nY = 6 + 6 * ncol;
@@ -427,9 +504,7 @@ function arc = computeArc(span, S, kb, po, info, arcId)
     end
 
     % ---- the rows, preallocated; B as triplets (it spans the whole adjustment)
-    off = info.offsetOf(arcId);  dOff = info.dayOffset;
-    colIc = {off + (1:6), off + (7:12)};  colKbr = off + (13:16);
-    colAcc = {dOff + (1:6), dOff + (7:12)};
+    colIc = cols.ic;  colKbr = cols.kbr;  colAcc = cols.acc;   % by name (arcColumns)
     accIdx = 6 + np + (1:6);  shIdx = 6 + (1:np);  uSh = po.unitSh;
     mK = numel(tK);
     AK = zeros(mK, nc);  lK = zeros(mK, 1);
@@ -557,7 +632,7 @@ end
 function [states, PsiEnd] = propagate(F, rot, accfun, b0, s0, t0, y0, h, nstep, bg)
 %PROPAGATE  One satellite: the states [r v] at t0 + k h (k = 0..nstep) and
 %   Psi at the last epoch -- the simulator of the tests and of a user's
-%   closed loop (the same force model and integrator as buildDay).
+%   closed loop (the same force model and integrator as prepareKbrDay).
     if nargin < 10, bg = []; end
     np = numel(F.est);  ncol = 6 + np + 6;
     C = struct('F', F, 'np', np, 'ncol', ncol, 'rot', rot, 'accfun', accfun, ...

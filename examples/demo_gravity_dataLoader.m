@@ -1,22 +1,29 @@
-function [cfg, data] = demo_gravity_dataLoader()
-%DEMO_GRAVITY_DATALOADER  GRACE-like gravity-recovery data for DEMO_GRAVITY / DEMO_FIT.
+function [cfg, task] = demo_gravity_dataLoader()
+%DEMO_GRAVITY_DATALOADER  GRACE-like gravity-recovery data for DEMO_GRAVITY / DEMO_FIT, as a lsqvce.TaskDefinition.
 %
-%   [cfg, data] = demo_gravity_dataLoader()
+%   [cfg, task] = demo_gravity_dataLoader()
+%   cfg = demo_gravity_dataLoader()
 %
-%   Returns a configuration CFG and the declaration as a data struct DATA
-%   (the form LSQVCE.FIT takes -- see the API reference), so a PHYSICALLY
-%   STRUCTURED gravity recovery can be run end to end without any external
-%   data:
+%   Returns a configuration CFG and the declaration TASK (what LSQVCE.FIT
+%   takes), so a PHYSICALLY STRUCTURED gravity recovery can be run end to end
+%   without any external data:
 %
-%       [cfg, data] = demo_gravity_dataLoader();
-%       R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false));
+%       [cfg, task] = demo_gravity_dataLoader();
+%       R = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false));
 %
+%   The ENGINE tier (fixture_gravity, the tests) takes the compiled struct,
+%   task.declaration(); lsqvce.fit(task) fits exactly it.
+%
+%   INPUT
+%     (none)
 %   OUTPUT
-%     cfg   1x1 struct  the configuration (days, nc, sys, cov, arcsOfDay, truth)
-%     data  1x1 struct  .commonParams (one row per SH coefficient: degree,
-%                       order, term behind the 'common' token -- nc derived), .days, .systems(1x3) with
-%                       buildDay, covariance (fieldname = the stream),
-%                       arcs (per-day resolver), localParams ('arc' rows), id, name
+%     cfg   1x1 struct  the configuration (days, nc, sys, cov, arcsOfDay,
+%                       truth) -- CFG IN DETAIL below
+%     task  1x1 lsqvce.TaskDefinition   77 common parameters named "C2_0",
+%                       "S2_1", ... with Info degree / order / term; three
+%                       systems "GRACE-C", "GRACE-D", "KBR" (Id 1, 2, 3) on a
+%                       ragged arc schedule, each with its own per-arc locals
+%                       and ONE stream (potC, potD, kbr)
 %
 %   WHAT MAKES THIS DIFFERENT FROM DEMO_GRACE_DATALOADER
 %     That loader builds its design from randn -- fine for exercising the
@@ -28,24 +35,25 @@ function [cfg, data] = demo_gravity_dataLoader()
 %     degree attenuation. Nothing in the design is random.
 %
 %   TOPOLOGY (GRACE-like: two satellites, three streams)
-%     System 1 'C'  obsType 'potC'  potential along GRACE-C's orbit
-%     System 2 'D'  obsType 'potD'  potential along GRACE-D's orbit, which
-%                                   trails C along-track by a fixed lag
-%     System 3 'K'  obsType 'kbr'   the inter-satellite POTENTIAL DIFFERENCE,
-%                                   A_kbr = A_D - A_C. This is the energy-
-%                                   balance reading of the KBR observable and
-%                                   it is what makes the demo GRACE-like: one
-%                                   stream whose design couples both orbits
-%                                   and whose noise is far quieter than the
-%                                   two absolute streams.
+%     System 1 'GRACE-C'  stream 'potC'  potential along GRACE-C's orbit
+%     System 2 'GRACE-D'  stream 'potD'  potential along GRACE-D's orbit, which
+%                                        trails C along-track by a fixed lag
+%     System 3 'KBR'      stream 'kbr'   the inter-satellite POTENTIAL
+%                                        DIFFERENCE, A_kbr = A_D - A_C. This is
+%                                        the energy-balance reading of the KBR
+%                                        observable and it is what makes the
+%                                        demo GRACE-like: one stream whose
+%                                        design couples both orbits and whose
+%                                        noise is far quieter than the two
+%                                        absolute streams.
 %
 %   THE THREE THINGS THIS FIXTURE EXERCISES THAT THE OTHERS DO NOT
 %     1. A DIFFERENT NUMBER OF LOCAL UNKNOWNS PER SATELLITE. Locals are
-%        per-arc empirical parameters and each system declares its own count:
-%        C carries 2 per arc (bias, drift), D carries 3 (bias, drift,
-%        quadratic), the KBR stream carries 1 (a range bias). nl is therefore
-%        32 / 48 / 16 -- the block-arrow solver must handle three different
-%        local block sizes in one adjustment.
+%        per-arc empirical parameters and each system declares its own:
+%        C carries 2 per arc ("bias", "drift"), D carries 3 ("bias", "drift",
+%        "quadratic"), the KBR stream carries 1 (a range "bias"). nl is
+%        therefore 32 / 48 / 16 -- the block-arrow solver must handle three
+%        different local block sizes in one adjustment.
 %     2. A DIFFERENT NUMBER OF ARCS PER DAY. The schedule is ragged (3, 4, 2,
 %        4, 3 arcs), and the missing arcs are missing BY ID, not by count:
 %        day 3 has arcs 1 and 3, day 5 has arcs 2, 3 and 4. This is what a
@@ -53,23 +61,23 @@ function [cfg, data] = demo_gravity_dataLoader()
 %        taken their share.
 %     3. A DIFFERENT ARC LENGTH FOR EVERY ARC (140 to 220 epochs). Nothing in
 %        the toolbox may assume a fixed arc length.
-%        Points 1 to 3 are DECLARED, not hand-wired (WP-52): 'arcs' takes a
-%        per-day resolver (required here: the 'arc' template rows make nl a
-%        function of the schedule), the day returns ONE CELL PER SCHEDULED
-%        ARC (v6, R6 WP-102: the cells are the arcs), and
-%        the 'arc' template rows hand the toolbox the local bookkeeping -- it
-%        numbers every (day, arc), DERIVES nl, and passes this day's column
-%        offsets to the builder. An earlier version of this file wrapped the
-%        loader's closure and carried its own arc-ordinal table; both are
-%        gone, which is the honest proof that the support is native.
+%        Points 1 to 3 are DECLARED, not hand-wired (WP-52): each system's
+%        Arcs (addSystem) is a per-day resolver of the arc ids -- required
+%        here, because Scope="arc" locals (addLocal) make nl a function of
+%        the schedule -- and the toolbox does the local bookkeeping: it
+%        numbers every (day, arc), DERIVES nl (ctx.NumLocal), and announces
+%        the columns of an arc's locals by name, ctx.cols(names, Arc=id).
+%        Each Build adds one arc per scheduled id (ctx.ArcIds) and never
+%        computes an offset of its own.
 %
 %   PLANTED TRUTH (deterministic -- the loop must recover it)
 %     cfg.xTrue    the spherical-harmonic coefficients, a closed formula plus
 %                  ONE planted anomaly at (n,m) = (5,3), cosine term
 %     cfg.yTrue    the per-arc empirical parameters of each system
 %     cfg.trueSigma / cfg.trueAR   the noise law actually used to generate the
-%                  observations. The COVARIANCE DECLARED to the toolbox has
-%                  the right AR shape but unit sigma for every stream, so the
+%                  observations. The NOISE DECLARED to the toolbox (cfg.cov,
+%                  stated in the task as lsqvce.Noise.arma / .white) has the
+%                  right AR shape but unit sigma for every stream, so the
 %                  variance components VCE estimates should come out as the
 %                  planted sigmas: 1.0 / 2.0 / 0.5.
 %
@@ -85,27 +93,46 @@ function [cfg, data] = demo_gravity_dataLoader()
 %            .arcOrd   DxA double   global arc ordinal; 0 where absent. KEPT
 %                                   only so the tests can check makeLoader's
 %                                   plan against an independent table -- the
-%                                   builder no longer reads it (WP-52)
+%                                   Builds never read it (WP-52)
 %            .nArcTot  1x1 double   total arcs over all days (16)
 %            .sys      1x3 struct   .id .name .obsType .nlPerArc .nl
 %            .xTrue    ncx1 double  the planted coefficients
 %            .yTrue    1x1 struct   .potC .potD .kbr, the planted locals
 %            .trueSigma/.trueAR 1x1 struct  the planted noise law per stream
-%            .cov      1x1 struct   the DECLARED covariance per stream
+%            .cov      1x1 struct   the DECLARED noise per stream (law and
+%                                   parameters: .type .ar .ma .sigma), from
+%                                   which gravityTask states its lsqvce.Noise
 %            .r .incl .dt .lagC2D   orbit geometry
 %
+%   ACCURACY
+%     Not applicable: a deterministic generator (the noise drawn from one
+%     RandStream per day and stream, seeded), no floating-point result of its
+%     own; DEMO_GRAVITY_DESIGN carries the design's ACCURACY. The WP-161
+%     migration keeps every seed, the order of every draw and the DENSE local
+%     design of the v6 builder, so the rows are those of the v6 declaration by
+%     construction (not measured in the migrating session, which had no MATLAB).
+%
 %   ERRORS
-%     None. The fixture is self-contained and deterministic.
+%     None of its own: the fixture is self-contained and deterministic. A
+%     declaration mistake raises lsqvce:TaskDefinition:* at the add-call that
+%     makes it; a mistake inside a Build raises lsqvce:DayContext:* while the
+%     day is read.
 %
 %   EXAMPLE
-%     [cfg, data] = demo_gravity_dataLoader();
-%     R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4, ...
+%     [cfg, task] = demo_gravity_dataLoader();
+%     R = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4, ...
 %             Verbose=false));
-%     max(abs(R.x - cfg.xTrue) ./ (sqrt(diag(R.sol.Cxx))*R.sigma0))   % < 5
+%     max(abs(R.x - cfg.xTrue) ./ sqrt(diag(R.sol.Cxx)))   % < 5 (sol.Cxx is sigma0^2-scaled)
 %
 %   See also DEMO_GRAVITY, DEMO_GRAVITY_DESIGN, DEMO_GRACE_DATALOADER,
+%   LSQVCE.TASKDEFINITION, LSQVCE.SYSTEMDEFINITION, LSQVCE.NOISE, LSQVCE.DAYCONTEXT,
 %   LSQVCE.FIT
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: the outputs are [cfg, task];
+%   the compiled struct is task.declaration() wherever the engine tier needs
+%   it. With assistance from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as a lsqvce.TaskDefinition, one Build per stream. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): buildGravityDay
 %   returns one cell per scheduled arc (the cells are the arcs; arcIdx /
 %   arcId are gone). With assistance from Claude (Anthropic), model Claude
@@ -142,32 +169,39 @@ function [cfg, data] = demo_gravity_dataLoader()
 %   Opus 5.5.
 
     cfg  = gravityCfg();
-    data = gravityData(cfg);
+    task = gravityTask(cfg);
 end
 
 %==========================================================================
-function data = gravityData(cfg)
-%GRAVITYDATA  The declaration as a data struct (L11 WP-77): the tables
-%   declare, the counts are derived -- commonParams is the degree/order/term
-%   table of the SH coefficients (nc = rows, and the columns MEAN something),
-%   the observation type is the covariance fieldname, id is the system id.
-%   fit builds the Loaders from this internally.
-    data = struct();
-    data.commonParams = [repmat({'common'}, numel(cfg.meta.n), 1), ...
-                         num2cell(cfg.meta.n(:)), num2cell(cfg.meta.m(:)), ...
-                         cellstr(cfg.meta.cs(:))];        % scoped: nc x 4
-    data.days = cfg.days;
+function task = gravityTask(cfg)
+%GRAVITYTASK  The declaration (WP-161): the names declare, the counts are
+%   derived. One common parameter per SH coefficient, named by term, degree
+%   and order ("C2_0", "S2_1", ...) and carrying them as Info; three systems
+%   on the ragged schedule, each with its own per-arc locals and ONE stream
+%   whose Build reads the day.
+%   INPUT   cfg   1x1 struct  see gravityCfg
+%   OUTPUT  task  1x1 lsqvce.TaskDefinition
+    task  = lsqvce.TaskDefinition(Days=cfg.days);
+    names = arrayfun(@(k) sprintf('%s%d_%d', cfg.meta.cs(k), cfg.meta.n(k), cfg.meta.m(k)), ...
+                     1:cfg.nc, 'UniformOutput', false);
+    info  = table(cfg.meta.n(:), cfg.meta.m(:), cellstr(cfg.meta.cs(:)), ...
+                  'VariableNames', {'degree', 'order', 'term'});
+    task.addCommon(string(names), Info=info);           % the columns of A, in meta order
+
+    % the declared noise: the right AR shape, unit sigma (cfg.cov)
+    noise = struct('potC', lsqvce.Noise.arma(cfg.cov.potC.ar, cfg.cov.potC.sigma, MA=cfg.cov.potC.ma), ...
+                   'potD', lsqvce.Noise.arma(cfg.cov.potD.ar, cfg.cov.potD.sigma, MA=cfg.cov.potD.ma), ...
+                   'kbr',  lsqvce.Noise.white(cfg.cov.kbr.sigma));
+    build = struct('potC', @(day, ctx) buildPotC(day, ctx, cfg), ...
+                   'potD', @(day, ctx) buildPotD(day, ctx, cfg), ...
+                   'kbr',  @(day, ctx) buildKbr(day, ctx, cfg));
+    perArc = ["bias" "drift" "quadratic"];             % the per-arc empirical parameters
     for s = 1:numel(cfg.sys)
-        ot = cfg.sys(s).obsType;
-        d  = struct();
-        d.buildDay     = @(dd, o, cm, lo, po, ai) buildGravityDay(cfg, dd, o, ai);
-        d.covariance   = struct(ot, cfg.cov.(ot));        % fieldname = the stream
-        d.arcs         = @(dd, o) cfg.arcsOfDay{cfg.days == dd};
-        d.localParams  = [repmat({'arc'}, cfg.sys(s).nlPerArc, 1), ...
-                          num2cell((1:cfg.sys(s).nlPerArc).')];   % 'arc' templates
-        d.id           = cfg.sys(s).id;
-        d.name         = cfg.sys(s).name;
-        if s == 1, data.systems = d; else, data.systems(s) = d; end
+        q   = cfg.sys(s);
+        sys = task.addSystem(string(q.name), Id=q.id, ...
+                             Arcs=@(day, ~) cfg.arcsOfDay{cfg.days == day});   % the ragged schedule
+        sys.addLocal(perArc(1:q.nlPerArc), Scope="arc");      % C 2, D 3, KBR 1 per arc
+        sys.addStream(string(q.obsType), Build=build.(q.obsType), Noise=noise.(q.obsType));
     end
 end
 
@@ -194,8 +228,9 @@ function cfg = gravityCfg()
                   220   0 170   0; ...
                   150 160 200 180; ...
                     0 190 210 150];
-    % Global arc ordinal, day-then-arc. It indexes the local-parameter
-    % blocks, so it must be deterministic and shared by all three systems.
+    % Global arc ordinal, day-then-arc: the numbering the toolbox gives the
+    % local-parameter blocks itself (the Builds never read it; the tests
+    % check the loader's plan against it).
     cfg.arcOrd = zeros(numel(cfg.days), cfg.maxArc);
     k = 0;
     for d = 1:numel(cfg.days)
@@ -253,64 +288,78 @@ function cfg = gravityCfg()
 end
 
 %==========================================================================
-function D = buildGravityDay(cfg, day, obsType, arcInfo)
-%BUILDGRAVITYDAY  One satellite-day: physical design, planted truth, noise.
-%   INPUT   cfg 1x1 struct; day 1x1 double; obsType 1xK char;
-%           arcInfo 1x1 struct  the day's local-block plan from makeLoader
-%                               (WP-52): .arcId .offset .count .nl .offsetOf
-%   OUTPUT  D 1x1 struct  .A .B .l .t  {1xnArc} cells, ONE CELL PER ARC of
-%                         the day's schedule (v6): cell ia is arc arcs(ia),
-%                         A m x nc, B m x nl, l and t m x 1
-    di   = find(cfg.days == day);
-    arcs = cfg.arcsOfDay{di};              % == the resolver's list for this day
-    s    = find(strcmp({cfg.sys.obsType}, obsType));
-    nlPA = cfg.sys(s).nlPerArc;
-    nl   = arcInfo.nl;                     % DERIVED by makeLoader, not restated
+function out = buildPotC(day, ctx, cfg)
+%BUILDPOTC  GRACE-C's potential on DAY: the SH design along C's orbit, and
+%   per arc a bias and a drift.
+%   INPUT day 1x1 double; ctx 1x1 lsqvce.DayContext; cfg 1x1 struct.
+%   OUTPUT out 1x1 lsqvce.DayData.
+    design   = @(a, m) demo_gravity_design(cfg.nmax, arcOrbit(cfg, day, a, m, 0));
+    partials = @(tau) [ones(numel(tau), 1), tau];                   % bias, drift
+    out = gravityArcs(day, ctx, cfg, design, partials);
+end
 
-    nArc = numel(arcs);
-    D = struct('A', {cell(1, nArc)}, 'B', {cell(1, nArc)}, 'l', {cell(1, nArc)}, 't', {cell(1, nArc)});
+function out = buildPotD(day, ctx, cfg)
+%BUILDPOTD  GRACE-D's potential on DAY: the SH design along D's orbit (C's,
+%   trailing by cfg.lagC2D), and per arc a bias, a drift and a quadratic.
+%   INPUT day 1x1 double; ctx 1x1 lsqvce.DayContext; cfg 1x1 struct.
+%   OUTPUT out 1x1 lsqvce.DayData.
+    design   = @(a, m) demo_gravity_design(cfg.nmax, arcOrbit(cfg, day, a, m, cfg.lagC2D));
+    partials = @(tau) [ones(numel(tau), 1), tau, tau.^2];           % + quadratic
+    out = gravityArcs(day, ctx, cfg, design, partials);
+end
 
-    rs = RandStream('mt19937ar', 'Seed', cfg.seed.(obsType) + 97*day);
-    tOff = 0;
-    for ia = 1:nArc
-        a    = arcs(ia);
-        m    = cfg.mOfArc(di, a);
+function out = buildKbr(day, ctx, cfg)
+%BUILDKBR  The KBR stream on DAY, read by energy balance: the potential
+%   DIFFERENCE along the baseline (D's design minus C's), so its design
+%   couples both orbits; per arc one range bias.
+%   INPUT day 1x1 double; ctx 1x1 lsqvce.DayContext; cfg 1x1 struct.
+%   OUTPUT out 1x1 lsqvce.DayData.
+    design   = @(a, m) demo_gravity_design(cfg.nmax, arcOrbit(cfg, day, a, m, cfg.lagC2D)) ...
+                       - demo_gravity_design(cfg.nmax, arcOrbit(cfg, day, a, m, 0));
+    partials = @(tau) ones(numel(tau), 1);                           % range bias
+    out = gravityArcs(day, ctx, cfg, design, partials);
+end
 
-        % ---- the physical design ---------------------------------------
-        Ac = demo_gravity_design(cfg.nmax, arcOrbit(cfg, day, a, m, 0));
-        switch obsType
-            case 'potC'
-                A = Ac;
-            case 'potD'
-                A = demo_gravity_design(cfg.nmax, ...
-                        arcOrbit(cfg, day, a, m, cfg.lagC2D));
-            case 'kbr'
-                % energy-balance reading: the potential DIFFERENCE along the
-                % baseline, so this design couples both orbits
-                A = demo_gravity_design(cfg.nmax, ...
-                        arcOrbit(cfg, day, a, m, cfg.lagC2D)) - Ac;
-        end
+function out = gravityArcs(day, ctx, cfg, design, partials)
+%GRAVITYARCS  One satellite-day, shared by the three Builds: physical design,
+%   planted truth, noise -- one arc per scheduled id of the day.
+%   INPUT   day       1x1 double            the day (an entry of cfg.days)
+%           ctx       1x1 lsqvce.DayContext  ArcIds (the day's schedule), the
+%                                           columns by name (ctx.cols), NumLocal
+%           cfg       1x1 struct            the configuration and planted truth
+%           design    function_handle       A = design(arc, m), m x nc
+%           partials  function_handle       P = partials(tau), m x nlPerArc,
+%                                           tau the normalised arc time
+%   OUTPUT  out       1x1 lsqvce.DayData     cell ia is arc ctx.ArcIds(ia):
+%                                           A m x nc, B m x nl (dense), l, t m x 1
+%   The local partials of an arc go into ONE dense B in the columns
+%   ctx.cols(names, Arc=id) announces (as the v6 builder held it; Local= would
+%   build it sparse); l uses the same columns to pick the planted locals.
+    ot    = char(ctx.Stream);                % potC | potD | kbr (seed, truth)
+    di    = find(cfg.days == day);
+    names = reshape(ctx.Local.Name, 1, []);  % this system's per-arc locals, in order
+    rs    = RandStream('mt19937ar', 'Seed', cfg.seed.(ot) + 97*day);
+    out   = ctx.newDay();
+    tOff  = 0;
+    for a = ctx.ArcIds                       % == cfg.arcsOfDay{di}, the resolver's list
+        m = cfg.mOfArc(di, a);
 
-        % ---- this arc's empirical parameters ---------------------------
-        tau = (0:m-1).' / m;                   % normalised arc time
-        switch nlPA
-            case 1, Barc = ones(m, 1);                       % range bias
-            case 2, Barc = [ones(m,1), tau];                 % bias, drift
-            case 3, Barc = [ones(m,1), tau, tau.^2];         % + quadratic
-        end
-        cols = arcInfo.offsetOf(a) + (1:nlPA);   % offsets owned by makeLoader
+        % ---- the physical design and this arc's empirical parameters ----
+        A    = design(a, m);
+        tau  = (0:m-1).' / m;                % normalised arc time
+        Barc = partials(tau);
+        cols = ctx.cols(names, Arc=a);       % the arc's local columns, by name
 
         % ---- the planted observation ------------------------------------
-        w = cfg.trueSigma.(obsType) * randn(rs, m, 1);
-        e = filter(1, cfg.trueAR.(obsType), w);
+        w = cfg.trueSigma.(ot) * randn(rs, m, 1);
+        e = filter(1, cfg.trueAR.(ot), w);
 
-        B = zeros(m, nl);  B(:, cols) = Barc;
-        D.A{ia} = A;
-        D.B{ia} = B;
-        D.l{ia} = A * cfg.xTrue + Barc * cfg.yTrue.(obsType)(cols) + e;
-        D.t{ia} = tOff + (0:m-1).' * cfg.dt;
+        B = zeros(m, ctx.NumLocal);  B(:, cols) = Barc;
+        l = A * cfg.xTrue + Barc * cfg.yTrue.(ot)(cols) + e;
+        t = tOff + (0:m-1).' * cfg.dt;
+        out.addArc(A, l, t, B=B, Arc=a);
 
-        tOff = tOff + m * cfg.dt + 600;        % a gap between arcs
+        tOff = tOff + m * cfg.dt + 600;      % a gap between arcs
     end
 end
 

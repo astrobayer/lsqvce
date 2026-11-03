@@ -39,7 +39,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %                  order); Cfcn is the TEMPORAL covariance over epochs; the
 %                  law is built on the EPOCH grid t(1:d:end); filterMemory is
 %                  p*d rows. The loader sets it from the day buildDay returned
-%                  (the API reference, chapter buildDay, Cep); a user never writes it
+%                  (the API reference, The compiled declaration, Cep); a user never writes it
 %                  on the spec. d = size(Cep, 2), and a .d on the spec must
 %                  agree. The former 'separable' type was 'arma' plus this field.
 %         .nugget  nEpoch x 1, >= 0   (R7 WP-115 part 3b; with Cep only) the
@@ -248,6 +248,9 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
 %            LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: the API reference's buildDay and
+%   Cep sections now live in its chapter The compiled declaration. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-155 (review 12.84 P1): a dense law
 %   is whitened by forward substitutions with its Cholesky factor
 %   (denseLawWhiten), no explicit inverse; the dense Toeplitz forms are built

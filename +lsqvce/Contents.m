@@ -1,13 +1,19 @@
 % LSQVCE  Batch least squares: accumulation, variance components, and judgment.
-% Version 6.35.1  29-Oct-2026
+% Version 7.0.0  03-Nov-2026
 %
 % lsqvce -- least-squares adjustment with variance component estimation.
 %
-% THE USER TIER (six names: five since R5-D8, solveContributions since WP-158).
-% New here? Run demo_tutorial and read the Manual's tutorial beside it. Start with the
-% Manual (doc lsqvce) for how to use it, the API reference for the data you declare.
+% THE USER TIER (v7.0.0: the declaration is a TaskDefinition; a data struct is the
+% engine tier's, lsqvce.engine.fitDeclaration). New here? Run demo_tutorial and read
+% the Manual's tutorial beside it. Start with the Manual (doc lsqvce) for how to use
+% it, the API reference for the task you declare.
 %
-%   fit            - the one user verb: fit(data, opts) -> Results
+%   TaskDefinition - the declaration: flat add-calls compiled for fit (v7, WP-160)
+%   SystemDefinition - one system of a task: locals, streams (Build), priors, Prepare
+%   Noise          - the temporal law and level of a stream (white, arma, psd, ...)
+%   DayContext     - what Prepare and Build know about their day
+%   DayData        - the arcs one Build returns (addArc)
+%   fit            - the one user verb: fit(task, opts) -> Results
 %   layout         - the column layout fit will use (declare priors in it) (R5-D8)
 %   Options        - the one settings object for fit (typed knobs with engine defaults)
 %   Results        - rich result object: solution, diagnostics, provenance, report()

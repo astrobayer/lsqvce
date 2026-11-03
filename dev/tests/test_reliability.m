@@ -408,7 +408,7 @@ function testAccumulatorRejectsNaNObservations(tc)
     % (the only check sat in the local block) and came out as x = NaN
     rs = RandStream('mt19937ar', 'Seed', 41);
     A  = randn(rs, 30, 3);  A(7, 2) = NaN;
-    tc.verifyError(@() lsqvce.fit(struct('A', A, 'l', randn(rs, 30, 1)), Verbose=false), ...
+    tc.verifyError(@() lsqvce.engine.fitDeclaration(struct('A', A, 'l', randn(rs, 30, 1)), Verbose=false), ...
                    'lsqvce:accum:arcNotFinite');
 end
 

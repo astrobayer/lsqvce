@@ -33,7 +33,7 @@ function testFitPairsOverrideOptsFieldByField(tc)
     rs = RandStream('mt19937ar', 'Seed', 131);
     A = randn(rs, 30, 3);  l = A*[1; 2; 3] + 0.1*randn(rs, 30, 1);
     o = lsqvce.Options(Noise=struct('Whitener', "ar"), Verbose=false);
-    R = lsqvce.fit(struct('A', A, 'l', l), o, Noise=struct('Grid', 16));
+    R = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l), o, Noise=struct('Grid', 16));
     tc.verifyEqual(string(R.meta.options.Noise.Whitener), "ar", 'the field opts set survives');
     tc.verifyEqual(R.meta.options.Noise.Grid, 16, 'the field the pair set wins');
     o2 = lsqvce.Options(Noise=struct('Whitener', "ar"));
@@ -144,9 +144,9 @@ function testNameValueOnFitIsTheSameMechanism(tc)
     rs = RandStream('mt19937ar', 'Seed', 5);
     A = randn(rs, 40, 3);  l = A*[1; -2; 0.5] + 0.01*randn(rs, 40, 1);
     data = struct('A', A, 'l', l);
-    R1 = lsqvce.fit(data, lsqvce.Options(Backend="normal", Verbose=false));
-    R2 = lsqvce.fit(data, Backend="normal", Verbose=false);
-    R3 = lsqvce.fit(data, lsqvce.Options(Verbose=false), Backend="normal");
+    R1 = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Backend="normal", Verbose=false));
+    R2 = lsqvce.engine.fitDeclaration(data, Backend="normal", Verbose=false);
+    R3 = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=false), Backend="normal");
     % tol: exact -- one code path, one option object after resolution
     tc.verifyEqual(R2.x, R1.x);
     tc.verifyEqual(R3.x, R1.x);

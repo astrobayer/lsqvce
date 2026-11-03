@@ -2,57 +2,71 @@
 
 The weights of a least-squares solution are the inverse of the noise covariance. This
 chapter says what to declare, what to let the data estimate, and how to read the
-estimate back. The laws and their fields are listed in the API reference (*Covariance
-specifications*); the mathematics is in the theory.
+estimate back. The laws and their arguments are listed in the API reference (*Noise
+laws*) and in `help lsqvce.Noise`; the mathematics is in the theory.
 
 ## Three facts, three places
 
 | fact | declared in | estimated? |
 |---|---|---|
-| the **temporal law** — how the errors of a stream correlate from epoch to epoch | `covariance.<type>.type` and its parameters | yes, with `Estimate = "noise"` |
-| the **level** of that law | `covariance.<type>.sigma` (a standard deviation) | yes |
-| the **per-epoch accuracy** — what the preprocessing knows about each observation | `D.Cep`, returned by `buildDay` | never: it is data |
+| the **temporal law** — how the errors of a stream correlate from epoch to epoch | `addStream(..., Noise=lsqvce.Noise.<law>(...))` | yes, with `Estimate = "noise"`, as the stream's `Estimate` allows |
+| the **level** of that law | the law's `sigma` (a standard deviation) | yes |
+| the **per-epoch accuracy** — what the preprocessing knows about each observation | `addArc(..., Sigma=)` in `Build` | never: it is data |
 
-The toolbox combines them per arc. A filter law (`diag`, `arma`, an AR-whitened `psd`, `var`)
+The toolbox combines them per arc. A filter law (`white`, `arma`, an AR-whitened `psd`, `var`)
 is applied in batches of up to 20 000 rows that overlap by the memory of the filter (for an
 `arma` law with an MA part, until its impulse response has decayed to rounding), so the
 batching does not change the result. A dense law (`acf`, `custom`, a `psd` whitened as
 Toeplitz) is factorised over the whole arc: exact, at a cost of O(m³) and m² memory for an
 arc of m rows — for arcs of many thousand epochs prefer a filter law. Above 20 000 epochs a
 dense law is refused (`lsqvce:covModel:denseArcTooLong`, 3.2 GB for the factor alone at that
-length); the field `maxDenseArc` on the covariance spec raises the limit deliberately. Under
+length); `MaxDenseArc=` on the law raises the limit deliberately. Under
 `Estimate = "noise"` the estimator's sweep forms every arc's covariance densely whatever the
 whitener, so there the same limit applies to every law, a filter law included.
 
 ## What to declare
 
-- **You do not know the colour of the noise.** Declare `type = 'diag'` with a realistic
-  `sigma` and run `Estimate = "noise"`: the estimator starts from white noise and finds
-  the spectral shape. Under `estimate = "law"` (the default) this is what happens to every
-  stream, whatever law it declares: the declared law contributes only its `sigma`, as the
-  starting level, and the shape is estimated from white noise. (For an `arma` law `sigma`
-  is an innovation standard deviation; as a level it is read as the marginal one.)
-- **You know the noise spectrum.** Declare `type = 'psd'` with `f` and `S`, or an `arma`
-  filter; set `estimate = "scale"` to keep the shape and estimate only the level, or
-  `"none"` to use it as given.
-- **Your axes are correlated in time across axes.** Declare a `var` law (no `Cep`). It
-  is used as declared: `Estimate = "noise"` has no path for it and refuses it
-  (`lsqvce:fit:varUnderNoise`).
+| law | constructor | use when | cost per arc of m rows |
+|---|---|---|---|
+| white | `lsqvce.Noise.white(sigma)` | the colour is unknown (the default start), or truly white | O(m) |
+| ARMA filter | `lsqvce.Noise.arma(ar, sigma, MA=ma)` | a whitening filter is known | O(m·p) |
+| spectrum | `lsqvce.Noise.psd(f, S)` | a measured one-sided spectrum, f from 0 Hz | O(m³) Toeplitz, O(m·p) with `Noise.Whitener="ar"` |
+| correlation | `lsqvce.Noise.acf(@rho, sigma)` | the correlation is known as a function of the lag | O(m³) |
+| vector AR | `lsqvce.Noise.var(ar, Sigma)` | axes correlated in time across axes | O(m·p·d²) |
+| any | `lsqvce.Noise.custom(@covFcn)` | anything else | O(m³) |
+
+| stream's `Estimate` | under `Estimate = "noise"` | use for |
+|---|---|---|
+| `"law"` (default; `"scale"` for a per-row `sigma`) | shape and level estimated; the declared law gives only its `sigma`, as the starting level | the colour is unknown |
+| `"scale"` | the declared shape kept, its level estimated | a trusted spectrum or filter of uncertain level |
+| `"none"` | used exactly as declared | a reference stream, a stream you trust completely |
+
+- **You do not know the colour of the noise.** Declare `lsqvce.Noise.white(sigma)` with a
+  realistic `sigma` and run `Estimate = "noise"`: the estimator starts from white noise and
+  finds the spectral shape. Under the stream's `Estimate = "law"` (the default) this is
+  what happens to every stream, whatever law it declares. (For an `arma` law `sigma` is an
+  innovation standard deviation; as a level it is read as the marginal one.)
+- **You know the noise spectrum.** Declare `lsqvce.Noise.psd(f, S)` or an `arma` filter
+  and set the stream's `Estimate = "scale"` to keep the shape and estimate only the level,
+  or `"none"` to use it as given.
+- **Your axes are correlated in time across axes.** Declare `lsqvce.Noise.var` (no
+  per-arc `Sigma`). It is used as declared: `Estimate = "noise"` has no path for it and
+  refuses it (`lsqvce:fit:varUnderNoise`).
 - **A stream you trust completely** — a prior stream, a reference — takes
-  `estimate = "none"`.
+  `Estimate = "none"` on its `addStream`.
 
 ## Running the estimator
 
 ```matlab
 opts = lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=true, ...
                       MaxPasses=7, Seed=1, Noise=struct('Grid', 120, 'Whitener', "ar"));
-R = lsqvce.fit(data, opts);
+R = lsqvce.fit(task, opts);
 ```
 
 Per pass the toolbox solves under the current laws, sweeps every arc once for its
 whitened residuals and their redundancies, and updates the spectral shape of every pool
 group, the level of every stream, the factor of every arc and the σ of every prior with
-`estimate = "scale"`. It stops when no component changes by more than `Tolerance` — the
+`Estimate = "scale"`. It stops when no component changes by more than `Tolerance` — the
 σ of a prior group included, which is first updated on the pass after it enters the solve,
 so the loop does not stop before — or after `MaxPasses`. A spectral bin the data barely
 determine may change by more, in proportion to its own standard error (chapter
@@ -69,7 +83,7 @@ The choices that matter:
 | `Probes`, `Seed` | the redundancies are estimated with random probes: 100 probes are the standard; a fixed `Seed` makes the run reproducible |
 
 **Run one pass with `Estimate = "none"` first.** If σ₀ is near 1 the declared weights are
-consistent. A σ₀ far from 1 says the `Cep` scale is wrong — most often an information
+consistent. A σ₀ far from 1 says the `Sigma` scale is wrong — most often an information
 matrix used where a covariance was expected — and estimating a law on top will not fix it.
 
 ## Reading the estimate
@@ -83,7 +97,7 @@ R.plot("psd")            % the spectra
 ```
 
 The standard deviation of one arc is the product of three terms: the declared `sigma`, the
-square root of the arc factor, and `R.sigma0`. With `sigma = 1` and a `Cep` carrying the
+square root of the arc factor, and `R.sigma0`. With `sigma = 1` and a `Sigma` carrying the
 absolute accuracy, that product reads directly as *how much too optimistic the
 preprocessing's covariance was on this arc*.
 
@@ -108,7 +122,7 @@ estimated covariance as known. On short or few arcs they are 3–13 % optimistic
 records the optimism is negligible.
 
 Arcs can be skipped in a pass: `gap` (no data) or `nonPD` (the arc's covariance is not
-positive definite — a mis-scaled `Cep` produces exactly this). A skipped arc keeps its
+positive definite — a mis-scaled `Sigma` produces exactly this). A skipped arc keeps its
 previous factor; when more than `Noise.SkipThreshold` of a stream's arcs are skipped, the
 pass is refused rather than estimated on a fraction of the data.
 
@@ -133,13 +147,13 @@ Gross outliers belong to preprocessing. Inside the adjustment there are three to
    that flips back and forth between two passes is frozen at the union of the two
    (`R.noise.robust.frozen` names the pass).
 3. **Diagnose, then decide.** Read the outlier tests in `R.report`, repair or remove the
-   observations in `buildDay` and run again. Weights taken from a robust run can be made
-   data: zero the rejected epochs' rows and mark them `excluded` in the day `buildDay`
-   returns — the toolbox deletes such rows from a correlated law exactly, whole epochs or
+   observations in `Build` and run again. Weights taken from a robust run can be made
+   data: zero the rejected epochs' rows and mark them `Excluded` in the arc `Build`
+   adds — the toolbox deletes such rows from a correlated law exactly, whole epochs or
    single axes (removing them
    leaves a gap that a `psd` or `arma` law, which counts lags in samples, takes for one
    step — `lsqvce:covModel:unevenGrid` says so); store the weights, never recompute them
-   inside `buildDay`.
+   inside `Build`.
 
 With `Estimate = "none"`, `Robust` runs a stand-alone iteratively re-weighted solve on the
 whitened innovations, with its own budget `RobustOpts`.

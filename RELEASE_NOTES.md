@@ -1,5 +1,63 @@
 # lsqvce release notes
 
+## 7.0.0 — 2026-11-03 (level v7, WP-160..162: `lsqvce.TaskDefinition`) — BREAKING
+
+**BREAKING.** The declaration of the user tier is a `lsqvce.TaskDefinition`. `lsqvce.fit`,
+`lsqvce.layout` and `R.toTable` take a task and refuse a `data` struct by name
+(`lsqvce:fit:structDeclaration`, `lsqvce:layout:structDeclaration`,
+`lsqvce:Results:structDeclaration`); the table below maps every v6 field to its call. The
+struct is the engine tier's: `lsqvce.engine.fitDeclaration(data, opts)` (the body of v6's
+`fit`), `lsqvce.engine.layoutDeclaration(data)`, and the hidden `R.declarationTables(data)`
+(v6's `R.toTable(data)`). The example loaders return `[cfg, task]`, `template/gravfire_data`
+the task, `template/kbr_variational` `[task, kit]` (WP-162).
+
+`template/gravfire_data`: a position stream declares level 1, because `iSpp` is the absolute
+per-epoch accuracy and travels as `Sigma`; the bundle's `sqrt(variance)` on top counted the
+level twice in an `Estimate = "none"` solve (the relative weight of positions against KBR).
+Under `Estimate = "noise"` the levels are estimated and nothing changes.
+
+No other estimate changes. A new way to declare a task, compiled to the declaration of 6.35.1:
+
+- `lsqvce.TaskDefinition` with flat calls and name-value arguments: `addCommon`, `addSystem`,
+  `addPrior`; a system's `addLocal`, `addStream`, `addPrior`. Every call is validated on the
+  spot. `R = lsqvce.fit(task)`.
+- The daily work has two fixed homes: a system's `Prepare` (once per system and day) and a
+  stream's `Build` (once per stream and day), both called as `f(day, ctx)` with a
+  `lsqvce.DayContext`. Build returns `ctx.newDay()` filled with `addArc`; local partials are
+  given by name (`Local={names, P}`) or as a matrix `B` whose columns come from `ctx.cols`.
+- `lsqvce.Noise.white / arma / psd / acf / var / custom` replace the covariance structs; what
+  is estimated about a stream is set on `addStream` (`Estimate`, `ArcFactors`).
+- `TaskDefinition.fromMatrices` and `fromBatches` for in-memory tasks.
+- A fit of a task equals the fit of the equivalent struct bitwise.
+- WP-161: the examples, templates, the Manual, the API reference, the README and the
+  landing page declare tasks; `R.toTable(task)` returns one table of every parameter
+  instance (`System`, `Name`, `Scope`, `Day`, `Arc`, `Estimate`, `Std`). The struct is the
+  API reference's last chapter, *The compiled declaration (engine tier)*.
+
+### Migrating a declaration from v6 to v7
+
+| v6 (`data` struct) | v7 (`lsqvce.TaskDefinition`) |
+|---|---|
+| `data = struct('A', A, 'l', l, 'p', p)` | `task = lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p)` |
+| `struct('batchFcn', f, 'numBatches', K, 'numUnknowns', u)` | `lsqvce.TaskDefinition.fromBatches(f, NumBatches=K, NumUnknowns=u)` |
+| `... 'x0', x0` (nonlinear) | `lsqvce.TaskDefinition.fromBatches(f, NumBatches=K, X0=x0)` |
+| `data.days = d` | `lsqvce.TaskDefinition(Days=d)` |
+| `data.commonParams` rows `{'common', name, ...}` / `{'day', ...}` | `task.addCommon(names, Scope="common"` or `"day", Valid=[s e], Info=T)` |
+| `data.paramColumns` | — (validity is `Valid=`, the name is the name) |
+| `data.systems(k)` with `name`, `id`, `days`, `processingOptions` | `sys = task.addSystem(name, Id=id, Days=d, Settings=s)` |
+| `systems(k).localParams` rows `{'arc' / 'day' / 'system', name, ...}` | `sys.addLocal(names, Scope="arc"`, `"day"` or `"system")` |
+| `systems(k).covariance.(obsType) = spec` | `sys.addStream(obsType, Build=@build, Noise=lsqvce.Noise.<law>(...))` |
+| spec `type 'diag' / 'arma' / 'psd' / 'acf' / 'var' / 'custom'` | `Noise.white / arma / psd / acf / var / custom` |
+| spec fields `estimate`, `arcFactors` | `addStream(..., Estimate=..., ArcFactors=...)` |
+| `systems(k).arcs` (number, ids, per-type struct, resolver) | `addSystem(..., Arcs=...)`, per stream `addStream(..., Arcs=...)` |
+| `systems(k).prepareDay = @(day, common, local, procOpt, info)` | `addSystem(..., Prepare=@(day, ctx))`; the result is `ctx.Prepared` |
+| `systems(k).buildDay = @(day, obsType, common, local, procOpt, info)`, one per system | one `Build=@(day, ctx)` per stream; `ctx.Day`, `ctx.Stream`, `ctx.Settings` |
+| `info.offsetOf`, `dayOffset`, `arcRows`, … | `Local={names, P}` on `addArc`, or `ctx.cols(names, Arc=id)` |
+| return `D` with cells `A`, `B`, `l`, `t`, `Cep`, `excluded`, `nAxis` | `out = ctx.newDay(); out.addArc(A, l, t, Local=..., Sigma=..., Excluded=..., Arc=a)`; the axis count is `addStream(..., Axes=d)` |
+| `data.priors` / `systems(k).priors` with `group`, `L`, `x0`, `sigma`, `from`, `name`, `estimate` | `task.addPrior(name, On=..., L=..., Value=..., Sigma=..., From=..., Estimate=...)` / `sys.addPrior(...)` |
+| `lsqvce.layout(data)` | `task.layout()` (adds `.name` to every column) |
+| `R.toTable(data)` (estimates written into the tables) | `R.toTable(task)` (one table) |
+
 ## 6.35.1 — 2026-10-29 (WP-159: the Manual for a first-time user; documentation drift)
 
 No estimate changes.

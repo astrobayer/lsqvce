@@ -44,12 +44,12 @@ function T = wp156_acceptance_measure(outFile)
     for phi = [0.5 0.9 0.98]
         R0 = cell(1, 20);
         for sd = 1:20
-            R0{sd} = lsqvce.fit(fixture(phi, sd, [0 0]), lsqvce.Options(base{:}, 'Seed', sd));
+            R0{sd} = lsqvce.engine.fitDeclaration(fixture(phi, sd, [0 0]), lsqvce.Options(base{:}, 'Seed', sd));
         end
         for infl = ["igg3", "bisquare"]
             r = nan(20, 3);  cv = 0;  fz = 0;
             for sd = 1:20
-                Rr = lsqvce.fit(fixture(phi, sd, [0 0]), lsqvce.Options(base{:}, 'Seed', sd, 'Robust', infl));
+                Rr = lsqvce.engine.fitDeclaration(fixture(phi, sd, [0 0]), lsqvce.Options(base{:}, 'Seed', sd, 'Robust', infl));
                 r(sd, :) = [varOf(Rr, 'a') / varOf(R0{sd}, 'a'), varOf(Rr, 'b') / varOf(R0{sd}, 'b'), ...
                             (Rr.sigma0 / R0{sd}.sigma0)^2] - 1;
                 cv = cv + Rr.converged;  fz = fz + (Rr.noise.robust.frozen > 0);
@@ -64,12 +64,12 @@ function T = wp156_acceptance_measure(outFile)
     fprintf('%-9s | %-22s | %-12s | %-14s | conv\n', 'influence', 'var b / clean plain - 1', 'lag-1 b', 'blunders b');
     Rc = cell(1, 12);
     for sd = 1:12
-        Rc{sd} = lsqvce.fit(fixture(0.9, sd, [0 0]), lsqvce.Options(base{:}, 'Seed', sd));
+        Rc{sd} = lsqvce.engine.fitDeclaration(fixture(0.9, sd, [0 0]), lsqvce.Options(base{:}, 'Seed', sd));
     end
     for infl = ["none", "igg3"]
         r = nan(12, 1);  ph = r;  hit = 0;  pl = 0;  cv = 0;
         for sd = 1:12
-            Rr = lsqvce.fit(fixture(0.9, sd, [0.02 2]), lsqvce.Options(base{:}, 'Seed', sd, 'Robust', infl));
+            Rr = lsqvce.engine.fitDeclaration(fixture(0.9, sd, [0.02 2]), lsqvce.Options(base{:}, 'Seed', sd, 'Robust', infl));
             r(sd) = varOf(Rr, 'b') / varOf(Rc{sd}, 'b') - 1;
             Cb = Rr.noise.Cgroups(lsqvce.util.streamKey(1, 'b'));  ph(sd) = Cb(2) / Cb(1);
             cv = cv + Rr.converged;

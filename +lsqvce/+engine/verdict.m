@@ -34,12 +34,15 @@ classdef verdict
 %   Each method's own help: help lsqvce.engine.verdict.<method>.
 %
 %   EXAMPLE
-%       R = lsqvce.fit(data, Verbose=false);          % R.diag is the verdict
+%       R = lsqvce.fit(task, Verbose=false);          % R.diag is the verdict
 %       [D, dsol, src, nB] = lsqvce.engine.verdict.fromAccumulator(R.acc, R.sol, 'Test', "mad");
 %       S = lsqvce.engine.verdict.systematic(D);      % what R.systematic() runs
 %
 %   See also LSQVCE.RESULTS, LSQVCE.REPORT, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.KERNEL.STAT
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: the examples fit a
+%   lsqvce.TaskDefinition (lsqvce.fit takes no struct since 7.0.0). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-17 (CEST, UTC+02:00), WP-149: supersede, the refused v'Pv
 %   replaced by the verdict's residual pass. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -194,7 +197,7 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
 %   so you can run the full five-level lsqvce verdict on a gravity-recovery
 %   adjustment built with the streaming accumulator:
 %
-%       R   = lsqvce.fit(data, Estimate="noise", Pool="obsType");
+%       R   = lsqvce.fit(task, Estimate="noise", Pool="obsType");
 %       acc = R.acc;   sol = R.sol;               % fit did the next three lines
 %       [dsol, src, nB] = lsqvce.engine.verdict.source(acc, sol);   % already: R.source / R.batchFcn / R.nBatch
 %       D = lsqvce.engine.verdict.diagnose(dsol, src, 'nBatch', nB);
@@ -507,7 +510,7 @@ function D = diagnose(sol, batchFcn, opt)
 %       % block path (v5) R.source is the diagnosed solution and R.batchFcn /
 %       % R.nBatch the replayable source LSQVCE.ENGINE.VERDICT.SOURCE built.
 %       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
-%       R = lsqvce.fit(data, Verbose=false);           % R.diag is this D
+%       R = lsqvce.fit(task, Verbose=false);           % R.diag is this D
 %
 %       % Re-diagnose with the ROBUST scale instead of Pope's tau. Do this
 %       % whenever D.contamLevel is 'moderate' or worse: Pope goes BLIND at
@@ -1525,7 +1528,7 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %
 %   EXAMPLE
 %       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
-%       R = lsqvce.fit(data, Verbose=false);
+%       R = lsqvce.fit(task, Verbose=false);
 %       [sol, D, REJ] = lsqvce.engine.verdict.snoop(R.source, R.diag, R.batchFcn);
 %
 %       % REJ.idx       -> [40 150]     rejected, one at a time
@@ -1992,7 +1995,7 @@ function S = systematic(D, opt)
 %       % single large residual: the variance factor inflates, the flag list
 %       % stays clean, and THAT COMBINATION is the signature.
 %       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
-%       R = lsqvce.fit(data, Verbose=false);
+%       R = lsqvce.fit(task, Verbose=false);
 %
 %       t = (1:n).';
 %       S = lsqvce.engine.verdict.systematic(R.diag, 'covariates', ...
@@ -2350,8 +2353,8 @@ function F = ftest(solFull, solRed, opt)
 %
 %   EXAMPLE
 %       % Is the extra parameter justified, or is it fitting noise?
-%       Rfull = lsqvce.fit(struct('A', [A extra], 'l', l, 'p', p), Verbose=false);
-%       Rred  = lsqvce.fit(struct('A', A,         'l', l, 'p', p), Verbose=false);
+%       Rfull = lsqvce.fit(lsqvce.TaskDefinition.fromMatrices([A extra], l, Weights=p), Verbose=false);
+%       Rred  = lsqvce.fit(lsqvce.TaskDefinition.fromMatrices(A, l, Weights=p), Verbose=false);
 %
 %       F = lsqvce.engine.verdict.ftest(Rfull.sol, Rred.sol);   % = Rfull.compare(Rred)
 %
@@ -2582,7 +2585,7 @@ function E = ellipse(D, pair, opt)
 %
 %   EXAMPLE
 %       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
-%       R = lsqvce.fit(data, Verbose=false);
+%       R = lsqvce.fit(task, Verbose=false);
 %       E = lsqvce.engine.verdict.ellipse(R.diag, [1 2]);       % parameters 1 and 2
 %
 %       plot(E.xy(:,1), E.xy(:,2), 'LineWidth', 1.5);  hold on

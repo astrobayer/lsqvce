@@ -21,8 +21,10 @@
 %   covModel             - covariance spec -> whitening operators (per arc)
 %   datum                - datum defect detection and handling
 %   declaration        - validate a kind-A data struct and build its loaders
+%   fitDeclaration       - fit a compiled declaration struct (the engine tier of lsqvce.fit)
 %   gcvLambda            - GCV choice of the regularisation weight
 %   jointModelOpt        - joint-mode model -> loader UserOpt translation
+%   layoutDeclaration    - column layout of a compiled declaration struct
 %   localDiagnostics     - diagnostics of the local blocks
 %   localColumns       - which (row, day, arc) owns each column of B
 %   makeLoader           - day-builder -> Loader (built inside fit from the data struct)

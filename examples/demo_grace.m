@@ -5,16 +5,18 @@ function R = demo_grace(varargin)
 %   R = DEMO_GRACE('maxPasses', 8, 'verbose', true)
 %
 %   Runs a GRACE-FO-shaped synthetic problem through the USER surface:
-%   the declaration comes from DEMO_GRACE_DATALOADER as a data struct
-%   (the API reference), the run is ONE call to LSQVCE.FIT, and everything
-%   you read afterwards is on the LSQVCE.RESULTS. Two observation systems:
+%   the declaration comes from DEMO_GRACE_DATALOADER as a
+%   lsqvce.TaskDefinition (one addSystem per observing system, one addStream
+%   with its own Build per observation stream), the run is ONE call to
+%   LSQVCE.FIT, and everything you read afterwards is on the LSQVCE.RESULTS.
+%   Two observation systems:
 %     * System 1 -- satellites C and D, each with a 3-D position stream (posC,
 %       posD) whose covariance is C = D (R_t kron I_3) D -- a FIXED per-epoch
-%       3x3 D (as from a PPP solution, returned by buildDay with the day as
-%       D.Cep) times a shared temporal law the toolbox estimates -- plus ONE
-%       inter-satellite range-rate stream (rr, scalar) whose design couples
-%       BOTH satellites' arc states. Because rr touches two satellites' local
-%       parameters and the block-arrow model has one local block per system,
+%       3x3 D (as from a PPP solution, passed by the stream's Build with every
+%       arc as Sigma=) times a shared temporal law the toolbox estimates --
+%       plus ONE inter-satellite range-rate stream (rr, scalar) whose design
+%       couples BOTH satellites' locals. Because rr touches two satellites'
+%       local parameters and the block-arrow model has one local block per system,
 %       C and D are merged into a single pair-system with a stacked local
 %       block [y_C | y_D].
 %     * System 2 -- satellite E, INDEPENDENT: 3-D positions only (posE), no
@@ -47,14 +49,27 @@ function R = demo_grace(varargin)
 %       not an AR order, so summary()'s arOrder column stays NaN here. Four
 %       streams: posC, posD, rr, posE.
 %
+%   ACCURACY
+%     The settled values under WHAT TO LOOK FOR were measured on the v6
+%     declaration of the same rows (2026-10-16). WP-161 changes how the task is
+%     declared, not a row, seed or option; not re-measured in the migrating
+%     session (no MATLAB there).
+%
 %   This is the copy-paste starting point. To run on YOUR data, replace
-%   demo_grace_dataLoader (in this folder) with your own buildDay and data
-%   struct -- the contract is the API reference (doc lsqvce).
+%   demo_grace_dataLoader (in this folder) with your own TaskDefinition --
+%   its graceTask is the template: addCommon, addSystem, addLocal, and
+%   addStream with one Build per stream (doc lsqvce.TaskDefinition).
 %
-%   ERRORS  none of its own; declaration errors carry lsqvce:fit ids.
+%   ERRORS  none of its own. A declaration mistake is raised by the add-call
+%           that makes it (lsqvce:TaskDefinition:*), a mistake inside a Build
+%           while the day is read (lsqvce:DayContext:*); the engines'
+%           refusals keep their own identifiers (lsqvce:fit:*, ...).
 %
-%   See also LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS, DEMO_GRACE_DATALOADER
+%   See also LSQVCE.TASKDEFINITION, LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS,
+%   DEMO_GRACE_DATALOADER
 %
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: the run fits the loader's lsqvce.TaskDefinition. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: R.noise.S names
 %   the estimated spectrum. With assistance from Claude (Anthropic), model
 %   Claude Opus 5.5.
@@ -95,7 +110,7 @@ function R = demo_grace(varargin)
     p.parse(varargin{:});
     o = p.Results;
 
-    [cfg, data] = demo_grace_dataLoader();   % the declaration (this folder)
+    [cfg, task] = demo_grace_dataLoader();   % the declaration (this folder)
 
     fprintf(['\n=== VCE demo: GRACE-FO topology (+ independent sat E) ===\n' ...
              '    System 1: satellites C,D with a 3-D position stream each\n' ...
@@ -121,7 +136,7 @@ function R = demo_grace(varargin)
     % diagnostic tells you to (R.converged, R.stopReason, R.history.maxDev).
     % Estimate="noise" with Pool="stream" and ArcFactors=false is v4's Model
     % "vce": one spectral shape and one level per stream.
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+    R = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
             MaxPasses=o.maxPasses, Verbose=o.verbose, ...
             Tolerance=1e-3, Noise=struct('Smooth', 1)));
 

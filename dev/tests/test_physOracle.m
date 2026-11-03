@@ -59,14 +59,14 @@ function setupOnce(tc)
     tc.TestData.cfg = cfg;                       % the geometry oracle (design, Legendre)
     % R5 M4 4c (decision R5-D4): the RECOVERY oracle runs on the USER surface
     % with the one estimator -- the gravity demo's planted field, planted
-    % stream sigmas and ragged schedule, through lsqvce.fit(Estimate="noise", Pool="stream", ArcFactors=false).
+    % stream sigmas and ragged schedule, through lsqvce.engine.fitDeclaration(Estimate="noise", Pool="stream", ArcFactors=false).
     % ONE closed-loop solve shared by the recovery tests. (Before 4c:
     % lsqvce.engine.adjustVCE on the oracle loaders -- the separate mode,
     % retired with this level.)
-    [cfgR, dataR] = demo_gravity_dataLoader();
+    [cfgR, dataR] = demo_gravity_dataLoader();  dataR = dataR.declaration();   % WP-162: the compiled struct
     w = warning('off', 'lsqvce:adjustVCEjoint:notConverged'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
     tc.TestData.cfgR = cfgR;
-    tc.TestData.R = lsqvce.fit(dataR, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=6, Seed=1, Verbose=false));
+    tc.TestData.R = lsqvce.engine.fitDeclaration(dataR, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=6, Seed=1, Verbose=false));
 end
 
 %% ------------------------------------------------- the analytic anchors
@@ -565,9 +565,9 @@ function testKbrClosedLoopThroughFit(tc)
     dataDir = tempname;  mkdir(dataDir);
     tc.addTeardown(@() rmdir(dataDir, 's'));
     [cfg, truth] = fixture_kbr_l1b(dataDir);
-    [data, kit] = kbr_variational(cfg);
+    [task, kit] = kbr_variational(cfg);  data = task.declaration();   % WP-162: the compiled struct
     tc.verifyEqual(size(data.commonParams, 1), numel(truth.dc), 'degrees 2..6: 45 coefficients');
-    R = lsqvce.fit(data, Verbose=false);
+    R = lsqvce.fit(task, Verbose=false);
     dc = kit.unitCommon .* R.x(:);
     % tol: 1e-3 of |dc| -- one linearization at the a-priori ACC calibration
     % (mirror, one day, degree 8, the same planted errors: 3.5e-5)
@@ -617,11 +617,18 @@ function testGravfireTemplateRunsOnAGeneratedBundle(tc)
 % the whole template runs on it: the tables, column 11 -> priors, the
 % epoch-major rows with Cep, the flagged epoch, the cut into pieces, the fit.
     [c, m, s] = fixture_gravfire_bundle();
-    data = gravfire_data(c, m, s, 'DryRun', true);
-    tc.verifySize(data.commonParams, [6 15], 'the scope token in front of the 14 columns');
+    task = gravfire_data(c, m, s, 'DryRun', true);  data = task.declaration();   % WP-162
+    % WP-161: the compiled tables hold scope and name; the 14 GRAVFIRE columns
+    % travel as each template's Info
+    tc.verifySize(data.commonParams, [6 2], 'the scope token and the unique name');
     tc.verifyEqual(data.days, [59396 59397]);
     tc.verifyEqual(fieldnames(data.systems.covariance).', {'posA', 'posB', 'kbr'});
-    tc.verifySize(data.systems.localParams, [6 15], 'one day''s templates: 2 satellites x 3');
+    % WP-162 (user decision 2026-11-03): iSpp is ABSOLUTE and travels as Sigma,
+    % so a position stream's law has level 1; kbr keeps the bundle's variance
+    cv = data.systems.covariance;
+    tc.verifyEqual([cv.posA.sigma, cv.posB.sigma], [1 1], 'positions: the level is in Sigma (iSpp)');
+    tc.verifyEqual(cv.kbr.sigma, sqrt(s{1}.variance(3)), 'kbr: the bundle''s sigma');
+    tc.verifySize(data.systems.localParams, [6 2], 'one day''s templates: 2 satellites x 3');
     tc.verifyTrue(all(strcmp(data.systems.localParams(:, 1), 'day')));
     % column 11: the labelled common group 'stokes' (rows 1-2, one sigma
     % estimated, x0 per member) and the unlabelled row 3 (fixed)
@@ -633,7 +640,7 @@ function testGravfireTemplateRunsOnAGeneratedBundle(tc)
     % the labelled groups are "scale" and this single solve holds them: the
     % warning is the truth here (WP-150), fired on purpose
     muteWarn(tc, 'lsqvce:fit:priorScaleHeld');
-    R = lsqvce.fit(data, lsqvce.Options(Verbose=0));
+    R = lsqvce.fit(task, lsqvce.Options(Verbose=0));
     % rows: 2 days x (posA 59 x 3 + posB 59 x 3 + kbr 59) -- 2 pieces of 30
     % epochs per (day, group), one flagged epoch at weight 0 (WP-148); unknowns: 6 commons
     % + 6 locals per day; prior rows: 'stokes' 2 + row 3 1 on the commons,
@@ -652,7 +659,7 @@ function testGravfireFlaggedEpochsStayOnTheGrid(tc)
 % the removal gave, and the flagged epoch's values -- NaN in a real bundle --
 % do not reach the solution.
     [c, m, s] = fixture_gravfire_bundle();
-    data = gravfire_data(c, m, s, 'DryRun', true);
+    task = gravfire_data(c, m, s, 'DryRun', true);  data = task.declaration();   % WP-162
     po = data.systems.processingOptions;  info = struct('nc', 6, 'nl', 12);
     D = data.systems.buildDay(59396, 'posA', [], [], po, info);
     tc.verifyEqual(cellfun(@numel, D.l), [90 90], 'every epoch of both pieces, 3 rows each');
@@ -667,7 +674,7 @@ function testGravfireFlaggedEpochsStayOnTheGrid(tc)
         s2{1}.observations{k} = o;
     end
     muteWarn(tc, 'lsqvce:fit:priorScaleHeld');      % the labelled groups, held by a single solve
-    R1 = lsqvce.fit(data, lsqvce.Options(Verbose=0));
+    R1 = lsqvce.fit(task, lsqvce.Options(Verbose=0));
     R2 = lsqvce.fit(gravfire_data(c, m, s2, 'DryRun', true), lsqvce.Options(Verbose=0));
     % tol: 0 -- the flagged rows are zeroed before any arithmetic; the same doubles
     tc.verifyEqual(R2.x, R1.x, 'the flagged values never reach the solution');
@@ -676,7 +683,7 @@ function testGravfireFlaggedEpochsStayOnTheGrid(tc)
     % the noise run: the grid is even, the gap warning does not fire
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');      % 3 passes on 2 days stop early
     lsqvce.util.log.inventory('reset');
-    lsqvce.fit(data, lsqvce.Options(Verbose=0, Estimate="noise", MaxPasses=3));
+    lsqvce.fit(task, lsqvce.Options(Verbose=0, Estimate="noise", MaxPasses=3));
     tc.verifyFalse(any(strcmp(lsqvce.util.log.inventory(), 'lsqvce:covModel:unevenGrid')), ...
         'no gap inside a piece');
     lsqvce.util.log.inventory('reset');

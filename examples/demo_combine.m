@@ -1,16 +1,34 @@
 function demo_combine()
 %DEMO_COMBINE  Combining several satellite systems by elimination.
 %
+%   DEMO_COMBINE()
+%
 %   Three satellite systems observe a common gravity field. Each has its own
 %   LOCAL parameters (arc states, accelerometer biases, ambiguities) that no
-%   other system can see. You DECLARE that structure -- one entry of
-%   data.systems per system, its localParams stating the locals -- and
-%   lsqvce.fit eliminates the locals system by system, so the running memory
-%   never exceeds O(uC^2 + max(uL)^2).
+%   other system can see. You DECLARE that structure -- one task.addSystem
+%   per system, its sys.addLocal stating the locals -- and lsqvce.fit
+%   eliminates the locals system by system, so the running memory never
+%   exceeds O(uC^2 + max(uL)^2). Each system brings its own calendar
+%   (addSystem Days=), so the task needs none of its own.
 %
 %   INPUT   none
 %   OUTPUT  none (prints the walk-through; ~seconds)
 %
+%   ACCURACY
+%     Not quantified in this help: the walk-through prints every common
+%     estimate against its planted truth with its formal sigma, and the
+%     integrity line, whose reported degrees of freedom must equal
+%     n - u_total exactly (integer bookkeeping over the eliminated locals).
+%
+%   ERRORS  none of its own; a declaration error is raised by the add-call
+%           that makes it (lsqvce:TaskDefinition:*), a mistake inside a Build
+%           while the day is read (lsqvce:DayContext:*).
+%
+%   See also LSQVCE.TASKDEFINITION, LSQVCE.SYSTEMDEFINITION, LSQVCE.DAYCONTEXT,
+%   LSQVCE.FIT, LSQVCE.RESULTS, DEMO_SENSORS
+%
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as a lsqvce.TaskDefinition, one Build per system. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
@@ -55,8 +73,8 @@ fprintf('total parameters = %d, of which %d are eliminated\n\n', ...
         uC + sum(uL), sum(uL));
 
 %% ------------------------------------------------------------------------
-% Build the data. In real work each buildDay reads from disk / integrates an
-% orbit; here we generate it once and let buildDay READ it (deterministic).
+% Build the data. In real work each Build reads from disk / integrates an
+% orbit; here we generate it once and let Build READ it (deterministic).
 % -------------------------------------------------------------------------
 xC_true = randn(rs, uC, 1);
 gen = cell(nSys, 1);
@@ -72,21 +90,18 @@ for i = 1:nSys
 end
 
 %% ------------------------------------------------------------------------
-% DECLARE -- one entry of data.systems per satellite; localParams IS the
-% statement "these unknowns are mine alone" ('system' rows: nl = rows).
+% DECLARE -- one task.addSystem per satellite; its addLocal IS the
+% statement "these unknowns are mine alone" (Scope "system": nl = names).
 % -------------------------------------------------------------------------
-data = struct();
-data.commonParams = [repmat({'common'}, uC, 1), num2cell((1:uC).')];
+task = lsqvce.TaskDefinition();             % no task calendar: each system has its own
+task.addCommon(compose("grav%d", 1:uC));
 for i = 1:nSys
-    s = struct();
-    s.buildDay    = makeBuildDay(gen{i}, nk);
-    s.covariance.obs = struct('type', 'diag', 'sigma', 1);
-    s.localParams = [repmat({'system'}, uL(i), 1), num2cell((1:uL(i)).')];
-    s.days        = 1:nDay(i);              % per-system schedule
-    s.name        = sprintf('satellite %d', i);
-    data.systems(i) = s;                    % id defaults to the index
+    sys = task.addSystem(sprintf("satellite %d", i), Days=1:nDay(i));   % Id defaults to the index
+    localNames = compose("loc%d", 1:uL(i));
+    sys.addLocal(localNames, Scope="system");
+    sys.addStream("obs", Build=makeBuild(gen{i}, nk, localNames), Noise=lsqvce.Noise.white(1));
 end
-R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+R = lsqvce.fit(task, lsqvce.Options(Verbose=false));
 
 %% ------------------------------------------------------------------------
 % THE INTEGRITY CHECK -- do this FIRST.
@@ -140,17 +155,18 @@ fprintf('\n');
 end
 
 %% ========================================================================
-function f = makeBuildDay(g, nk)
-%MAKEBUILDDAY  One system's buildDay over its pre-generated data (read-only,
-%   hence deterministic). RAW rows, per the contract -- the toolbox whitens
-%   from the declared spec.
-    f = @buildDay;
-    function D = buildDay(day, ~)
+function f = makeBuild(g, nk, localNames)
+%MAKEBUILD  One system's Build over its pre-generated data (read-only, hence
+%   deterministic). RAW rows, per the contract -- the toolbox whitens from the
+%   declared Noise. The day is one arc; its local partials are ONE matrix,
+%   placed in B at the columns ctx.cols gives for their names.
+    f = @build;
+    function out = build(day, ctx)
         rows = (day-1)*nk + (1:nk);
-        D.A  = {g.AC(rows, :)};              % v6: one cell = one arc; the day is one arc
-        D.B  = {g.AL(rows, :)};
-        D.l  = {g.l(rows)};
-        D.t  = {day*86400 + (0:nk-1).' * 5}; % seconds
+        B = zeros(nk, ctx.NumLocal);
+        B(:, ctx.cols(localNames)) = g.AL(rows, :);
+        out = ctx.newDay();
+        out.addArc(g.AC(rows, :), g.l(rows), day*86400 + (0:nk-1).' * 5, B=B);   % t in seconds
     end
 end
 

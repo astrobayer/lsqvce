@@ -67,7 +67,7 @@ classdef log
 %   EXAMPLE
 %     fid = fopen('vce.log', 'w');
 %     lsqvce.util.log.set('fid', fid, 'screen', true);   % file AND screen
-%     R = lsqvce.fit(data, Estimate="noise");            % all output captured
+%     R = lsqvce.fit(task, Estimate="noise");            % all output captured
 %     lsqvce.util.log.reset();
 %     fclose(fid);
 %
@@ -96,6 +96,9 @@ classdef log
 %   See also FPRINTF, WARNING, PARALLEL.POOL.DATAQUEUE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.MAPREDUCE
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: the examples fit a
+%   lsqvce.TaskDefinition (lsqvce.fit takes no struct since 7.0.0). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, "Not applicable" with its reason. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.

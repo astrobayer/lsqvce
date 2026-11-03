@@ -1,19 +1,22 @@
 function demo_sensors()
 %DEMO_SENSORS  The full hierarchy: satellite system / sensor / day.
 %
+%   DEMO_SENSORS()
+%
 %   Two satellite systems, each carrying several sensors, each observing over
 %   several days. The common gravity field is shared; each system has its own
 %   PER-SYSTEM local parameters (a scale factor, say) that all its sensors see.
 %
 %   THE KEY STRUCTURAL FACT
 %   -----------------------
-%   The data struct states the whole hierarchy declaratively:
-%     * a SYSTEM is an entry of data.systems (its localParams are the
-%       per-system locals -- every sensor of the system sees them);
-%     * a SENSOR is an observation type: one field of covariance, and one
-%       (day, sensor) call of your buildDay;
-%     * a DAY is an entry of data.days; a sensor that was down on a day is a
-%       DATA GAP -- the arc resolver returns no arcs, nothing else changes.
+%   A lsqvce.TaskDefinition states the whole hierarchy declaratively:
+%     * a SYSTEM is one task.addSystem (its sys.addLocal(..., Scope="system")
+%       are the per-system locals -- every sensor of the system sees them);
+%     * a SENSOR is a stream: one sys.addStream, with a Build of its own that
+%       is called once per (day, sensor);
+%     * a DAY is an entry of the task's Days; a sensor that was down on a day
+%       is a DATA GAP -- the system's Arcs resolver returns no arcs for it,
+%       nothing else changes.
 %   No batching logic is yours to write: fit streams (system, sensor, day)
 %   in whatever order it likes, and the solution is invariant to that order.
 %
@@ -27,6 +30,9 @@ function demo_sensors()
 %   per-sensor variance components with that day left out, each stream
 %   against its planted truth. The order is the lesson: a component is an
 %   average over its stream, so an event inside it corrupts the level.
+%
+%   INPUT   none
+%   OUTPUT  none (prints the walk-through; ~3 s)
 %
 %   ACCURACY  (MEASURED 2026-10-16, R2026a, v6.25.2; the data are seeded)
 %     The planted event (a 6-sigma offset on GRACE-C / KBR / day 7) comes
@@ -42,9 +48,15 @@ function demo_sensors()
 %     while it said they were recovered. Noise.Grid 8 because an arc holds 60
 %     samples: the default 60-bin law needed 168 passes on this white noise.
 %
-%   INPUT   none
-%   OUTPUT  none (prints the walk-through; ~3 s)
+%   ERRORS  none of its own; a declaration error is raised by the add-call
+%           that makes it (lsqvce:TaskDefinition:*), a mistake inside a Build
+%           while the day is read (lsqvce:DayContext:*).
 %
+%   See also LSQVCE.TASKDEFINITION, LSQVCE.SYSTEMDEFINITION, LSQVCE.DAYCONTEXT,
+%   LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS, DEMO_COMBINE, DEMO_GRACE
+%
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as a lsqvce.TaskDefinition, one Build per sensor. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-154: the bad-day run (the event in
@@ -107,7 +119,7 @@ end
 fprintf('  %d days, %d observations per (sensor, day)\n', numel(days), nk);
 
 %% ------------------------------------------------------------------------
-% STEP 1 -- generate the data (in real work, buildDay reads from disk)
+% STEP 1 -- generate the data (in real work, each sensor's Build reads from disk)
 % -------------------------------------------------------------------------
 xC_true = randn(rs, uC, 1);
 xL_true = cell(numel(sysN), 1);
@@ -139,28 +151,25 @@ fprintf('\n  [planted] a 6-sigma offset in GRACE-C / KBR / day 7\n');
 fprintf('  [planted] GRACE-D''s LRI is down on days 4-5 (a data gap)\n');
 
 %% ------------------------------------------------------------------------
-% STEP 2 -- declare the hierarchy: the data struct
+% STEP 2 -- declare the hierarchy: the lsqvce.TaskDefinition
 % -------------------------------------------------------------------------
-data = struct();
-data.commonParams = [repmat({'common'}, uC, 1), num2cell((1:uC).')];  % scoped
-data.days = days;
+task = lsqvce.TaskDefinition(Days=days);
+task.addCommon(compose("grav%d", 1:uC));                 % Scope "common" (default)
 for i = 1:numel(sysN)
-    s = struct();
-    s.buildDay = makeBuildDay(store{i}, nk);
-    for t = sens{i}                          % one covariance field per SENSOR;
-        s.covariance.(t{1}) = struct('type', 'diag', 'sigma', 1);  % the CLAIM
+    sys = task.addSystem(sysN{i}, Arcs=makeSchedule(store{i}), ...   % ragged: none on an outage day
+                         Id=sysId{i});
+    localNames = compose("loc%d", 1:uL(i));
+    sys.addLocal(localNames, Scope="system");            % every sensor of the system sees them
+    for t = sens{i}                                      % one stream per SENSOR,
+        sys.addStream(t{1}, Build=makeBuild(store{i}, nk, t{1}, localNames), ...
+                      Noise=lsqvce.Noise.white(1));      % ... its sigma the CLAIM
     end
-    s.localParams = [repmat({'system'}, uL(i), 1), num2cell((1:uL(i)).')];
-    s.arcs = makeSchedule(store{i});         % ragged: [] on an outage day
-    s.id = sysId{i};
-    s.name = sysN{i};
-    data.systems(i) = s;
 end
 
 %% ------------------------------------------------------------------------
 % STEP 3 -- the symptom: one GLS solve under the claimed weights
 % -------------------------------------------------------------------------
-R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+R = lsqvce.fit(task, lsqvce.Options(Verbose=false));
 fprintf('\nSYMPTOM\n');
 fprintf('  sigma0 = %.4f   (we CLAIMED sigma0 = 1)\n', R.sigma0);
 fprintf('  -> far from 1, so at least one sensor is mis-weighted.\n');
@@ -190,7 +199,7 @@ fprintf('%s\n', repmat('=', 1, 72));
 % (WP-154). That is this step's finding, read below from the arc factors; the
 % check is off for this one run and back on for STEP 5, which removes the event.
 wCheck = warning('off', 'lsqvce:adjustVCEjoint:poolNotWhite');
-Rh = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=true, ...
+Rh = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=true, ...
         MaxPasses=20, Noise=struct('Grid', 8), Verbose=false));
 warning(wCheck);
 factor = containers.Map(Rh.noise.arcKeys, num2cell(Rh.noise.sigma2(:)));
@@ -233,7 +242,7 @@ fprintf(['  -> One sensor-day stands out. That is not a set of independent\n' ..
 for e = 1:size(flagged, 1)
     remove(store{flagged{e,1}}, sprintf('%s|%d', flagged{e,2}, flagged{e,3}));
 end
-Rv = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=false, ...
+Rv = lsqvce.fit(task, lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=false, ...
         Noise=struct('Grid', 8), Verbose=false));
 
 T = Rv.summary();
@@ -255,16 +264,18 @@ fprintf(['  RESOLUTION: with a few hundred redundancies per group you cannot\n' 
 end
 
 %% ========================================================================
-function f = makeBuildDay(st, nk)
-%MAKEBUILDDAY  The system's buildDay over the pre-generated store.
-%   Deterministic by construction: it only READS the store.
-    f = @buildDay;
-    function D = buildDay(day, obsType)
-        b = st(sprintf('%s|%d', obsType, day));
-        D.A = {b.AC};                        % v6: one cell = one arc (nk x uC)
-        D.B = {b.AL};                        % nk x uL -- the per-system locals
-        D.l = {b.l};
-        D.t = {day*86400 + (0:nk-1).' * 5};  % seconds
+function f = makeBuild(st, nk, sensor, localNames)
+%MAKEBUILD  The Build of one SENSOR of one system, over the pre-generated
+%   store. Deterministic by construction: it only READS the store. The day is
+%   one arc; its local partials are ONE matrix (nk x uL, the per-system
+%   locals), placed in B at the columns ctx.cols gives for their names.
+    f = @build;
+    function out = build(day, ctx)
+        b = st(sprintf('%s|%d', sensor, day));
+        B = zeros(nk, ctx.NumLocal);
+        B(:, ctx.cols(localNames)) = b.AL;       % nk x uL -- the per-system locals
+        out = ctx.newDay();
+        out.addArc(b.AC, b.l, day*86400 + (0:nk-1).' * 5, B=B);   % A nk x uC; t in seconds
     end
 end
 

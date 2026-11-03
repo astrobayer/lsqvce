@@ -294,11 +294,11 @@ case('3 nc as leading arg in TEST code fires', audit.check_signatures, 'signatur
 case('3 a missing adjustBlock fires', audit.check_signatures, 'signature',
      lambda d: os.remove(os.path.join(d, '+lsqvce/+engine/adjustBlock.m')))
 case('9 a diverging block-spec literal fires', audit.check_spec_fields, 'spec',
-     lambda d: edit(os.path.join(d, '+lsqvce/fit.m'),
+     lambda d: edit(os.path.join(d, '+lsqvce/+engine/fitDeclaration.m'),   # WP-162: fit's body
                     "'dayList', dl, 'name', nm);", "'dayList', dl, 'name', nm, 'zzz', 1);"))
 case('9 no block-spec literal at all fires', audit.check_spec_fields, 'spec',
      lambda d: [os.remove(os.path.join(d, p)) for p in
-                ('+lsqvce/fit.m', '+lsqvce/+engine/private/normalizeSystems.m')])
+                ('+lsqvce/+engine/fitDeclaration.m', '+lsqvce/+engine/private/normalizeSystems.m')])
 
 
 # ---- 16 (R7-27): the matrix credits code in gated suites only ------------

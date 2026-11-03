@@ -1,76 +1,99 @@
-function L = lsqvce_template(procOpt)
+function [L, task] = lsqvce_template(procOpt)
 %LSQVCE_TEMPLATE  Starting point for your own least-squares adjustment case.
 %
 %   L = LSQVCE_TEMPLATE(procOpt)
+%   [L, task] = LSQVCE_TEMPLATE(procOpt)
 %
 %   Copy this file, rename it, and fill in the one stub at the bottom. It
-%   returns the cell array of Loaders that the toolbox consumes:
+%   declares your case as a LSQVCE.TASKDEFINITION, driven by your procOpt,
+%   and returns the cell array of Loaders that the engines consume, compiled
+%   from that task:
 %
-%       L = myCase(procOpt);
+%       [L, task] = myCase(procOpt);
 %       lsqvce.util.log.set('fid', procOpt.loggingOverviewFileID, ...
 %               'screen', procOpt.loggingLevel > 0);    % one sink for the text
 %       R = lsqvce.engine.adjustBlock(L, procOpt.days, ...
 %               'Verbose', procOpt.loggingLevel > 0);   % one GLS solve on the Loaders
 %
 %   ENGINE-TIER TEMPLATE (since 2.0). The user path needs no Loader at all:
-%   describe the same case as a plain `data` struct (the API reference) and
-%   call lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false)) -- examples/demo_fit.m
-%   shows it end to end. Keep this template when you want the Loaders in
-%   hand (procOpt-driven cases, direct engine work, 1.x code).
+%   the task this file declares IS the user-tier declaration, and
+%   lsqvce.fit(task, lsqvce.Options(Estimate="noise")) runs it end to end
+%   (examples/demo_tutorial.m shows a task from scratch). Keep the Loaders
+%   when you want them in hand (procOpt-driven cases, direct engine work):
+%   they are compiled from the task by the same declaration step fit uses,
+%   [~, L] = lsqvce.engine.declaration(task.declaration()).
 %
 %   THIS FILE HAS TWO REGISTERS -- READ THIS BEFORE RUNNING IT
-%     * buildLoaders (below) is REAL, RUNNABLE code. It derives one Loader per
-%       entry of procOpt.observationGroups. You edit it only if your topology
-%       differs from one-system-per-group (see MERGING SYSTEMS below).
-%     * myBuildDay is a STUB. It ERRORS until you write it. That is
-%       deliberate: only you know how to read your data, and a plausible fake
-%       would be worse than an honest stop.
-%   So: running this as shipped gets you Loaders that error on first use. That
-%   is the expected state until the stub is filled.
+%     * declareTask (below) is REAL, RUNNABLE code. It declares one system per
+%       entry of procOpt.observationGroups, its local parameters and one
+%       stream per observation type. You edit it only if your topology differs
+%       from one-system-per-group (see MERGING SYSTEMS below).
+%     * myBuild is a STUB. It ERRORS until you write it. That is deliberate:
+%       only you know how to read your data, and a plausible fake would be
+%       worse than an honest stop.
+%   So: running this as shipped gets you Loaders (and a task) that error on
+%   the first day read. That is the expected state until the stub is filled.
 %
 %   WHAT YOU MUST WRITE                                       (the stub)
-%     myBuildDay   one day of design matrix + observations    REQUIRED
-%                  + their error information (D.Cep: a sigma per epoch, or a
-%                  d x d covariance per epoch for multi-axis streams -- R6
-%                  WP-90; the toolbox composes it with the temporal law)
+%     myBuild      one stream's day: design rows + observations   REQUIRED
+%                  + their error information (Sigma= of each arc: a sigma per
+%                  epoch, or a d x d covariance per epoch for multi-axis streams;
+%                  the toolbox composes it with the stream's temporal law)
 %
 %   WHAT YOU MUST DECLARE                                     (in your procOpt)
 %     .observationGroups   one entry per system: its streams and identity
 %     .days                the day list
-%     .estimation          your common/local parametrisation
+%     .estimation          your common parametrisation
 %
 %   WHAT THE TOOLBOX DERIVES -- DO NOT STATE IT TWICE
-%     nc  from commonParams rows   |   nl  from localParams rows
-%   The common-parameter count is stated ONCE, where the parametrisation is
-%   defined. There is no nc argument on adjustBlock.
+%     nc  from the common parameters   |   nl  from the local parameters
+%   The counts are stated nowhere: each parameter is declared ONCE, by name,
+%   and Build reads the counts as ctx.NumCommon / ctx.NumLocal and the columns
+%   of a named parameter as ctx.cols(names) -- never an offset by hand.
+%
+%   THE PARAMETRISATION TABLES. procOpt.estimation.commonParams (Rc x C) and
+%   g.localParams (Rl x C, per group) hold one parameter TEMPLATE per row, in
+%   the row convention of the scoped tables: column 1 the scope token
+%   ('common' | 'day' for commons, 'arc' | 'day' | 'system' for locals),
+%   column 2 the NAME -- unique, as every parameter of a task needs one (WP-161:
+%   before, only the row counts were read) -- and columns 3..C yours, which
+%   travel as the parameter's Info
+%   (variables col3 .. colC; ctx.Common.Info / ctx.Local.Info in Build). Each
+%   row becomes one addCommon / addLocal call, in table order (the columns of
+%   A follow the commons' order). An 'arc' local needs an arc schedule: give
+%   the system Arcs=... in declareTask (none is declared as shipped -- the
+%   arcs are the ones myBuild adds).
 %
 %   INPUT
 %     procOpt  1x1  struct  your processing configuration (see PROCOPT below).
-%                           Piped UNCHANGED to myBuildDay as its 5th argument
-%                           and kept on every Loader as L{k}.procOpt. Only
-%                           LSQVCE.FIT surfaces it to a hook as
-%                           ctx.processingOptions; at engine tier hand it over
-%                           yourself -- 'OnPassContext',
-%                           struct('processingOptions', {{procOpt}}) -- and
-%                           ADJUSTBLOCK has no OnPass at all.
+%                           Each system's Settings: myBuild reads it as
+%                           ctx.Settings, and every Loader keeps it as
+%                           L{k}.procOpt. Only LSQVCE.FIT surfaces it to an
+%                           OnPass hook (as its context's processingOptions);
+%                           at engine tier hand it over yourself --
+%                           'OnPassContext', struct('processingOptions',
+%                           {{procOpt}}) -- and ADJUSTBLOCK has no OnPass at all.
 %
 %   OUTPUT
 %     L        1xS  cell    one Loader per system, ready for LSQVCE.ENGINE.ADJUSTBLOCK
 %                           or LSQVCE.ENGINE.ADJUSTROBUST.
+%     task     1x1  lsqvce.TaskDefinition   the declaration the Loaders are
+%                           compiled from -- R = lsqvce.fit(task, opts)
 %
 %   PROCOPT -- IT IS IMMUTABLE INPUT, NOT SHARED STATE
-%     procOpt is captured when makeLoader is called and piped through unchanged
-%     for the whole run. So it must NOT carry live cursors: a field like
-%     'iteridx' would freeze at its value on the first pass while the loop
-%     iterates around it, and your builder would silently read the wrong pass
-%     forever. The engine tracks these itself -- an OnPass hook is handed the
-%     live pass number as ctx.pass and the driver's name as ctx.driver, and the
-%     system identity rides on the Loader as L{k}.sysID.
+%     procOpt is captured when the task is declared and piped through
+%     unchanged for the whole run. So it must NOT carry live cursors: a field
+%     like 'iteridx' would freeze at its value on the first pass while the
+%     loop iterates around it, and your builder would silently read the wrong
+%     pass forever. The engine tracks these itself -- an OnPass hook is handed
+%     the live pass number as ctx.pass and the driver's name as ctx.driver,
+%     and the system identity rides on the Loader as L{k}.sysID. It must not
+%     have a field 'prepared' either: that name is the toolbox's.
 %
 %     Group your settings into nested structs; only the fields your builder
 %     needs have to be there:
 %
-%       procOpt.days            1xD   day list             (fed to adjustBlock)
+%       procOpt.days            1xD   day list             (the task's Days)
 %       procOpt.loggingLevel    1x1   0 silent | 1 progress | 2 detail
 %                                     NOTE 3 is REJECTED (merged into 2), so a
 %                                     pipeline that can emit 3 must clamp first.
@@ -82,7 +105,11 @@ function L = lsqvce_template(procOpt)
 %       procOpt.showAndSaveGraphics   1x1  gates hook attachment (an IF in your
 %                                     driver, not a toolbox option)
 %       procOpt.observationGroups 1xS cell of structs      (drives the loop below)
-%       procOpt.estimation      1x1   struct  your parametrisation tables
+%                                     .observationTypes  the stream names
+%                                     .systemId          numeric or ONE character
+%                                     .name              optional, unique label
+%                                     .localParams       Rl x C cell (may be {})
+%       procOpt.estimation      1x1   struct  .commonParams, Rc x C cell
 %       procOpt.data            1x1   struct  paths, maximumDegree, ...
 %       procOpt.epochs          1x1   struct  mEpoch, dt, arcsPerDay, ...
 %       procOpt.forces .constants .ephemeris .earthRotation .metadata
@@ -95,19 +122,37 @@ function L = lsqvce_template(procOpt)
 %     value into both: that is exactly the drift this interface was built to
 %     remove.
 %
+%   ACCURACY
+%     Not applicable: a declaration and a stub, no arithmetic; the Loaders are
+%     the ones lsqvce.fit compiles from the same task.
+%
 %   ERRORS
 %     lsqvce_template:notImplemented   a stub was called before you wrote it
 %     lsqvce_template:badProcOpt       procOpt is missing a required field
+%     lsqvce:TaskDefinition:duplicateName   two parameters (or two systems) share a
+%                                      name; the other declaration mistakes are
+%                                      lsqvce:TaskDefinition:* too, raised by the
+%                                      add-call (LSQVCE.TASKDEFINITION)
+%     lsqvce:DayContext:*              a mistake of myBuild while a day is read
+%                                      (a name ctx.cols does not know, ...)
 %
 %   EXAMPLE
 %     procOpt = myPipelineConfig();
-%     L = lsqvce_template(procOpt);
-%     R = lsqvce.engine.adjustBlock(L, procOpt.days);
+%     [L, task] = lsqvce_template(procOpt);
+%     R = lsqvce.engine.adjustBlock(L, procOpt.days);   % the engine tier
+%     R = lsqvce.fit(task);                              % or the user tier
 %     R.report();
 %
-%   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT,
-%            DEMO_GRACE_DATALOADER
+%   See also LSQVCE.TASKDEFINITION, LSQVCE.SYSTEMDEFINITION, LSQVCE.DAYCONTEXT,
+%            LSQVCE.DAYDATA, LSQVCE.NOISE, LSQVCE.ENGINE.DECLARATION,
+%            LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT, DEMO_TUTORIAL
 %
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: the case is declared as a
+%   lsqvce.TaskDefinition from procOpt (one addCommon / addLocal per table row,
+%   one system per group, one stream per type); the stub is myBuild(day, ctx);
+%   the Loaders come from lsqvce.engine.declaration(task.declaration()), and the
+%   task is the second output. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): myBuildDay returns
 %   one cell per arc (the cells are the arcs; arcIdx is gone). With
 %   assistance from Claude (Anthropic), model Claude Fable 5.1.
@@ -130,16 +175,17 @@ function L = lsqvce_template(procOpt)
 
     narginchk(1, 1);
     requireFields(procOpt, {'observationGroups', 'days'});
-    L = buildLoaders(procOpt);
+    task = declareTask(procOpt);
+    [~, L] = lsqvce.engine.declaration(task.declaration());   % fit's own declaration step
 end
 
-%% ========================================================== RUNNABLE: loaders
-function L = buildLoaders(procOpt)
-%BUILDLOADERS  One Loader per observation group. REAL CODE -- edit to taste.
+%% ======================================================= RUNNABLE: the task
+function task = declareTask(procOpt)
+%DECLARETASK  The task: commons, one system per observation group. REAL CODE -- edit to taste.
 %
 %   Each entry of procOpt.observationGroups describes ONE system: which
-%   observation types it carries and how it is identified. This loop turns each
-%   into a Loader via LSQVCE.ENGINE.MAKELOADER.
+%   observation types it carries, how it is identified and its local
+%   parameters. This loop turns each into a system of the task.
 %
 %   MERGING SYSTEMS -- the one topology decision you cannot avoid
 %     Two satellites must share ONE system whenever an observation's design
@@ -153,139 +199,145 @@ function L = buildLoaders(procOpt)
 %   INPUT
 %     procOpt  1x1 struct  the processing configuration (see the file header)
 %   OUTPUT
-%     L        1xS cell    one Loader per group
-    groups = procOpt.observationGroups;
-    L = cell(1, numel(groups));
+%     task     1x1 lsqvce.TaskDefinition
+    task = lsqvce.TaskDefinition(Days=procOpt.days);
 
+    % --- the common parameters: one addCommon per row, in table order ------
+    C = procOpt.estimation.commonParams;
+    for r = 1:size(C, 1)
+        task.addCommon(string(C{r, 2}), Scope=string(C{r, 1}), Info=rowInfo(C(r, :)));
+    end
+
+    groups = procOpt.observationGroups;
     for k = 1:numel(groups)
         g = groups{k};
 
-        % --- what this group observes -------------------------------------
+        % --- the system --------------------------------------------------------
+        % Id MUST be numeric or a SINGLE char: the accumulator indexes
+        % systems by [store.sysID], which flattens a multi-char string into
+        % separate elements. Carry a readable label in the name instead (it
+        % must be unique among the systems). procOpt is the system's Settings:
+        % myBuild reads its settings FROM ctx.Settings -- not from a variable
+        % captured in this workspace. Two copies of one value is the bug this
+        % interface exists to prevent. No Arcs: the arcs are the ones myBuild
+        % adds; declare a schedule (Arcs=...) only for 'arc'-scoped locals
+        % (nl must be known before any read).
+        sys = task.addSystem(groupName(g, k), Settings=procOpt, Id=g.systemId);
+
+        % --- its local parameters: one addLocal per row, in table order --------
+        Lp = {};
+        if isfield(g, 'localParams'), Lp = g.localParams; end
+        for r = 1:size(Lp, 1)
+            sys.addLocal(string(Lp{r, 2}), Scope=string(Lp{r, 1}), Info=rowInfo(Lp(r, :)));
+        end
+
+        % --- what this group observes: one stream per observation type --------
         % obsTypes are the STREAM names. They are the unit of variance-component
         % estimation, so name them after what they physically are, not after the
         % file they came from.
         obsTypes = cellstr(g.observationTypes);
-
-        % --- a-priori covariance, one entry per obsType --------------------
-        % Deliberately allowed to be WRONG: the loop's job is to discover the
-        % truth. A plain white start is honest and lets you see it work.
-        cov = aprioriCovariance(obsTypes, g);
-
-        % --- the day-builder, bound over your configuration ----------------
-        % NOTE the 5-argument form. The 5th argument is procOpt, and your
-        % builder must read its settings FROM IT -- not from a variable captured
-        % in this workspace. Two copies of one value is the bug this interface
-        % exists to prevent.
-        buildDay = @(day, obsType, common, local, po) ...
-                       myBuildDay(day, obsType, common, local, po);
-
-        % --- build the Loader ---------------------------------------------
-        % systemId MUST be numeric or a SINGLE char: the accumulator indexes
-        % systems by [store.sysID], which flattens a multi-char string into
-        % separate elements. Carry a readable label in 'name' instead.
-        L{k} = lsqvce.engine.makeLoader(buildDay, ...
-                 'observationTypes',  obsTypes, ...
-                 'covariance',        cov, ...
-                 'systemId',          g.systemId, ...
-                 'name',              groupName(g, k), ...
-                 ...                  % no 'arcs': the cells myBuildDay returns are the
-                 ...                  % arcs (v6); declare a schedule only for 'arc'-scoped
-                 ...                  % local rows (nl must be known before any read)
-                 'days',              procOpt.days, ...
-                 'commonParams',      procOpt.estimation.commonParams, ...
-                 'localParams',       g.localParams, ...
-                 'processingOptions', procOpt);
+        for j = 1:numel(obsTypes)
+            sys.addStream(obsTypes{j}, Build=@myBuild, Noise=aprioriNoise(obsTypes{j}, g));
+        end
     end
 end
 
 %% ============================================================== STUB: your data
-function D = myBuildDay(day, obsType, common, local, procOpt)  %#ok<STOUT,INUSD>
-%MYBUILDDAY  Read ONE day of ONE observation type. YOU WRITE THIS.
+function out = myBuild(day, ctx)  %#ok<STOUT> -- a stub: it raises until you write it
+%MYBUILD  Read ONE day of ONE observation type. YOU WRITE THIS.
 %
 %   It must be DETERMINISTIC. The accumulator reads every day a SECOND time for
 %   the residual pass and must get byte-identical data back; a random draw or a
 %   changing file would corrupt the residuals silently, not loudly.
 %
 %   INPUT
-%     day      1x1   double   the day identifier from procOpt.days
-%     obsType  1xk   char     which stream to build
-%     common   Rc x C cell    the common parametrisation, C columns of YOUR
-%                             convention (nc = Rc rows)
-%     local    Rl x C cell    this system's local parametrisation, C columns of
-%                             YOUR convention (nl = Rl rows)
-%     procOpt  1x1   struct   your processing configuration, piped unchanged
+%     day      1x1   double               the day identifier from procOpt.days
+%     ctx      1x1   lsqvce.DayContext    what the toolbox knows about this call:
+%                    ctx.Stream     which stream to build (1x1 string)
+%                    ctx.Settings   your procOpt, piped unchanged
+%                    ctx.NumCommon  nc, the columns of A (addCommon order;
+%                                   a 'day' common at ctx.cols(name))
+%                    ctx.NumLocal   nl, the columns of B of this system
+%                    ctx.Common / ctx.Local   the parameter tables (Name,
+%                                   Scope, OnDay, Info = your columns 3..C)
+%                    ctx.cols(names[, Arc=id])   the columns of named parameters
 %
 %   OUTPUT
-%     D  1x1 struct -- THE CELLS ARE THE ARCS (v6, R6 WP-102): every field
-%        is a 1 x nArc cell, one cell per arc of the day; a day with one arc
-%        returns {A}; an EMPTY cell is a data gap of a scheduled arc
-%       .A       {1 x nArc}  each m_a x nc   common design matrix of arc a
-%       .B       {1 x nArc}  each m_a x nl   local design matrix (may be sparse)
-%       .l       {1 x nArc}  each m_a x 1    observations
-%       .t       {1 x nArc}  each m_a x 1    epoch timestamps [s]
-%       .Cep     {1 x nArc}  THE ERROR INFORMATION of every arc (R6 WP-90):
-%                         per arc nEpoch_a x 1 (the per-epoch standard deviation
-%                         of a scalar stream), nEpoch_a x d (per-axis standard
-%                         deviations) or nEpoch_a x d x d (the full per-epoch
-%                         covariance, e.g. from a PPP solution). The toolbox
-%                         composes it with the temporal law: C = D (R_t kron I_d) D.
-%                         The axis count is derived from it. (optional; omit when
-%                         every observation is equally accurate)
-%       .nAxis   1x1      axes per epoch of a multi-axis stream WITHOUT Cep
-%                         (optional; derived from Cep when present)
-%     Without an 'Arcs' schedule the cells ARE the schedule (arcs 1:nArc);
-%     with one, cell a is the a-th scheduled id and the count must match.
+%     out  1x1 lsqvce.DayData -- out = ctx.newDay(), then ONE addArc PER ARC of
+%          the day (without an Arcs schedule the arcs are the ones you add, in
+%          order; a day with one arc adds one):
+%            out.addArc(A, l, t, Local={names, P}, Sigma=s)
+%       A        m_a x nc    common design rows of the arc
+%       l        m_a x 1     observed minus computed
+%       t        m_a x 1     epoch timestamps [s]
+%       Local    {names, P}  the local partials BY NAME, P m_a x numel(names)
+%                            (several rows {names1, P1; names2, P2}); or B=B, an
+%                            m_a x nl matrix (may be sparse) whose columns come
+%                            from ctx.cols(names) -- never an offset by hand
+%       Sigma    THE ERROR INFORMATION of the arc: nEpoch_a x 1 (the per-epoch
+%                standard deviation of a scalar stream), nEpoch_a x d (per-axis
+%                standard deviations) or nEpoch_a x d x d (the full per-epoch
+%                covariance, e.g. from a PPP solution). The toolbox composes it
+%                with the temporal law: C = D (R_t kron I_d) D. The axis count
+%                is derived from it. (optional; omit when every observation is
+%                equally accurate)
+%       Excluded m_a x 1 logical: rows of weight 0, kept for their index
+%     A multi-axis stream WITHOUT Sigma states its axes per epoch once, on the
+%     stream: addStream(..., Axes=d).
 %
 %   ROW ORDER FOR MULTI-AXIS STREAMS: rows are EPOCH-MAJOR, i.e.
 %   [x1 y1 z1 | x2 y2 z2 | ...]. The temporal correlation model strides by
 %   the axis count, so a stream stored axis-major comes out with its time law
 %   stretched by the axis count -- and it will not announce itself.
-%
-%   GETTING nc AND nl: read them from the tables you were handed,
-%   nc = size(common,1) and nl = size(local,1). Do not hardcode them; that is
-%   the duplication the parametrisation pipe removes.
     error('lsqvce_template:notImplemented', ...
-        ['myBuildDay is a stub -- write it for your data.\n' ...
-         'Asked for day %s, obsType ''%s''. Return .A .B .l .t as one cell per ' ...
-         'arc (and .Cep for the error information); see `help lsqvce_template`.'], ...
-         num2str(day), obsType);
+        ['myBuild is a stub -- write it for your data.\n' ...
+         'Asked for day %s, stream ''%s''. Return ctx.newDay() with one addArc per ' ...
+         'arc (Sigma= for the error information); see `help lsqvce_template`.'], ...
+         num2str(day), char(ctx.Stream));
 end
 
 %% ========================================================== small local helpers
-function cov = aprioriCovariance(obsTypes, ~)
-%APRIORICOVARIANCE  A-priori covariance spec per obsType, for LSQVCE.ENGINE.COVMODEL.
-%   The TEMPORAL law only -- white and unit-level by default: the VCE loop
-%   discovers the truth, so a deliberately plain start makes the discovery
-%   visible. Replace with your best prior if you have one. The per-epoch
-%   accuracy of the observations is not declared here: myBuildDay returns it
-%   with the day (D.Cep), for scalar and multi-axis streams alike.
+function n = aprioriNoise(obsType, ~)  %#ok<INUSD>
+%APRIORINOISE  The a-priori temporal law of one stream, a LSQVCE.NOISE.
+%   White and unit-level by default: the VCE loop discovers the truth, so a
+%   deliberately plain start makes the discovery visible. Replace with your
+%   best prior if you have one (lsqvce.Noise.arma, .psd, ...). The per-epoch
+%   accuracy of the observations is not declared here: myBuild returns it with
+%   every arc (Sigma=), for scalar and multi-axis streams alike.
 %
 %   INPUT
-%     obsTypes  1xT cellstr  the stream names
+%     obsType   1xk char     the stream name
 %     g         1x1 struct   the observation-group entry (unused here)
 %   OUTPUT
-%     cov       1x1 struct   .(obsType) = a covariance spec
-    cov = struct();
-    for k = 1:numel(obsTypes)
-        cov.(obsTypes{k}) = struct('type','diag', 'sigma',1);
+%     n         1x1 lsqvce.Noise
+    n = lsqvce.Noise.white(1);
+end
+
+function T = rowInfo(row)
+%ROWINFO  Columns 3..C of one parametrisation row as its Info (variables col3 ..).
+%   INPUT   row  1xC cell   {scope, name, yours...}
+%   OUTPUT  T    1x(C-2) table, one cell variable per column (table() for C <= 2)
+    T = table();
+    for c = 3:numel(row)
+        T.(sprintf('col%d', c)) = row(c);
     end
 end
 
 function s = groupName(g, k)
-%GROUPNAME  A human-readable label for a group (display only, never indexed).
+%GROUPNAME  A human-readable label for a group (the system's unique name).
 %   INPUT   g 1x1 struct; k 1x1 double  the group index
-%   OUTPUT  s 1xn char
+%   OUTPUT  s 1x1 string
     if isfield(g, 'name') && ~isempty(g.name)
-        s = char(g.name);
+        s = string(g.name);
     else
-        s = sprintf('system-%d', k);
+        s = string(sprintf('system-%d', k));
     end
 end
 
 function requireFields(s, names)
 %REQUIREFIELDS  Error clearly when procOpt is missing something required.
-%   Fails at the TOP with the field name, rather than deep inside makeLoader
-%   with a message about an argument the user never typed.
+%   Fails at the TOP with the field name, rather than deep inside the
+%   declaration with a message about an argument the user never typed.
 %
 %   INPUT   s 1x1 struct; names 1xN cellstr
 %   OUTPUT  none (throws lsqvce_template:badProcOpt)

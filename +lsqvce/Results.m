@@ -87,8 +87,8 @@ classdef Results < handle
 %     E = R.ellipse(i, j, ...)       Confidence ellipse of the parameter pair (i, j).
 %     fh = R.plot(kind)              "residuals" | "contribution" | "psd" | "convergence"
 %                                    (one figure per question, nothing exported).
-%     [C, L, map] = R.toTable(data)  The expanded parameter tables with estimate and
-%                                    standard deviation written in.
+%     T = R.toTable(task)            One table of every parameter of a lsqvce.TaskDefinition:
+%                                    System, Name, Scope, Day, Arc, Estimate, Std (WP-161)
 %     T = R.summary()                Per-STREAM final state: sigma, AR order,
 %                                    whiteness (needs .history).
 %     T = R.coefficients(Alpha=a)    The estimates as a table with formal
@@ -102,7 +102,7 @@ classdef Results < handle
 %   whitened -- the per-pass view reports the worst p-value without naming it.
 %
 %   EXAMPLE
-%     R = lsqvce.fit(data, Estimate="noise");
+%     R = lsqvce.fit(task, Estimate="noise");
 %     R.report();
 %     if ~R.converged, lsqvce.util.log.warn('did not converge'); end
 %     x = R.x;   s0 = R.sigma0;
@@ -144,6 +144,15 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: R.toTable takes the
+%   lsqvce.TaskDefinition only (lsqvce:Results:structDeclaration for a struct);
+%   the write-back into a compiled struct's tables is the hidden engine-tier
+%   R.declarationTables(data). With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
+%   Updated 2026-11-02 (CET, UTC+01:00), WP-161: R.toTable(task) returns one
+%   MATLAB table (System, Name, Scope, Day, Arc, Estimate, Std) for a
+%   lsqvce.TaskDefinition. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-29 (CET, UTC+01:00), WP-159: received from lsqvce.fit
 %   (the example called an engine); meta.warnings, noise.checks and the
 %   robust truncation listed; ERRORS lists every id the class raises. With
@@ -496,97 +505,29 @@ classdef Results < handle
                                'robust', string(lsqvce.util.getfielddef(o, 'Robust', "none")), 'fixed', true);
         end
 
-        function [C, L, map] = toTable(obj, data, opt)
-        %TOTABLE  Write the estimates back into the parameter tables (R5-D8 round 4).
-        %   [C, L, map] = R.toTable(data)
-        %   [C, L, map] = R.toTable(data, Estimate=9, Std=10)
-        %   The EXPANDED tables -- one row per instantiated parameter, in the
-        %   toolbox's column order -- with the estimate and its standard
-        %   deviation written into the columns named (defaults 9 and 10 of the
-        %   15-column table: your columns 8 and 9 after the scope token). Every
-        %   other column is copied from the template row. A 'day'/'arc' row
-        %   appears once per instance; map says which.
-        %   INPUT   data  the declaration this Results came from (its tables are
-        %                 re-expanded with lsqvce.engine.declaration -- same plans)
-        %           Estimate, Std   1-based columns to write (padded if the table
-        %                 is narrower)
-        %   OUTPUT  C    nc x W cell   the common table, one row per column of A
-        %           L    1xK cell of (nl_k x W) cells, one per system, block order
-        %                (per day: arc blocks, day block; then the system block)
-        %           map  struct: .common (nc x 1 struct: row, day), .local{k}
-        %                (nl_k x 1 struct: row, day, arc) -- the instance of each line
-        %   ERRORS  lsqvce:Results:noAccumulator   no accumulator on this Results
-        %           lsqvce:Results:tableMismatch    the declaration's nc is not this Results' u
-        %           lsqvce:fit:*                    the declaration does not validate
+        function T = toTable(obj, task)
+        %TOTABLE  The estimates of every parameter of the task, as one table (WP-161).
+        %   T = R.toTable(task)   ONE MATLAB table, a row per instantiated parameter:
+        %                         System ("" for commons), Name, Scope, Day, Arc (NaN
+        %                         where the scope has none), Estimate, Std
+        %   INPUT   task  1x1 lsqvce.TaskDefinition   the task this Results came from
+        %   OUTPUT  T     n x 7 table, n = nc + the nl of every system, in the
+        %                 toolbox's column order (A, then each system's B)
+        %   ERRORS  lsqvce:Results:structDeclaration   a struct was passed (since
+        %                 7.0.0; the engine tier's write-back into the struct's
+        %                 tables is the hidden R.declarationTables(data))
+        %           lsqvce:Results:noAccumulator / tableMismatch   as declarationTables
         arguments
             obj
-            data (1,1) struct
-            opt.Estimate (1,1) double {mustBeInteger, mustBePositive} = 9
-            opt.Std (1,1) double {mustBeInteger, mustBePositive} = 10
+            task (1,1) {mustBeA(task, ["struct", "lsqvce.TaskDefinition"])}
         end
-            if isempty(obj.acc)
-                error('lsqvce:Results:noAccumulator', 'toTable needs a streaming (kind A) Results.');
+            if isstruct(task)
+                error('lsqvce:Results:structDeclaration', ...
+                      ['R.toTable takes the lsqvce.TaskDefinition the Results came from since ' ...
+                       '7.0.0, not a data struct (RELEASE_NOTES.md, "Migrating a declaration ' ...
+                       'from v6 to v7").']);
             end
-            [spec, systems] = lsqvce.engine.declaration(data);
-            cp = spec.commonPlan;  T = spec.commonParams;
-            if cp.nc ~= numel(obj.x)
-                error('lsqvce:Results:tableMismatch', ...
-                      ['The declaration expands to %d common parameters but this Results has %d: ' ...
-                       'toTable needs the declaration the Results came from.'], cp.nc, numel(obj.x));
-            end
-            sx = sqrt(max(real(diag(obj.sol.Cxx)), 0));
-            W = max([size(T, 2), opt.Estimate, opt.Std]);
-            C = cell(cp.nc, W);  mc = struct('row', cell(cp.nc, 1), 'day', cell(cp.nc, 1));
-            for j = 1:cp.commonCount
-                r = cp.rows.common(j);
-                C(j, 1:size(T, 2)) = T(r, :);  C{j, opt.Estimate} = obj.x(j);  C{j, opt.Std} = sx(j);
-                mc(j).row = r;  mc(j).day = [];
-            end
-            for i = 1:numel(cp.days)
-                if cp.dayCount(i) == 0, continue, end
-                rows = cp.rows.day;
-                if isfield(cp, 'dayRowsOf'), rows = cp.dayRowsOf{i}; end
-                for q = 1:cp.dayCount(i)
-                    j = cp.dayOffset(i) + q;  r = rows(q);
-                    C(j, 1:size(T, 2)) = T(r, :);  C{j, opt.Estimate} = obj.x(j);  C{j, opt.Std} = sx(j);
-                    mc(j).row = r;  mc(j).day = cp.days(i);
-                end
-            end
-            res = obj.residuals('Verbose', false);          % the local solutions y, Cyy
-            K = numel(systems);  L = cell(1, K);  ml = cell(1, K);
-            for k = 1:K
-                Lk = systems{k};  plan = Lk.plan;
-                Tl = lsqvce.util.getfielddef(data.systems(k), 'localParams', {});   % WP-131: optional
-                if isempty(Tl), L{k} = cell(0, W);  ml{k} = struct('row', {}, 'day', {}, 'arc', {});  continue, end
-                s = res.sys(k);                                 % the accumulator's system order = data.systems order
-                y = s.y(:);  sy = sqrt(max(real(diag(s.Cyy)), 0));
-                Wl = max([size(Tl, 2), opt.Estimate, opt.Std]);
-                Lt = cell(plan.nl, Wl);  m = struct('row', cell(plan.nl, 1), 'day', cell(plan.nl, 1), 'arc', cell(plan.nl, 1));
-                for i = 1:numel(plan.days)
-                    d = plan.days(i);
-                    arcRows = plan.rows.arc;  dayRows = plan.rows.day;
-                    if isfield(plan, 'arcRowsOf'), arcRows = plan.arcRowsOf{i};  dayRows = plan.dayRowsOf{i}; end
-                    for a = 1:numel(plan.arcId{i})
-                        for q = 1:numel(arcRows)
-                            j = plan.offset{i}(a) + q;  r = arcRows(q);
-                            Lt(j, 1:size(Tl, 2)) = Tl(r, :);  Lt{j, opt.Estimate} = y(j);  Lt{j, opt.Std} = sy(j);
-                            m(j).row = r;  m(j).day = d;  m(j).arc = plan.arcId{i}(a);
-                        end
-                    end
-                    for q = 1:plan.dayCount(i)
-                        j = plan.dayOffset(i) + q;  r = dayRows(q);
-                        Lt(j, 1:size(Tl, 2)) = Tl(r, :);  Lt{j, opt.Estimate} = y(j);  Lt{j, opt.Std} = sy(j);
-                        m(j).row = r;  m(j).day = d;  m(j).arc = [];
-                    end
-                end
-                for q = 1:plan.sysCount
-                    j = plan.sysOffset + q;  r = plan.rows.system(q);
-                    Lt(j, 1:size(Tl, 2)) = Tl(r, :);  Lt{j, opt.Estimate} = y(j);  Lt{j, opt.Std} = sy(j);
-                    m(j).row = r;  m(j).day = [];  m(j).arc = [];
-                end
-                L{k} = Lt;  ml{k} = m;
-            end
-            map = struct('common', mc, 'local', {ml});
+            T = obj.taskTable(task);
         end
 
         function F = compare(obj, Rred, opt)
@@ -771,7 +712,7 @@ classdef Results < handle
         %   OUTPUT  con  1x1 struct  .group(k).key/.r/.share/.diag/.relSE, .nc
         %
         %   EXAMPLE
-        %     R   = lsqvce.fit(data, Estimate="noise");
+        %     R   = lsqvce.fit(task, Estimate="noise");
         %     con = R.contribution('Level', 2);
         %     bar(con.group(1).diag);      % per-coefficient share of group 1
         %
@@ -846,7 +787,7 @@ classdef Results < handle
         %                                history (it came from a single solve).
         %
         %   EXAMPLE
-        %     R = lsqvce.fit(data, Estimate="noise");
+        %     R = lsqvce.fit(task, Estimate="noise");
         %     T = R.convergence('Plot', true);   % table + diagnostic figure
         %     % a stream stuck at minWhitePval < 0.05 for every pass needs a
         %     % finer spectral grid (Options.Noise.Grid) or more passes; an
@@ -932,7 +873,7 @@ classdef Results < handle
         %                                history (it came from a single solve).
         %
         %   EXAMPLE
-        %     R = lsqvce.fit(data, Estimate="noise");
+        %     R = lsqvce.fit(task, Estimate="noise");
         %     T = R.summary();
         %     T(~T.white, :)            % the streams that never whitened
         %     T(abs(T.sigma-1) > 0.1, :)  % the streams still badly weighted
@@ -1031,7 +972,132 @@ classdef Results < handle
         end
     end
 
+    methods (Hidden)
+        function [C, L, map] = declarationTables(obj, data, opt)
+        %DECLARATIONTABLES  Write the estimates back into a compiled declaration's tables.
+        %   ENGINE TIER (WP-162; it was R.toTable(data) up to 6.35.1, R5-D8 round 4).
+        %   [C, L, map] = R.declarationTables(data)
+        %   [C, L, map] = R.declarationTables(data, Estimate=9, Std=10)
+        %   The EXPANDED tables -- one row per instantiated parameter, in the
+        %   toolbox's column order -- with the estimate and its standard
+        %   deviation written into the columns named (defaults 9 and 10 of the
+        %   15-column table: your columns 8 and 9 after the scope token). Every
+        %   other column is copied from the template row. A 'day'/'arc' row
+        %   appears once per instance; map says which.
+        %   INPUT   data  the declaration this Results came from (its tables are
+        %                 re-expanded with lsqvce.engine.declaration -- same plans)
+        %           Estimate, Std   1-based columns to write (padded if the table
+        %                 is narrower)
+        %   OUTPUT  C    nc x W cell   the common table, one row per column of A
+        %           L    1xK cell of (nl_k x W) cells, one per system, block order
+        %                (per day: arc blocks, day block; then the system block)
+        %           map  struct: .common (nc x 1 struct: row, day), .local{k}
+        %                (nl_k x 1 struct: row, day, arc) -- the instance of each line
+        %   ERRORS  lsqvce:Results:noAccumulator   no accumulator on this Results
+        %           lsqvce:Results:tableMismatch    the declaration's nc is not this Results' u
+        %           lsqvce:fit:*                    the declaration does not validate
+        arguments
+            obj
+            data (1,1) struct
+            opt.Estimate (1,1) double {mustBeInteger, mustBePositive} = 9
+            opt.Std (1,1) double {mustBeInteger, mustBePositive} = 10
+        end
+            if isempty(obj.acc)
+                error('lsqvce:Results:noAccumulator', 'toTable needs a streaming (kind A) Results.');
+            end
+            [spec, systems] = lsqvce.engine.declaration(data);
+            cp = spec.commonPlan;  T = spec.commonParams;
+            if cp.nc ~= numel(obj.x)
+                error('lsqvce:Results:tableMismatch', ...
+                      ['The declaration expands to %d common parameters but this Results has %d: ' ...
+                       'toTable needs the declaration the Results came from.'], cp.nc, numel(obj.x));
+            end
+            sx = sqrt(max(real(diag(obj.sol.Cxx)), 0));
+            W = max([size(T, 2), opt.Estimate, opt.Std]);
+            C = cell(cp.nc, W);  mc = struct('row', cell(cp.nc, 1), 'day', cell(cp.nc, 1));
+            for j = 1:cp.commonCount
+                r = cp.rows.common(j);
+                C(j, 1:size(T, 2)) = T(r, :);  C{j, opt.Estimate} = obj.x(j);  C{j, opt.Std} = sx(j);
+                mc(j).row = r;  mc(j).day = [];
+            end
+            for i = 1:numel(cp.days)
+                if cp.dayCount(i) == 0, continue, end
+                rows = cp.rows.day;
+                if isfield(cp, 'dayRowsOf'), rows = cp.dayRowsOf{i}; end
+                for q = 1:cp.dayCount(i)
+                    j = cp.dayOffset(i) + q;  r = rows(q);
+                    C(j, 1:size(T, 2)) = T(r, :);  C{j, opt.Estimate} = obj.x(j);  C{j, opt.Std} = sx(j);
+                    mc(j).row = r;  mc(j).day = cp.days(i);
+                end
+            end
+            res = obj.residuals('Verbose', false);          % the local solutions y, Cyy
+            K = numel(systems);  L = cell(1, K);  ml = cell(1, K);
+            for k = 1:K
+                Lk = systems{k};  plan = Lk.plan;
+                Tl = lsqvce.util.getfielddef(data.systems(k), 'localParams', {});   % WP-131: optional
+                if isempty(Tl), L{k} = cell(0, W);  ml{k} = struct('row', {}, 'day', {}, 'arc', {});  continue, end
+                s = res.sys(k);                                 % the accumulator's system order = data.systems order
+                y = s.y(:);  sy = sqrt(max(real(diag(s.Cyy)), 0));
+                Wl = max([size(Tl, 2), opt.Estimate, opt.Std]);
+                Lt = cell(plan.nl, Wl);  m = struct('row', cell(plan.nl, 1), 'day', cell(plan.nl, 1), 'arc', cell(plan.nl, 1));
+                for i = 1:numel(plan.days)
+                    d = plan.days(i);
+                    arcRows = plan.rows.arc;  dayRows = plan.rows.day;
+                    if isfield(plan, 'arcRowsOf'), arcRows = plan.arcRowsOf{i};  dayRows = plan.dayRowsOf{i}; end
+                    for a = 1:numel(plan.arcId{i})
+                        for q = 1:numel(arcRows)
+                            j = plan.offset{i}(a) + q;  r = arcRows(q);
+                            Lt(j, 1:size(Tl, 2)) = Tl(r, :);  Lt{j, opt.Estimate} = y(j);  Lt{j, opt.Std} = sy(j);
+                            m(j).row = r;  m(j).day = d;  m(j).arc = plan.arcId{i}(a);
+                        end
+                    end
+                    for q = 1:plan.dayCount(i)
+                        j = plan.dayOffset(i) + q;  r = dayRows(q);
+                        Lt(j, 1:size(Tl, 2)) = Tl(r, :);  Lt{j, opt.Estimate} = y(j);  Lt{j, opt.Std} = sy(j);
+                        m(j).row = r;  m(j).day = d;  m(j).arc = [];
+                    end
+                end
+                for q = 1:plan.sysCount
+                    j = plan.sysOffset + q;  r = plan.rows.system(q);
+                    Lt(j, 1:size(Tl, 2)) = Tl(r, :);  Lt{j, opt.Estimate} = y(j);  Lt{j, opt.Std} = sy(j);
+                    m(j).row = r;  m(j).day = [];  m(j).arc = [];
+                end
+                L{k} = Lt;  ml{k} = m;
+            end
+            map = struct('common', mc, 'local', {ml});
+        end
+    end
+
     methods (Access = private)
+        function T = taskTable(obj, task)
+        %TASKTABLE  R.toTable(task): one MATLAB table over commons and every system's
+        %   locals, read off the cell tables the declaration expands to (WP-161).
+            [C, L, map] = obj.declarationTables(task.declaration(), Estimate=5, Std=6);
+            lay = task.layout();
+            n = size(C, 1) + sum(cellfun(@(c) size(c, 1), L));
+            [sysName, name, scope] = deal(strings(n, 1));
+            [day, arc, est, sd] = deal(nan(n, 1));
+            for j = 1:size(C, 1)
+                name(j) = string(C{j, 2});  scope(j) = string(C{j, 1});
+                if ~isempty(map.common(j).day), day(j) = map.common(j).day; end
+                est(j) = C{j, 5};  sd(j) = C{j, 6};
+            end
+            i = size(C, 1);
+            for k = 1:numel(L)
+                for j = 1:size(L{k}, 1)
+                    i = i + 1;
+                    sysName(i) = lay.systems(k).name;
+                    name(i) = string(L{k}{j, 2});  scope(i) = string(L{k}{j, 1});
+                    m = map.local{k}(j);
+                    if ~isempty(m.day), day(i) = m.day; end
+                    if ~isempty(m.arc), arc(i) = m.arc; end
+                    est(i) = L{k}{j, 5};  sd(i) = L{k}{j, 6};
+                end
+            end
+            T = table(sysName, name, scope, day, arc, est, sd, 'VariableNames', ...
+                      {'System', 'Name', 'Scope', 'Day', 'Arc', 'Estimate', 'Std'});
+        end
+
         function h = requireHistory(obj, caller)
         %REQUIREHISTORY  Return R.history, or explain clearly why there is none.
         %   A Results from a SINGLE solve legitimately has no iteration history,

@@ -505,7 +505,7 @@ function test_correlated_mdb_is_the_tests_own(tc)
     for k = 1:nb, Pb{k} = inv(0.8 .^ abs(idx - idx.')); end
     l = A*randn(rs, u, 1) + randn(rs, n, 1);
     src = @(k) deal(A((k-1)*nk+(1:nk), :), l((k-1)*nk+(1:nk)), Pb{k});
-    R = lsqvce.fit(struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nb), Verbose=false);
+    R = lsqvce.engine.fitDeclaration(struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nb), Verbose=false);
     D = lsqvce.engine.verdict.diagnose(R.source, src, 'nBatch', nb);
     ok = isfinite(D.mdb);
     tc.assertTrue(any(ok), 'controlled observations exist');
@@ -614,7 +614,7 @@ function test_local_datum_under_a_full_weight_matrix(tc)
     l1 = A1 * [1; 2; 0] + 0.1 * randn(rs, m, 1);
     A2 = [0 1 0; 0 0 1];  l2 = [2.05; 0.3];  P2 = [2 0.5; 0.5 1];
     src = @(k) twoBatches(k, A1, l1, A2, l2, P2);
-    R = lsqvce.fit(struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 2), Verbose=false);
+    R = lsqvce.engine.fitDeclaration(struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 2), Verbose=false);
     dsol = R.source;
     dsol.localPriorBatches = 2;               % as source marks a local group's arc
     D = lsqvce.engine.verdict.diagnose(dsol, src, 'nBatch', 2);

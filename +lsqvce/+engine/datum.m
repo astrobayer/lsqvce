@@ -63,7 +63,7 @@ function [B, info] = datum(N, opt)
 %       % constraints for any weight, because range(A) and null(N) are orthogonal)
 %       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nB);
 %       data.priors = struct('L', B.', 'x0', 0, 'sigma', 1);
-%       R = lsqvce.fit(data);
+%       R = lsqvce.fit(task);
 %
 %       % B must span null(N) -- an INNER constraint. "Fix station 3"
 %       % (B = e_3) is NOT one: the data see that direction, so fit takes
@@ -92,6 +92,9 @@ function [B, info] = datum(N, opt)
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTBLOCK.
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: the examples fit a
+%   lsqvce.TaskDefinition (lsqvce.fit takes no struct since 7.0.0). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-18 (CEST, UTC+02:00), WP-151 (review 12.84, S3): the
 %   example said a "fix station 3" prior is REFUSED; nothing refuses it -- it
 %   is an ordinary weighted prior. With assistance from Claude (Anthropic),

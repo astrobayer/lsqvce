@@ -16,7 +16,7 @@ function [sol, D, V, IT] = flatNonlinear(u, batchFcn, nBatch, x0, varargin)
     w2 = warning('off', 'lsqvce:adjustNonlinear:diverged'); c2 = onCleanup(@() warning(w2)); %#ok<NASGU>
     opts = lsqvce.Options(MaxPasses=o.maxIter, Tolerance=o.tolX, Verbose=logical(o.verbose), ...
              Backend=string(lower(char(o.Method))), GaussNewton=struct('TolF', o.tolF, 'Lambda0', o.lambda0));
-    R = lsqvce.fit(data, opts);
+    R = lsqvce.engine.fitDeclaration(data, opts);   % WP-162: the engine tier takes the struct
     D = R.diag;  V = R.report('Verbose', false);
     h = R.history;
     IT = struct('converged', R.converged, 'iterations', numel(h), 'nIter', numel(h), 'history', h, ...

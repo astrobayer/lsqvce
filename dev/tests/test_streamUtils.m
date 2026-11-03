@@ -494,7 +494,7 @@ function test_excluded_rows_the_nugget_misses_are_deleted_exactly(tc)
         data = struct('commonParams', {{'common','c1';'common','c2';'common','c3'}}, 'days', 1);
         data.systems = struct('buildDay', @(day, ot) D, 'covariance', struct('o', c.spec), ...
                               'arcs', 1, 'id', 1, 'name', 'c4');
-        R = lsqvce.fit(data, lsqvce.Options(Verbose=0));
+        R = lsqvce.engine.fitDeclaration(data, lsqvce.Options(Verbose=0));
         Ne = A(k,:).' / Co * A(k,:);  xe = Ne \ (A(k,:).' / Co * l(k));
         % tol: 1e-9 formal sd -- measured 6e-15 to 3e-14; the zero rows put
         % x 0.035-0.35 sd off

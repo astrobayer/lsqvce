@@ -36,8 +36,8 @@ function testScalingTheObservationsScalesTheEstimate(tc)
     % adapter lsqvce.engine.batchSystem, lsqvce.engine.adjustBlock, the
     % diagnostics lsqvce.engine.verdict.diagnose / lsqvce.engine.verdict.source)
     A = tc.TestData.A;  l = tc.TestData.l;  p = tc.TestData.p;  c = -3.7;
-    R1 = lsqvce.fit(struct('A', A, 'l', l,   'p', p), Verbose=false);
-    R2 = lsqvce.fit(struct('A', A, 'l', c*l, 'p', p), Verbose=false);
+    R1 = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l,   'p', p), Verbose=false);
+    R2 = lsqvce.engine.fitDeclaration(struct('A', A, 'l', c*l, 'p', p), Verbose=false);
     % tol: 1e-12 relative -- the same arithmetic on scaled numbers (no
     % cancellation is introduced by a scalar factor)
     tc.verifyEqual(R2.x, c*R1.x, 'RelTol', 1e-12);
@@ -54,8 +54,8 @@ function testScalingTheWeightsLeavesTheEstimate(tc)
     % p -> k*p leaves x and the redundancies unchanged; sigma0 scales by
     % sqrt(k) (the a-posteriori factor absorbs the common weight)
     A = tc.TestData.A;  l = tc.TestData.l;  p = tc.TestData.p;  k = 25;
-    R1 = lsqvce.fit(struct('A', A, 'l', l, 'p', p),   Verbose=false);
-    R2 = lsqvce.fit(struct('A', A, 'l', l, 'p', k*p), Verbose=false);
+    R1 = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'p', p),   Verbose=false);
+    R2 = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'p', k*p), Verbose=false);
     % tol: 1e-12 relative -- as above
     tc.verifyEqual(R2.x, R1.x, 'RelTol', 1e-12);
     % tol: as above
@@ -72,11 +72,11 @@ function testBatchPartitionIsInvisible(tc)
     % day k; lsqvce.engine.BlockAccumulator merges days; lsqvce.engine.QRSystem
     % folds) give one solution
     A = tc.TestData.A;  l = tc.TestData.l;  p = tc.TestData.p;  n = numel(l);
-    R1 = lsqvce.fit(struct('A', A, 'l', l, 'p', p), Verbose=false);
+    R1 = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'p', p), Verbose=false);
     for nb = [3 7]
         edges = round(linspace(0, n, nb + 1));
         bf = @(k) deal(A(edges(k)+1:edges(k+1), :), l(edges(k)+1:edges(k+1)), p(edges(k)+1:edges(k+1)));
-        Rk = lsqvce.fit(struct('batchFcn', bf, 'numUnknowns', 5, 'numBatches', nb), Verbose=false);
+        Rk = lsqvce.engine.fitDeclaration(struct('batchFcn', bf, 'numUnknowns', 5, 'numBatches', nb), Verbose=false);
         % tol: 1e-11 relative -- QR folds in a different order; cond(A) ~ 10
         tc.verifyEqual(Rk.x, R1.x, 'RelTol', 1e-11, sprintf('%d batches', nb));
         % tol: as above
@@ -279,8 +279,8 @@ function testPermutingTheRowsPermutesTheDiagnostics(tc)
     % per-observation outputs and leaves the estimate alone
     A = tc.TestData.A;  l = tc.TestData.l;  p = tc.TestData.p;  n = numel(l);
     rs = RandStream('mt19937ar', 'Seed', 11);  q = randperm(rs, n);
-    R1 = lsqvce.fit(struct('A', A, 'l', l, 'p', p), Verbose=false);
-    R2 = lsqvce.fit(struct('A', A(q, :), 'l', l(q), 'p', p(q)), Verbose=false);
+    R1 = lsqvce.engine.fitDeclaration(struct('A', A, 'l', l, 'p', p), Verbose=false);
+    R2 = lsqvce.engine.fitDeclaration(struct('A', A(q, :), 'l', l(q), 'p', p(q)), Verbose=false);
     % tol: 1e-11 relative -- one QR in a different row order
     tc.verifyEqual(R2.x, R1.x, 'RelTol', 1e-11);
     % tol: as above

@@ -86,7 +86,7 @@ function con = contribution(acc, sol, opt)
 %     block (test_contribution (test_contribution_level2_diagonal)). WP-139.
 %
 %   EXAMPLE
-%     R   = lsqvce.fit(data, Estimate="noise");   % converged; R.acc, R.sol
+%     R   = lsqvce.fit(task, Estimate="noise");   % converged; R.acc, R.sol
 %     con = lsqvce.engine.contribution(R.acc, R.sol, 'GroupBy','obsType', 'Level',2);
 %     [con.group.share]                           % scalar share per stream
 %     bar(con.group(1).diag);                     % per-coefficient share, group 1
@@ -95,6 +95,9 @@ function con = contribution(acc, sol, opt)
 %   See also LSQVCE.ENGINE.STREAMCONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE,
 %            LSQVCE.RESULTS
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-162: the examples fit a
+%   lsqvce.TaskDefinition (lsqvce.fit takes no struct since 7.0.0). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

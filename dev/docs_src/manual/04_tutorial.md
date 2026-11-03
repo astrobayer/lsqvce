@@ -18,8 +18,8 @@ xTrue = [2; 0.5];
 sigma = 0.1;                                % the noise of every observation
 l     = A*xTrue + sigma*randn(size(t));     % simulated measurements
 
-data = struct('A', A, 'l', l, 'p', ones(size(t)) / sigma^2);   % p are WEIGHTS: 1/sigma^2
-R = lsqvce.fit(data);
+task = lsqvce.TaskDefinition.fromMatrices(A, l, Weights=ones(size(t)) / sigma^2);   % WEIGHTS: 1/sigma^2
+R = lsqvce.fit(task);
 R.report
 R.coefficients()
 ```
@@ -38,7 +38,7 @@ match the scatter of the data.
 
 Two things to remember from part 1:
 
-- `p` holds **weights**, `1/σ²`, not standard deviations.
+- `Weights` holds **weights**, `1/σ²`, not standard deviations.
 - A σ₀ far from 1 means the weights are wrong in scale. Fix that before anything else.
 
 If your problem fits in memory and the noise is known, this is all you need. The rest of
@@ -66,133 +66,128 @@ declare it white.
 | observation types | `'gauge'`, `'radar'` | the kinds of measurement |
 | what both streams share per day | the epochs and the signal basis | an orbit, a file, a rotation |
 
-### Step 1 — Declare the parameters and the calendar
+### Step 1 — Declare the task: its parameters and calendar
 
 ```matlab
-data = struct();
-data.commonParams = {'common', 'cosAmp'; 'common', 'sinAmp'};
-data.days = 1:5;
+task = lsqvce.TaskDefinition(Days=1:5);
+names = ["cosAmp" "sinAmp"];
+task.addCommon(names);                             % Scope="common" (default)
 ```
 
-One row per parameter. Column 1 is the scope; column 2 is a name of your choice.
+A task is one object you fill with `add` calls. `addCommon` declares the parameters every
+system sees, by name; `Scope="common"` means one value for the whole run.
 
-### Step 2 — Declare the system
+### Step 2 — Declare the system: its Prepare, locals and streams
 
 ```matlab
-sys = struct();
-sys.name        = 'platform';
-sys.localParams = {'arc', 'bias'};             % one offset per arc
-sys.arcs        = 2;                           % arcs 1 and 2 on every day
-sys.processingOptions = struct('epochs', 240, 'step', 30, ...
-                               'truth', [0.8; -0.3]);
-sys.prepareDay  = @prepareTutorialDay;         % once per day
-sys.buildDay    = @buildTutorialDay;           % once per day and observation type
-sys.covariance.gauge = struct('type', 'diag', 'sigma', 0.05);
-sys.covariance.radar = struct('type', 'diag', 'sigma', 0.02);   % colour unknown
-data.systems = sys;
+truth = [0.8; -0.3];                               % the simulator's truth
+sys = task.addSystem("platform", Prepare=@prepareTutorialDay, Arcs=2, ...   % arcs 1 and 2
+                     Settings=struct('epochs', 240, 'step', 30, 'truth', truth));
+sys.addLocal("bias", Scope="arc");                 % one offset per arc
+sys.addStream("gauge", Build=@buildGauge, Noise=lsqvce.Noise.white(0.05));
+sys.addStream("radar", Build=@buildRadar, Noise=lsqvce.Noise.white(0.02));   % colour unknown
 ```
 
 Line by line:
 
-- `localParams = {'arc', 'bias'}` asks for one parameter per arc. The toolbox counts
-  them (5 days × 2 arcs = 10) and tells `buildDay` where each one sits.
-- `arcs = 2` is the arc schedule: arcs 1 and 2 on every day. A system without `'arc'`
-  parameters may leave it out (its arcs are then simply the cells `buildDay` returns).
-  With `'arc'` parameters it is required, because their number must be known before
-  any data is read; leaving it out is an error that says so.
-- `processingOptions` is a struct of your own. The toolbox passes it unchanged to your
-  functions as `procOpt`. Here it carries the simulator's settings. In a real case it
-  carries a data directory, a model file, a reference frame.
-- The **field names of `covariance` are the observation types**. There is no separate
-  list. Each gets a noise law; `'diag'` is white noise of level `sigma`.
+- `addSystem` declares the platform. Its `Prepare` function runs **once per day**, before
+  the streams of that day; whatever it returns reaches every stream as `ctx.Prepared`.
+- `Arcs=2` is the arc schedule: arcs 1 and 2 on every day. A system without `"arc"`
+  parameters may leave it out (its arcs are then simply the arcs `Build` adds). With
+  `"arc"` parameters it is required, because their number must be known before any data
+  is read; leaving it out is an error that says so.
+- `Settings` is a struct of your own. The toolbox passes it unchanged to your functions
+  as `ctx.Settings`. Here it carries the simulator's settings. In a real case it carries a
+  data directory, a model file, a reference frame.
+- `addLocal("bias", Scope="arc")` asks for one parameter per arc. The toolbox counts them
+  (5 days × 2 arcs = 10) and places them; your code names them.
+- Each `addStream` is one observation type with its own `Build` function, which runs
+  **once per day** of that stream, and its own noise law. `lsqvce.Noise.white(0.05)` is
+  white noise of standard deviation 0.05.
 
-### Step 3 — Write `prepareDay`: what both instruments share
+### Step 3 — Write `Prepare`: what both instruments share
 
 Both streams need the epochs of every arc and the signal basis at those epochs. Computing
-this in `buildDay` would do it twice per day. `prepareDay` does it once:
+this in each `Build` would do it twice per day. `Prepare` does it once:
 
 ```matlab
-function P = prepareTutorialDay(day, ~, ~, procOpt, info)
-    nArc = numel(info.arcId);
+function P = prepareTutorialDay(day, ctx)
+    cfg  = ctx.Settings;
+    nArc = numel(ctx.ArcIds);
     P = struct('t', {cell(1, nArc)}, 'G', {cell(1, nArc)}, 'y', {cell(1, nArc)});
     for a = 1:nArc
-        start  = (day - 1) * 86400 + (info.arcId(a) - 1) * 43200;   % arcs at 0 h and 12 h
-        t      = start + (0:procOpt.epochs - 1).' * procOpt.step;
+        start  = (day - 1) * 86400 + (ctx.ArcIds(a) - 1) * 43200;  % arcs at 0 h and 12 h
+        t      = start + (0:cfg.epochs - 1).' * cfg.step;
         w      = 2 * pi / 3600;
         G      = [cos(w * t), sin(w * t)];
-        rs     = RandStream('mt19937ar', 'Seed', 100 * day + info.arcId(a));
-        bias   = 0.5 * randn(rs);                  % this arc's true offset
+        rs     = RandStream('mt19937ar', 'Seed', 100 * day + ctx.ArcIds(a));
+        bias   = 0.5 * randn(rs);                      % this arc's true offset
         P.t{a} = t;
         P.G{a} = G;
-        P.y{a} = G * procOpt.truth + bias;
+        P.y{a} = G * cfg.truth + bias;
     end
 end
 ```
 
-It receives the day, the two parameter tables (unused here, hence `~`), your
-`processingOptions` and `info`. `info.arcId` lists the arcs of this day. Whatever it
-returns, `P`, is handed to every `buildDay` of the same day.
+It receives the day and a `lsqvce.DayContext`, `ctx`: here its `Settings` and `ArcIds`,
+the arcs of this day. Whatever it returns, `P`, is handed to every `Build` of the same
+day.
 
-### Step 4 — Write `buildDay`: the rows of one instrument
+### Step 4 — Write `Build`: the rows of one instrument
 
 ```matlab
-function D = buildTutorialDay(day, obsType, ~, ~, procOpt, info)
-    P    = procOpt.prepared;                       % what prepareTutorialDay returned
-    nArc = numel(info.arcId);
-    D = struct('A', {cell(1, nArc)}, 'B', {cell(1, nArc)}, ...
-               'l', {cell(1, nArc)}, 't', {cell(1, nArc)});
-    for a = 1:nArc
+function out = buildGauge(day, ctx)
+    out = instrumentDay(day, ctx, @(rs, m) 0.05 * randn(rs, m, 1));    % white
+end
+
+function out = buildRadar(day, ctx)
+    phi = 0.5;                                                         % AR(1)
+    out = instrumentDay(day, ctx, @(rs, m) arNoise(rs, m, phi, 0.02));
+end
+
+function out = instrumentDay(day, ctx, noise)
+    P   = ctx.Prepared;                                % prepareTutorialDay's result
+    out = ctx.newDay();
+    c   = char(ctx.Stream);
+    for a = 1:numel(ctx.ArcIds)
         m  = numel(P.t{a});
-        rs = RandStream('mt19937ar', 'Seed', 1000 * day + 10 * info.arcId(a) + double(obsType(1)));
-        switch obsType
-            case 'gauge'
-                e = 0.05 * randn(rs, m, 1);                            % white
-            case 'radar'
-                phi = 0.5;                                             % AR(1)
-                e = filter(1, [1 -phi], 0.02 * sqrt(1 - phi^2) * randn(rs, m + 200, 1));
-                e = e(201:end);
-        end
-        B = zeros(m, info.nl);
-        B(:, info.offsetOf(info.arcId(a)) + (1:info.count(a))) = 1;   % this arc's offset
-        D.A{a} = P.G{a};                           % m x 2: the common parameters
-        D.B{a} = B;                                % m x 10: the local parameters
-        D.l{a} = P.y{a} + e;                       % observed minus computed
-        D.t{a} = P.t{a};                           % epochs in seconds
+        rs = RandStream('mt19937ar', 'Seed', 1000 * day + 10 * ctx.ArcIds(a) + double(c(1)));
+        out.addArc(P.G{a}, P.y{a} + noise(rs, m), P.t{a}, ...    % A, observed - computed, t [s]
+                   Local={"bias", ones(m, 1)});                  % this arc's offset
     end
 end
 ```
 
-The four rules every `buildDay` follows:
+(`arNoise` draws AR(1) noise of standard deviation 0.02; it is in the example file.) The
+four rules every `Build` follows:
 
-1. **One cell per arc** in each of `A`, `B`, `l`, `t`, all with the same number of rows.
-2. **Columns by `info`, never by hand.** `info.nl` is the total number of local
-   parameters; `info.offsetOf(arcId)` is where this arc's block starts; `info.count(a)`
-   is its width.
+1. **One `addArc` per arc**, with the design `A` of the common parameters (one column per
+   `addCommon` name, in that order), `l` and the epochs `t`, all with the same number of
+   rows.
+2. **Local parameters by name, never by column.** `Local={"bias", ones(m, 1)}` gives the
+   partial of the arc's `bias`; the toolbox knows which column that is on this day and arc.
 3. **Raw rows.** `l` is observed minus computed, unweighted and unwhitened. The toolbox
    applies the noise law itself.
-4. **Deterministic.** The toolbox reads every day more than once. Here the random
-   noise comes from a stream seeded on (day, arc, instrument), so every call returns the
-   same rows. Your file reader is deterministic anyway.
-
-Because `buildDay` uses `procOpt` (the 5th argument), it must declare at least five
-arguments; the toolbox refuses a `prepareDay` whose result could never arrive.
+4. **Deterministic.** The toolbox reads every day more than once. Here the random noise
+   comes from a stream seeded on (day, arc, instrument), so every call returns the same
+   rows. Your file reader is deterministic anyway.
 
 ### Step 5 — A first run under the declared noise
 
 ```matlab
-R1 = lsqvce.fit(data);
+R1 = lsqvce.fit(task);
 R1.coefficients()
 ```
 
 `Estimate = "none"` is the default: one solve with the weights you declared. Always run
-this first. It shows that the declaration is accepted (every declaration error names the
-field at fault) and that σ₀ is plausible. Here σ₀ = 0.993.
+this first. It shows that the declaration is accepted (a declaration mistake is refused by
+the call that makes it, with its name) and that σ₀ is plausible. Here σ₀ = 0.993.
 
 ### Step 6 — Estimate the noise
 
 ```matlab
 opts = lsqvce.Options(Estimate="noise", Seed=1);
-R = lsqvce.fit(data, opts);
+R = lsqvce.fit(task, opts);
 R.report
 ```
 
@@ -231,13 +226,13 @@ R.plot("residuals")      % the whitened residuals per stream
 ```
 
 `R.summary()` lists the streams as `x1|gauge` and `x1|radar`: `x1` is the system's id,
-given automatically because we declared none (set `sys.id` to choose one). The radar's
+given automatically because we declared none (`addSystem(..., Id='P')` chooses one). The radar's
 spectrum is no longer flat: the estimator found the colour we left out.
 
 ## Where to go from here
 
-- Replace the simulator in `prepareTutorialDay` and `buildTutorialDay` with your own
-  reader, and the two `commonParams` rows with your parameters. *The workflow, step by
+- Replace the simulator in `prepareTutorialDay` and the two `Build` functions with your
+  own reader, and the two `addCommon` names with your parameters. *The workflow, step by
   step* goes through the decisions in order.
 - *Declaring your problem* covers several systems, day and system scopes, data gaps,
   multi-axis observations and per-epoch accuracies.

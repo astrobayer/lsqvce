@@ -37,7 +37,7 @@ function [commonData, myOptions, systemsData] = fixture_gravfire_bundle(file)
 %   EXAMPLE
 %     [c, m, s] = fixture_gravfire_bundle();
 %     data = gravfire_data(c, m, s, 'DryRun', true);
-%     R = lsqvce.fit(data, Verbose=0);
+%     R = lsqvce.engine.fitDeclaration(data, Verbose=0);
 %
 %   See also TEMPLATE/GRAVFIRE_DATA, DEMO_GRAVFIRE, FIXTURE_KBR_L1B
 %
