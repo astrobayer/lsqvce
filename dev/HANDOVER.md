@@ -13023,7 +13023,7 @@ for a later round: an example that leaves Options.Seed unset is not reproducible
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 163 | Three tutorials, one per kind of task, each a runnable example and a part of the Manual chapter *Tutorials* (replacing *Your first adjustment*), each guarded by a claims test in test_fit: demo_tutorialMatrix (new), demo_tutorialBatch (new), demo_tutorialStreaming (demo_tutorial renamed, no alias) | 162 | IN BRANCH |
+| 163 | Three tutorials, one per kind of task, each a runnable example and a part of the Manual chapter *Tutorials* (replacing *Your first adjustment*), each guarded by a claims test in test_fit: demo_tutorialMatrix (new), demo_tutorialBatch (new), demo_tutorialStreaming (demo_tutorial renamed, no alias) | 162 | GREEN IN BRANCH (2026-11-03: local postflight on 1756e4e GREEN 814/814; CI in the verdict comment of PR #214) -- DONE on merge |
 
 **The user's request (2026-11-03):** "Prepare tutorials on using the toolbox for each case: the
 single matrix, batch and streaming case." Read as the toolbox's tutorial form since WP-159: a
@@ -13052,4 +13052,7 @@ clone on the user's PC).**
 - Tests: testDemoTutorialMatrixIsTheManualsTutorial and testDemoTutorialBatchIsTheManualsTutorial
   (new, test_fit), testDemoTutorialIsTheManualsTutorial renamed ...Streaming...; test_examples'
   call table gains the two rows (28 suites, 826 declared).
+- Gates: audit CLEAN (one tol-provenance comment and one dead RELEASE_NOTES pointer fixed
+  before the commit). Local postflight (tier A, `matlab -batch` ci_gate in the separate
+  clone) on 1756e4e GREEN 814/814, 291 s. PR #214.
 
