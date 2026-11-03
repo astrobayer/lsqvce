@@ -1,8 +1,8 @@
 %% DEMO_WORKFLOW  Build your OWN least-squares case, from scratch.
 %
 %   This is the from-scratch recipe. demo_lsqvce.m shows six FAILURE MODES on a
-%   ready-made problem; demo_tutorial.m is the first streaming case, line by
-%   line. This script shows how to WIRE YOUR OWN DATA into a
+%   ready-made problem; demo_tutorialMatrix.m, demo_tutorialBatch.m and
+%   demo_tutorialStreaming.m are the Manual's three tutorials, line by line. This script shows how to WIRE YOUR OWN DATA into a
 %   lsqvce.TaskDefinition, which constructor makes which KIND of task, how to
 %   choose what to ESTIMATE with lsqvce.Options, and how to read what comes back.
 %
@@ -32,6 +32,9 @@
 %   See also LSQVCE.TASKDEFINITION, LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS,
 %   DEMO_TUTORIAL, DEMO_FIT, DEMO_LSQVCE
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-163: points at the three tutorials
+%   (demo_tutorialMatrix / Batch / Streaming). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as lsqvce.TaskDefinition, one Build per group. With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the contract is named v5,
@@ -227,7 +230,7 @@ fprintf('  blunders     : %d flagged\n', D.nFlag);
 % and the redundancy accounting uses the FULL Qxx including them.
 %
 % (No runnable block here: it needs your multi-system Build functions. See
-% examples/demo_tutorial.m for a complete runnable TaskDefinition with a
+% examples/demo_tutorialStreaming.m for a complete runnable TaskDefinition with a
 % Prepare and two streams, demo_combine.m for the declaration pattern,
 % demo_sensors.m for a complete system/sensor/day hierarchy, and demo_grace.m
 % for the full Estimate="noise", Pool="stream", ArcFactors=false loop.)

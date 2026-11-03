@@ -80,16 +80,17 @@ constructor (streaming) or by <code>fromMatrices</code> / <code>fromBatches</cod
 specification; the runnable build-your-own-case guide is
 <code>examples/demo_workflow.m</code>.</div>
 
-<div class="note"><b>New to lsqvce?</b> Run <code>demo_tutorial</code> and read the
-<a href="lsqvce_manual.html">Manual</a>'s chapters <i>Key concepts</i> and <i>Your first
-adjustment</i> beside it: a complete streaming run in one file, with a
-system <code>Prepare</code> and two stream <code>Build</code> functions you can replace by your own
-reader.</div>
+<div class="note"><b>New to lsqvce?</b> Run the tutorial of your kind of task and read the
+<a href="lsqvce_manual.html">Manual</a>'s chapter <i>Tutorials</i> beside it:
+<code>demo_tutorialMatrix</code> (a design matrix in memory: a levelling network),
+<code>demo_tutorialBatch</code> (rows in batches, correlated weights, a nonlinear model) or
+<code>demo_tutorialStreaming</code> (days and arcs, a system <code>Prepare</code> and two stream
+<code>Build</code> functions you can replace by your own reader).</div>
 
 <div class="note"><b>Starting your own case?</b> Copy
-<code>examples/demo_tutorial.m</code> for a streaming case, or
-<code>examples/demo_fit.m</code> for the in-memory and batched kinds
-(<code>fromMatrices</code>, <code>fromBatches</code>). Two other starting
+<code>examples/demo_tutorialStreaming.m</code> for a streaming case, or
+<code>examples/demo_tutorialMatrix.m</code> / <code>demo_tutorialBatch.m</code> for the in-memory and
+batched kinds (<code>fromMatrices</code>, <code>fromBatches</code>). Two other starting
 points exist for narrower jobs: <code>template/lsqvce_template.m</code> is the
 ENGINE-tier Loader skeleton with one documented stub (<code>myBuildDay</code>),
 and <code>template/gravfire_data.m</code> maps a GRAVFIRE preprocessing bundle
@@ -281,7 +282,9 @@ library code: <code>demo_gravity.m</code> is the closed-loop oracle with measure
 <tr><td class="name">examples/demo_noisePolicy.m</td><td>Per stream: estimate a shape, only a level, or nothing.</td></tr>
 <tr><td class="name">examples/demo_priors.m</td><td>Regularisation written in the columns LSQVCE.LAYOUT announces.</td></tr>
 <tr><td class="name">examples/demo_sensors.m</td><td>The full hierarchy: satellite system / sensor / day.</td></tr>
-<tr><td class="name">examples/demo_tutorial.m</td><td>Your first streaming adjustment, from declaration to verdict (START HERE; the Manual's tutorial).</td></tr>
+<tr><td class="name">examples/demo_tutorialMatrix.m</td><td>Tutorial 1: an adjustment whose design matrix fits in memory (START HERE; the Manual's chapter Tutorials).</td></tr>
+<tr><td class="name">examples/demo_tutorialBatch.m</td><td>Tutorial 2: an adjustment read in batches, linear and nonlinear.</td></tr>
+<tr><td class="name">examples/demo_tutorialStreaming.m</td><td>Tutorial 3: a streaming adjustment, from declaration to verdict.</td></tr>
 <tr><td class="name">examples/demo_workflow.m</td><td>Build your OWN least-squares case, from scratch.</td></tr>
 </table>
 <h2>Manuals</h2>

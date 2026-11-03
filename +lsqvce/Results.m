@@ -144,6 +144,9 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-163: R.reliability's help says
+%   that mdb is in the whitened frame of v (units of the observation's sigma).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-11-03 (CET, UTC+01:00), WP-162: R.toTable takes the
 %   lsqvce.TaskDefinition only (lsqvce:Results:structDeclaration for a struct);
 %   the write-back into a compiled struct's tables is the hidden engine-tier
@@ -654,8 +657,10 @@ classdef Results < handle
         %RELIABILITY  Per-observation reliability of this fit as a table, one
         %   row per observation in sweep order: obs (the index), v (whitened
         %   residual), r (redundancy number), w (the test statistic), mdb
-        %   (minimal detectable bias in the observation's units; Inf where the
-        %   network does not control it) and quadrant -- "cleanOutlier"
+        %   (minimal detectable bias in the frame of v: whitened, so in units of
+        %   the observation's own sigma -- multiply by it for the observation's
+        %   units; Inf where the network does not control it; WP-163) and
+        %   quadrant -- "cleanOutlier"
         %   (|w| > kCrit, r >= rWeak), "ambiguous" (|w| > kCrit, r < rWeak),
         %   "verified" (|w| <= kCrit, r >= rWeak), "untested" (r < rWeak),
         %   "datum" for the rows of a prior that only fixes the datum (r = 0 by

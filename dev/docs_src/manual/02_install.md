@@ -26,11 +26,11 @@ lsqvce_setup('check')      % version, path entries, doc index, whether lsqvce.fi
 Then run one example end to end. It takes a few seconds and needs no data of yours:
 
 ```matlab
-[R, s] = demo_tutorial();  % prints a report ending in "VERDICT: PASS"
+[R, s] = demo_tutorialStreaming();  % prints a report ending in "VERDICT: PASS"
 ```
 
-If that prints the report, the installation works. The chapter *Your first adjustment*
-explains what you just ran.
+If that prints the report, the installation works. The chapter *Tutorials*
+(tutorial 3) explains what you just ran.
 
 ## Uninstall
 
@@ -44,7 +44,7 @@ lsqvce_setup('uninstall')  % removes the two path entries and the Help browser i
 | folder / file | content |
 |---|---|
 | `+lsqvce/` | the package: the user tier (`fit`, `Options`, `Results`, `report`, `layout`, `solveContributions`) and the `engine`, `kernel` and `util` tiers below it |
-| `examples/` | runnable examples (chapter *The examples*); start with `demo_tutorial` |
+| `examples/` | runnable examples (chapter *The examples*); start with the three `demo_tutorial*` |
 | `template/` | starting points for your own case: `kbr_variational.m` (GRACE-FO Level-1B range-rates and orbits), `gravfire_data.m` (a GRAVFIRE bundle to a task definition), `lsqvce_template.m` |
 | `html/` | this Manual, the API reference and one page per public unit |
 | `lsqvce_manual.pdf`, `lsqvce_api.pdf`, `lsqvce_theory.pdf` | the three documents as PDF |

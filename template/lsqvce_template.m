@@ -18,7 +18,7 @@ function [L, task] = lsqvce_template(procOpt)
 %   ENGINE-TIER TEMPLATE (since 2.0). The user path needs no Loader at all:
 %   the task this file declares IS the user-tier declaration, and
 %   lsqvce.fit(task, lsqvce.Options(Estimate="noise")) runs it end to end
-%   (examples/demo_tutorial.m shows a task from scratch). Keep the Loaders
+%   (examples/demo_tutorialStreaming.m shows a task from scratch). Keep the Loaders
 %   when you want them in hand (procOpt-driven cases, direct engine work):
 %   they are compiled from the task by the same declaration step fit uses,
 %   [~, L] = lsqvce.engine.declaration(task.declaration()).
@@ -147,6 +147,9 @@ function [L, task] = lsqvce_template(procOpt)
 %            LSQVCE.DAYDATA, LSQVCE.NOISE, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT, DEMO_TUTORIAL
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-163: points at the three tutorials
+%   (demo_tutorialMatrix / Batch / Streaming). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-11-02 (CET, UTC+01:00), WP-161: the case is declared as a
 %   lsqvce.TaskDefinition from procOpt (one addCommon / addLocal per table row,
 %   one system per group, one stream per type); the stub is myBuild(day, ctx);

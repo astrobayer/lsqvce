@@ -1,10 +1,10 @@
-function [R, s] = demo_tutorial(varargin)
-%DEMO_TUTORIAL  Your first streaming adjustment, from declaration to verdict.
+function [R, s] = demo_tutorialStreaming(varargin)
+%DEMO_TUTORIALSTREAMING  Tutorial 3: a streaming adjustment, from declaration to verdict.
 %
-%   [R, s] = DEMO_TUTORIAL()
-%   [R, s] = DEMO_TUTORIAL('verbose', true, 'plot', true)
+%   [R, s] = DEMO_TUTORIALSTREAMING()
+%   [R, s] = DEMO_TUTORIALSTREAMING('verbose', true, 'plot', true)
 %
-%   THE EXAMPLE OF THE MANUAL'S TUTORIAL (chapter "Your first adjustment").
+%   THE EXAMPLE OF THE MANUAL'S TUTORIAL 3 (chapter "Tutorials", part 3).
 %   Every line of the chapter is a line of this file, so the chapter runs
 %   whenever the test suite runs this file. Read the two side by side.
 %
@@ -59,8 +59,11 @@ function [R, s] = demo_tutorial(varargin)
 %           that makes it (lsqvce:TaskDefinition:*).
 %
 %   See also LSQVCE.TASKDEFINITION, LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS,
-%   DEMO_WORKFLOW, DEMO_FIT
+%   DEMO_TUTORIALMATRIX, DEMO_TUTORIALBATCH, DEMO_WORKFLOW, DEMO_FIT
 %
+%   Updated 2026-11-03 (CET, UTC+01:00), WP-163: renamed from demo_tutorial, the
+%   third of three tutorials (matrix, batched, streaming). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-11-02 (CET, UTC+01:00), WP-161: declared as a
 %   lsqvce.TaskDefinition -- Prepare on the system, one Build per stream, the
 %   arc's bias by name. With assistance from Claude (Anthropic), model Claude

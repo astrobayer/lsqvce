@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-11-03 — LEVEL v7 DONE (PR #212, merge 01bf272, a merge commit; CI GREEN on 2a959d6: audit, matlab ci_gate 812/812 locally, measure); closure PR (the loop's record step after the merge): the ledger rows 160-162 and the closure note in §12.95; no code change; version 7.0.0 stays.
+Last substantive update: 2026-11-03 — WP-163 IN BRANCH on `claude/wp-163` (tier A; model Claude Opus 5.5; user: "Prepare tutorials on using the toolbox for each case: the single matrix, batch and streaming case"): three tutorials (demo_tutorialMatrix, demo_tutorialBatch, demo_tutorialStreaming renamed from demo_tutorial) and the Manual chapter *Tutorials*; version 7.0.1; §12.96.
+Preceding entry: Last substantive update: 2026-11-03 — LEVEL v7 DONE (PR #212, merge 01bf272, a merge commit; CI GREEN on 2a959d6: audit, matlab ci_gate 812/812 locally, measure); closure PR (the loop's record step after the merge): the ledger rows 160-162 and the closure note in §12.95; no code change; version 7.0.0 stays.
 Preceding entry: Last substantive update: 2026-11-03 — LEVEL v7 COMPLETE IN BRANCH on `claude/level-v7`, version 7.0.0 BREAKING (tier A; model Claude Opus 5.5; user: "Loader output: yes / Covariance: absolute / Merge: squash them", D7-D9): WP-162 -- `lsqvce.fit`, `lsqvce.layout`, `R.toTable` take a `lsqvce.TaskDefinition` only; the struct is the engine tier's (`lsqvce.engine.fitDeclaration`, `layoutDeclaration`, hidden `R.declarationTables`); local postflight GREEN 812/812; PR #212 ready for the user's squash merge; §12.95.
 Preceding entry: Last substantive update: 2026-11-03 — LEVEL v7, WP-161 IN BRANCH on `claude/level-v7` (tier A; model Claude Opus 5.5; user: "Very good. Go ahead"): the Manual, the API reference, README, landing page, GRAVFIRE guide and every example and template declare a `lsqvce.TaskDefinition`; `R.toTable(task)`; v6 -> v7 migration table; local postflight GREEN 812/812; WP-162 (the struct leaves the user tier, v7.0.0) OPEN; §12.95.
 Preceding entry: Last substantive update: 2026-11-02 — LEVEL v7 OPEN on `claude/level-v7` (tier A; model Claude Opus 5.5; user: "I find the declaration of parameters and noise very cryptical. Suggest a more intuitive and easy to use way", decisions D1-D6 and N1 the same day): `lsqvce.TaskDefinition` becomes the only user-tier declaration, compiled to the v6.35.1 data struct; WP-160 (classes and compiler) IN PROGRESS, WP-161 (docs, examples, templates) and WP-162 (the struct leaves the user tier, v7.0.0) OPEN; §12.95.
@@ -13017,4 +13018,41 @@ commits stay in main's history). CI on the head 2a959d6: audit, matlab (ci_gate)
 GREEN; local postflight 812/812 on 1ab9180. Ledger rows 160-162 DONE. Open from this level,
 for a later round: an example that leaves Options.Seed unset is not reproducible to the bit
 (WP-161 finding); the two layering-debt rows engine.fitDeclaration -> Options / Results.
+
+### 12.96 WP-163 — one tutorial per kind of task (2026-11-03, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 163 | Three tutorials, one per kind of task, each a runnable example and a part of the Manual chapter *Tutorials* (replacing *Your first adjustment*), each guarded by a claims test in test_fit: demo_tutorialMatrix (new), demo_tutorialBatch (new), demo_tutorialStreaming (demo_tutorial renamed, no alias) | 162 | GREEN IN BRANCH (2026-11-03: local postflight on 1756e4e GREEN 814/814; CI in the verdict comment of PR #214) -- DONE on merge |
+
+**The user's request (2026-11-03):** "Prepare tutorials on using the toolbox for each case: the
+single matrix, batch and streaming case." Read as the toolbox's tutorial form since WP-159: a
+runnable example per case, its Manual section step for step, the printed claims tested.
+
+**WP-163 round note (2026-11-03, tier A: MATLAB R2026a through the MCP bridge, the separate
+clone on the user's PC).**
+- demo_tutorialMatrix: a levelling network (6 points, a benchmark, 15 lines of 1 mm/sqrt(km)).
+  Steps: fromMatrices with weights 1/sigma^2; fit (sigma0 0.991, PASS); R.reliability (sum r =
+  9, the weakest line r 0.37, MDB 8.0 sigma = 8.3 mm); a 20 mm blunder -- the default (Pope)
+  test flags it at s0 3.87, Baarda's w-test flags it and three neighbours (smearing), the worst
+  |w| 11.3 is the planted line, its removal brings sigma0 back to 0.99 with nothing flagged,
+  Robust="huber" down-weights it to 0.127; a free network refused without a datum
+  (lsqvce:qr:singularR) and solved with a datum prior, height differences equal to 1.7e-13 m.
+  MEASURED findings that shaped the text: (1) R.snoop warns lsqvce:snoop:indeterminate below
+  n ~ 450 (WP-137's guard), so the tutorial rejects by hand and names R.snoop for larger
+  networks; (2) seed 163 left Pope's test blind (s0 inflated by the blunder, max |tau| 2.797 <
+  2.809) -- the chapter explains the masking and teaches Baarda for absolute weights; (3)
+  R.reliability's help called mdb "in the observation's units", but on every kind it is in the
+  whitened frame of v (units of sigma): help corrected.
+- demo_tutorialBatch: ten years of hourly sea level (87 600 rows, 6 unknowns) in 120 monthly
+  batches; batched = matrix kind to 1.2e-15; AR(1) noise (phi 0.6) as a full tridiagonal weight
+  matrix per batch: estimates and sigma0 (0.999) unchanged, se x 2.00 = sqrt((1+phi)/(1-phi));
+  the trend 3.5 white sigma vs 1.4 honest sigma from the truth; Gauss-Newton on a relaxation
+  a(1 - exp(-t/tau)) + c converged in 5 iterations, tau 0.3416 +- 0.0059 (planted 0.35).
+- Tests: testDemoTutorialMatrixIsTheManualsTutorial and testDemoTutorialBatchIsTheManualsTutorial
+  (new, test_fit), testDemoTutorialIsTheManualsTutorial renamed ...Streaming...; test_examples'
+  call table gains the two rows (28 suites, 826 declared).
+- Gates: audit CLEAN (one tol-provenance comment and one dead RELEASE_NOTES pointer fixed
+  before the commit). Local postflight (tier A, `matlab -batch` ci_gate in the separate
+  clone) on 1756e4e GREEN 814/814, 291 s. PR #214.
 

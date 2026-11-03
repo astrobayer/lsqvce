@@ -1,8 +1,8 @@
 # The workflow, step by step
 
 This chapter is the checklist for your own data: the decisions in the order you make
-them, each with the chapter that treats it in depth. If you have not yet run the tutorial
-(*Your first adjustment*), do that first; it is the same path on a small case.
+them, each with the chapter that treats it in depth. If you have not yet run a tutorial
+(chapter *Tutorials*), do that first; it is the same path on a small case.
 `examples/demo_workflow.m` walks the path as a script to run section by section.
 
 | step | you decide | you write |
@@ -137,8 +137,8 @@ What to know:
 - If it throws, the error is `lsqvce:makeLoader:prepareDay`, naming the day, with your
   error attached as the cause.
 
-A system with one stream gains nothing from `Prepare`; leave it out. The tutorial (*Your
-first adjustment*) and `template/kbr_variational.m` use it.
+A system with one stream gains nothing from `Prepare`; leave it out. Tutorial 3 (chapter
+*Tutorials*) and `template/kbr_variational.m` use it.
 
 ## Step 6 — First run: one solve under the declared model
 
