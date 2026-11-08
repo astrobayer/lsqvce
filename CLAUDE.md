@@ -60,8 +60,17 @@ matlab-mcp-server; ~4-min call window: detach long runs as
 - The PR is opened ONLY after (1) CI green on the branch AND (2) the
   local MATLAB postflight is green; the postflight result is cited in
   the PR description. `git push --no-verify` is forbidden.
-- The same PR updates ONLY `HANDOVER.md` (§1 ledger row + dated round
-  note). DONE = merged to `main`, checks green, date + PR number + hash.
+- The WP's OWN PR carries its records: the §1 ledger row, already marked
+  DONE, and the dated round note in `HANDOVER.md`. There is NO separate
+  closure PR (user decision 2026-11-08): it left `main` one records-only
+  merge past every release tag, which toolboxInstaller reports as "ahead
+  of the latest release". The row reaches `main` only through the merge
+  that makes it true, so it is never early. DONE = merged to `main`,
+  checks green; the row names the date, the PR number and, when the PR
+  bumps the version, the tag `vX.Y.Z` (release.yml puts it on the merge
+  commit). It names no merge hash, which does not exist before the merge:
+  `git log -1 --merges --grep "#NNN"` finds it. A record that needs
+  correcting after a merge is corrected in the next WP's PR, not alone.
 - `main`'s ruleset requires STRICT status checks: green is not enough, the
   branch must also be up to date. After anything else lands, merge
   `origin/main` into the branch and let CI run again — "CI green but the

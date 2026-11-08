@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-11-03 — WP-163 DONE (PR #214, merge cf0a9ed; CI GREEN on 719ff91: audit, matlab ci_gate); closure PR (the loop's record step after the merge): the ledger row in §12.96; no code change; version 7.0.1 stays.
+Last substantive update: 2026-11-08 — WP-164 DONE (PR #216; tier: none, a records-only rule change; user: "Put the ledger row into the release PR itself"): a WP's own PR now carries its ledger row as DONE and its round note, no closure PR after the merge (CLAUDE.md hard rules, §0 amended); this row is the first under the rule; no code change; version 7.0.1 stays; §12.97.
+Preceding entry: Last substantive update: 2026-11-03 — WP-163 DONE (PR #214, merge cf0a9ed; CI GREEN on 719ff91: audit, matlab ci_gate); closure PR (the loop's record step after the merge): the ledger row in §12.96; no code change; version 7.0.1 stays.
 Preceding entry: Last substantive update: 2026-11-03 — WP-163 IN BRANCH on `claude/wp-163` (tier A; model Claude Opus 5.5; user: "Prepare tutorials on using the toolbox for each case: the single matrix, batch and streaming case"): three tutorials (demo_tutorialMatrix, demo_tutorialBatch, demo_tutorialStreaming renamed from demo_tutorial) and the Manual chapter *Tutorials*; version 7.0.1; §12.96.
 Preceding entry: Last substantive update: 2026-11-03 — LEVEL v7 DONE (PR #212, merge 01bf272, a merge commit; CI GREEN on 2a959d6: audit, matlab ci_gate 812/812 locally, measure); closure PR (the loop's record step after the merge): the ledger rows 160-162 and the closure note in §12.95; no code change; version 7.0.0 stays.
 Preceding entry: Last substantive update: 2026-11-03 — LEVEL v7 COMPLETE IN BRANCH on `claude/level-v7`, version 7.0.0 BREAKING (tier A; model Claude Opus 5.5; user: "Loader output: yes / Covariance: absolute / Merge: squash them", D7-D9): WP-162 -- `lsqvce.fit`, `lsqvce.layout`, `R.toTable` take a `lsqvce.TaskDefinition` only; the struct is the engine tier's (`lsqvce.engine.fitDeclaration`, `layoutDeclaration`, hidden `R.declarationTables`); local postflight GREEN 812/812; PR #212 ready for the user's squash merge; §12.95.
@@ -522,6 +523,10 @@ the numbering (see the ledger note) — open a NEW chat, paste the PROMPT PREAMB
 (§5.0) followed by that work package's prompt (§5.WP-nn), and attach the
 current zip. When the round comes back green, mark the row DONE with the date
 and the confirming run, and record anything learned in that WP's section.
+*(Amended 2026-11-08, WP-164, user decision: the row is marked DONE in the
+WP's own PR, before the merge, naming the PR and -- for a version bump --
+the tag; there is no closure PR after the merge. The rule is CLAUDE.md's
+"Hard rules".)*
 Dependencies are listed per package; do not start a package before its
 dependencies are DONE.
 
@@ -13057,3 +13062,31 @@ clone on the user's PC).**
   before the commit). Local postflight (tier A, `matlab -batch` ci_gate in the separate
   clone) on 1756e4e GREEN 814/814, 291 s. PR #214.
 
+### 12.97 WP-164 — the ledger row rides in the WP's own PR (2026-11-08, model Claude Opus 5.5, no tier: records only)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 164 | The ledger row and the round note are written in the WP's own PR, already DONE, and reach `main` with its merge; the closure PR after the merge is retired (CLAUDE.md hard rules; §0 "How to work through this document" amended) | 163 | **DONE** (2026-11-08, PR #216; no version) |
+
+**The user's request (2026-11-08):** "Put the ledger row into the release PR itself." It followed the
+observation that `main` was one merge (#215, HANDOVER only) past v7.0.1, which toolboxInstaller's
+update table reports as "ahead of the latest release" -- true after every release since the
+closure PR became the loop's record step (v7.0.0 / #213, v7.0.1 / #215).
+
+**Why the row may say DONE before the merge.** DONE means merged with green checks. A row written
+in the WP's branch reaches `main` only through the merge of that PR, so on `main` it is never
+early; a PR that is closed unmerged takes its row with it. What the old rule asked for and the
+new one cannot give is the merge hash, which does not exist until the merge. It is not lost: a
+release's tag points at the merge commit (release.yml), and `git log -1 --merges --grep "#NNN"`
+finds it for any PR. The CI verdict is the PR's own checks, which the strict ruleset requires
+green on the merged head anyway.
+
+**What changes for a session.** Write the row DONE (date, PR number, the tag for a version bump)
+and the round note before marking the PR ready; after the merge there is nothing to record. A
+record that turns out wrong after a merge is fixed in the next WP's PR, so `main` past a tag
+always carries a WP, never only its paperwork. This PR is the first under the rule: it carries
+its own row. It bumps no version, so `main` stays past v7.0.1 until the next versioned WP;
+from that release on, `main` and the tag coincide.
+
+**Gates.** The change is Markdown in CLAUDE.md and dev/HANDOVER.md; no MATLAB file is touched,
+so no local postflight was run. CI on the PR (audit, ci_gate) is the gate.
