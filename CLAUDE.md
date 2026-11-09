@@ -66,10 +66,14 @@ matlab-mcp-server; ~4-min call window: detach long runs as
   merge past every release tag, which toolboxInstaller reports as "ahead
   of the latest release". The row reaches `main` only through the merge
   that makes it true, so it is never early. DONE = merged to `main`,
-  checks green; the row names the date, the PR number and, when the PR
-  bumps the version, the tag `vX.Y.Z` (release.yml puts it on the merge
-  commit). It names no merge hash, which does not exist before the merge:
-  `git log -1 --merges --grep "#NNN"` finds it. A record that needs
+  checks green; the row names the date the row is written (the session's
+  day in the WP's branch, not the merge day, which is not known yet and
+  is on the PR), the PR number and, when the PR bumps the version, the
+  tag `vX.Y.Z` (release.yml puts it on the merge commit). It names no
+  merge hash, which does not exist before the merge:
+  `gh pr view NNN --json mergeCommit -q .mergeCommit.oid` finds it, exact
+  for every merge style (not `git log --merges --grep "#NNN"`: the grep
+  matches by prefix, `--merges` misses squash merges). A record that needs
   correcting after a merge is corrected in the next WP's PR, not alone.
 - `main`'s ruleset requires STRICT status checks: green is not enough, the
   branch must also be up to date. After anything else lands, merge
