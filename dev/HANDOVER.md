@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-11-08 — WP-164 DONE (PR #216; tier: none, a records-only rule change; user: "Put the ledger row into the release PR itself"): a WP's own PR now carries its ledger row as DONE and its round note, no closure PR after the merge (CLAUDE.md hard rules, §0 amended); this row is the first under the rule; no code change; version 7.0.1 stays; §12.97.
+Last substantive update: 2026-11-09 — WP-165 DONE (PR #NNN; no tier: records only; user request 2026-11-09: fix the four review findings left in the text #216 added): the rule of WP-164 corrected -- the merge hash is found with `gh pr view NNN --json mergeCommit`, not `git log --merges --grep`; the row's date is the day it is written; `main` past a tag holds a real WP, not "coincides with the tag"; one spelling for the tier (CLAUDE.md hard rules, §0 amendment, §12.97 corrected); no code change; version 7.0.1 stays; §12.98.
+Preceding entry: Last substantive update: 2026-11-08 — WP-164 DONE (PR #216; no tier: records only, a rule change; user: "Put the ledger row into the release PR itself"): a WP's own PR now carries its ledger row as DONE and its round note, no closure PR after the merge (CLAUDE.md hard rules, §0 amended); this row is the first under the rule; no code change; version 7.0.1 stays; §12.97.
 Preceding entry: Last substantive update: 2026-11-03 — WP-163 DONE (PR #214, merge cf0a9ed; CI GREEN on 719ff91: audit, matlab ci_gate); closure PR (the loop's record step after the merge): the ledger row in §12.96; no code change; version 7.0.1 stays.
 Preceding entry: Last substantive update: 2026-11-03 — WP-163 IN BRANCH on `claude/wp-163` (tier A; model Claude Opus 5.5; user: "Prepare tutorials on using the toolbox for each case: the single matrix, batch and streaming case"): three tutorials (demo_tutorialMatrix, demo_tutorialBatch, demo_tutorialStreaming renamed from demo_tutorial) and the Manual chapter *Tutorials*; version 7.0.1; §12.96.
 Preceding entry: Last substantive update: 2026-11-03 — LEVEL v7 DONE (PR #212, merge 01bf272, a merge commit; CI GREEN on 2a959d6: audit, matlab ci_gate 812/812 locally, measure); closure PR (the loop's record step after the merge): the ledger rows 160-162 and the closure note in §12.95; no code change; version 7.0.0 stays.
@@ -524,9 +525,9 @@ the numbering (see the ledger note) — open a NEW chat, paste the PROMPT PREAMB
 current zip. When the round comes back green, mark the row DONE with the date
 and the confirming run, and record anything learned in that WP's section.
 *(Amended 2026-11-08, WP-164, user decision: the row is marked DONE in the
-WP's own PR, before the merge, naming the PR and -- for a version bump --
-the tag; there is no closure PR after the merge. The rule is CLAUDE.md's
-"Hard rules".)*
+WP's own PR, before the merge, dated the day the row is written, naming the
+PR and -- for a version bump -- the tag; there is no closure PR after the
+merge. The rule is CLAUDE.md's "Hard rules"; corrected 2026-11-09, WP-165.)*
 Dependencies are listed per package; do not start a package before its
 dependencies are DONE.
 
@@ -13077,16 +13078,62 @@ closure PR became the loop's record step (v7.0.0 / #213, v7.0.1 / #215).
 in the WP's branch reaches `main` only through the merge of that PR, so on `main` it is never
 early; a PR that is closed unmerged takes its row with it. What the old rule asked for and the
 new one cannot give is the merge hash, which does not exist until the merge. It is not lost: a
-release's tag points at the merge commit (release.yml), and `git log -1 --merges --grep "#NNN"`
-finds it for any PR. The CI verdict is the PR's own checks, which the strict ruleset requires
+release's tag points at the merge commit (release.yml), and
+`gh pr view NNN --json mergeCommit -q .mergeCommit.oid` finds it for any PR, whatever the merge
+style. *(Corrected 2026-11-09, WP-165: this note first named `git log -1 --merges --grep "#NNN"`,
+which matches by prefix and misses squash merges; §12.98.)* The CI verdict is the PR's own checks, which the strict ruleset requires
 green on the merged head anyway.
 
 **What changes for a session.** Write the row DONE (date, PR number, the tag for a version bump)
 and the round note before marking the PR ready; after the merge there is nothing to record. A
 record that turns out wrong after a merge is fixed in the next WP's PR, so `main` past a tag
 always carries a WP, never only its paperwork. This PR is the first under the rule: it carries
-its own row. It bumps no version, so `main` stays past v7.0.1 until the next versioned WP;
-from that release on, `main` and the tag coincide.
+its own row. It bumps no version, so `main` stays past v7.0.1 until the next versioned WP.
+*(Corrected 2026-11-09, WP-165: this note first promised that from the next release on `main`
+and the tag coincide. They do not: a later WP that bumps no version leaves `main` past the tag
+again. What the rule promises is that `main` past a tag always holds a real WP, never only its
+records; §12.98.)*
 
 **Gates.** The change is Markdown in CLAUDE.md and dev/HANDOVER.md; no MATLAB file is touched,
 so no local postflight was run. CI on the PR (audit, ci_gate) is the gate.
+
+### 12.98 WP-165 — the WP-164 rule corrected: merge hash, row date, the promise, the tier (2026-11-09, model Claude Opus 5.5, no tier: records only)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 165 | Four review findings in the text WP-164 added, corrected (CLAUDE.md hard rules, §0 amendment, §12.97): the merge hash is found with `gh pr view NNN --json mergeCommit -q .mergeCommit.oid`; the row records the date it is written; `main` past a tag holds a real WP (no "coincide" promise); the tier is spelled "no tier" | 164 | **DONE** (2026-11-09, PR #NNN; no version) |
+
+**The user's request (2026-11-09):** fix the four review findings that PR #216 was merged with,
+all in text it added. Under the rule #216 introduced, a correction after a merge rides in the
+next WP's PR, never alone, so the corrections are this WP with its own row, not a records-only
+PR. Like WP-164 (and the closure PRs before it) a WP without a code change bumps no version;
+this one touches no MATLAB file (7.0.1 stays), so `main` stays past v7.0.1 -- holding WP-164 and WP-165, both real
+WPs.
+
+**The four findings and their corrections.**
+1. *The merge-hash lookup.* `git log -1 --merges --grep "#NNN"` matches by prefix and skips
+   squash merges. Measured 2026-11-09 on `main` (cc38c56): `--grep "#21"` returned cc38c56, the
+   merge of #216 (at review time it returned #215's merge; PR #21's merge is 7f1856c); `--grep
+   "#185"` returned nothing, because #185 was squash-merged (ce6982b, one parent). `gh pr view
+   212 --json mergeCommit -q .mergeCommit.oid` returned 01bf272... (the merge of #212), `gh pr
+   view 185 ...` returned ce6982b..., `gh pr view 21 ...` returned 7f1856c.... CLAUDE.md and
+   §12.97 now name the `gh` lookup.
+2. *The promise.* §12.97 said that from the next release on `main` and the tag coincide; a later
+   WP that bumps no version leaves `main` past the tag again (this one does). The accurate
+   promise: `main` past a tag always holds a real WP, never only its records. §12.97 corrected
+   in place, with a dated note.
+3. *The row's date.* The rule did not say which date a row written before its merge records.
+   It is the date the row is written, the session's day in the WP's branch; the merge day is not
+   known when the row is written and is on the PR. Row 164 says 2026-11-08: written that day
+   (97a0cd0), and #216 was also opened and merged that day, so the row stands as it is.
+4. *The tier.* The header line said "tier: none", §12.97 "no tier: records only". One spelling,
+   "no tier: records only", in both places (the header's WP-164 entry corrected); the heading
+   form follows "tier A".
+
+**Gates.** Markdown only, in CLAUDE.md and dev/HANDOVER.md; no MATLAB file is touched, so no
+local postflight was run. `audit_tree.py` on Windows (pandoc 3.11, not the CI runner's Debian build): 2
+findings before and after the edit, both "html/lsqvce_manual.html / lsqvce_api.html differs
+from a fresh build" -- the local-pandoc caveat of CLAUDE.md, untouched by this WP. `audit_selftest.py`: 1 case FAILED
+before and after, the same one (23, "a group field missing from the API reference": healthy 2,
+after fault 3), because check 23 already fires on the healthy tree under this pandoc. CI on the PR
+(audit, ci_gate) is the gate.
