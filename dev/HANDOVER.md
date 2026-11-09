@@ -8,7 +8,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-11-09 — WP-165 DONE (PR #NNN; no tier: records only; user request 2026-11-09: fix the four review findings left in the text #216 added): the rule of WP-164 corrected -- the merge hash is found with `gh pr view NNN --json mergeCommit`, not `git log --merges --grep`; the row's date is the day it is written; `main` past a tag holds a real WP, not "coincides with the tag"; one spelling for the tier (CLAUDE.md hard rules, §0 amendment, §12.97 corrected); no code change; version 7.0.1 stays; §12.98.
+Last substantive update: 2026-11-09 — WP-165 DONE (PR #217; no tier: records only; user request 2026-11-09: fix the four review findings left in the text #216 added): the rule of WP-164 corrected -- the merge hash is found with `gh pr view NNN --json mergeCommit`, not `git log --merges --grep`; the row's date is the day it is written; `main` past a tag holds a real WP, not "coincides with the tag"; one spelling for the tier (CLAUDE.md hard rules, §0 amendment, §12.97 corrected); no code change; version 7.0.1 stays; §12.98.
 Preceding entry: Last substantive update: 2026-11-08 — WP-164 DONE (PR #216; no tier: records only, a rule change; user: "Put the ledger row into the release PR itself"): a WP's own PR now carries its ledger row as DONE and its round note, no closure PR after the merge (CLAUDE.md hard rules, §0 amended); this row is the first under the rule; no code change; version 7.0.1 stays; §12.97.
 Preceding entry: Last substantive update: 2026-11-03 — WP-163 DONE (PR #214, merge cf0a9ed; CI GREEN on 719ff91: audit, matlab ci_gate); closure PR (the loop's record step after the merge): the ledger row in §12.96; no code change; version 7.0.1 stays.
 Preceding entry: Last substantive update: 2026-11-03 — WP-163 IN BRANCH on `claude/wp-163` (tier A; model Claude Opus 5.5; user: "Prepare tutorials on using the toolbox for each case: the single matrix, batch and streaming case"): three tutorials (demo_tutorialMatrix, demo_tutorialBatch, demo_tutorialStreaming renamed from demo_tutorial) and the Manual chapter *Tutorials*; version 7.0.1; §12.96.
@@ -13101,7 +13101,7 @@ so no local postflight was run. CI on the PR (audit, ci_gate) is the gate.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 165 | Four review findings in the text WP-164 added, corrected (CLAUDE.md hard rules, §0 amendment, §12.97): the merge hash is found with `gh pr view NNN --json mergeCommit -q .mergeCommit.oid`; the row records the date it is written; `main` past a tag holds a real WP (no "coincide" promise); the tier is spelled "no tier" | 164 | **DONE** (2026-11-09, PR #NNN; no version) |
+| 165 | Four review findings in the text WP-164 added, corrected (CLAUDE.md hard rules, §0 amendment, §12.97): the merge hash is found with `gh pr view NNN --json mergeCommit -q .mergeCommit.oid`; the row records the date it is written; `main` past a tag holds a real WP (no "coincide" promise); the tier is spelled "no tier" | 164 | **DONE** (2026-11-09, PR #217; no version) |
 
 **The user's request (2026-11-09):** fix the four review findings that PR #216 was merged with,
 all in text it added. Under the rule #216 introduced, a correction after a merge rides in the
