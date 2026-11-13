@@ -16,6 +16,14 @@ on:
                        # parallel cache saves - the duplicate-key incident).
                        # The D8 loop now opens a DRAFT PR right after the
                        # first push, so every push still gets its verdict.
+  workflow_dispatch:   # a manual start, for a run GitHub refused at start-up
+                       # (such a run cannot be re-run) and for choosing the
+                       # runner by hand. ci-route: it narrows, never widens.
+    inputs:
+      runner:
+        description: "auto | a8 | hosted - narrows the routing, never widens it"
+        required: false
+        default: auto
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
