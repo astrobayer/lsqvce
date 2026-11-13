@@ -22,6 +22,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Where may MATLAB run for this event: A8, a GitHub-hosted runner, or
+  # nowhere? One decision for the whole organisation, in
+  # astrobayer/ci-actions (ci-route; docs/CI_GUIDE.md section 2): members
+  # only, no forks, A8 from a public repository only for the allow-listed
+  # user. This job never fails - a refusal arrives in the MATLAB job as
+  # runner=none and matlab-setup turns that required context red.
+  route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      runner: ${{ steps.route.outputs.runner }}
+      runs-on: ${{ steps.route.outputs.runs-on }}
+      reason: ${{ steps.route.outputs.reason }}
+    steps:
+      - id: route
+        uses: astrobayer/ci-actions/ci-route@v1.4.0
+        with:
+          policy: ${{ vars.CI_MATLAB_RUNNER }}
+          request: ${{ github.event.inputs.runner }}
+
   audit:                       # < 1 min, no MATLAB: fail fast
     runs-on: ubuntu-latest
     steps:
@@ -35,8 +57,8 @@ jobs:
       - run: for f in dev/validation/v10review.py; do python "$f"; done
 
   matlab:
-    needs: audit
-    runs-on: [self-hosted, Windows]
+    needs: [audit, route]
+    runs-on: ${{ fromJSON(needs.route.outputs.runs-on) }}
     timeout-minutes: 45        # backstop: no wedge sits for hours
     env:
       LSQVCE_CI: 1             # ci_gate: headless figures (no skip, no pool
@@ -60,8 +82,15 @@ jobs:
       # timeout-minutes sits here and not in the action: GitHub's
       # composite-action schema rejects the key on a step. The job-level
       # cap above is the backstop regardless.
-      - uses: astrobayer/ci-actions/matlab-probe@v1.0.0
-        timeout-minutes: 2
+      # MATLAB on the routed runner: probed on A8, installed by setup-matlab on a
+      # GitHub-hosted runner (public repositories only), or a red step quoting
+      # the routing refusal. Replaces matlab-probe; same immutable-tag rule.
+      - uses: astrobayer/ci-actions/matlab-setup@v1.4.0
+        timeout-minutes: 15
+        with:
+          runner: ${{ needs.route.outputs.runner }}
+          reason: ${{ needs.route.outputs.reason }}
+          products: ${{ vars.CI_MATLAB_PRODUCTS }}
 
       - uses: matlab-actions/run-command@bfa857648f4895aa98a446fe41c85e0788421ed5 # v3
         with:
