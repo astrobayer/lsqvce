@@ -65,11 +65,8 @@ jobs:
                                # cap since WP-103 -- the runner has the PCT)
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      # The probe and the reasoning behind it now live in
-      # .github/actions/matlab-probe. Same step, one definition.
-      # Moves to astrobayer/ci-actions once that repository exists.
-      # The probe and the reasoning behind it live in
-      # astrobayer/ci-actions. Six repositories carried this step
+      # matlab-setup (it replaced the probe on 2026-11-13) and the reasoning
+      # behind both live in astrobayer/ci-actions. Six repositories carried this step
       # byte-for-byte identically; one editing mistake in a copied step
       # has already cost this repository its checkout.
       #
